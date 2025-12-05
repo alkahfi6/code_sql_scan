@@ -1031,7 +1031,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 	execProcLit := regexp.MustCompile(`(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*"([^"]+)"`)
 	execProcDyn := regexp.MustCompile(`(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*([^),]+)`)
-	newCmd := regexp.MustCompile(`(?i)new\s+SqlCommand\s*\(\s*"([^"]+)"\s*,\s*([^)]+?)\)`) // group1=sql, group2=conn
+	newCmd := regexp.MustCompile(`(?i)new\s+SqlCommand\s*\(\s*"([^"]+)"\s*,\s*([^)]+?)\)`)                     // group1=sql, group2=conn
+	newCmdIdent := regexp.MustCompile(`(?i)new\s+SqlCommand\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([^)]+?)\)`) // identifier first arg
 	// Dapper-style Query<T>("SQL", ...) and Execute("SQL", ...)
 	dapperQuery := regexp.MustCompile(`(?i)\.\s*Query(?:Async)?(?:<[^>]*>)?\s*\(\s*"([^"]+)"`)
 	dapperExec := regexp.MustCompile(`(?i)\.\s*Execute(?:Async)?\s*\(\s*"([^"]+)"`)
@@ -1044,8 +1045,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	callQueryWsLit := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*"([^"]+)"`)
 	callQueryWsDyn := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`)
 
-	// CommandText assignment: cmd.CommandText = "ProcName"
+	// CommandText assignment: cmd.CommandText = "ProcName" or variable
 	commandTextLit := regexp.MustCompile(`(?i)\.\s*CommandText\s*=\s*"([^"]+)"`)
+	commandTextIdent := regexp.MustCompile(`(?i)\.\s*CommandText\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b`)
 
 	type pat struct {
 		re       *regexp.Regexp
@@ -1056,6 +1058,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		{execProcLit, true, false},
 		{execProcDyn, true, true},
 		{newCmd, false, false},
+		{newCmdIdent, false, false},
 		{dapperQuery, false, false},
 		{dapperExec, false, false},
 		{efFromSql, false, false},
@@ -1064,6 +1067,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		{callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
 		{callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
 		{commandTextLit, false, false}, // CommandText = "ProcName"
+		{commandTextIdent, false, false},
 	}
 
 	identRe := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
@@ -1105,6 +1109,18 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = cleanedGroup(clean, m, 1)
 				rawLiteral = true
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+			case newCmdIdent:
+				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+				if funcName != "" && identRe.MatchString(raw) {
+					if lit, ok := literalInMethod[funcName][raw]; ok {
+						raw = lit
+						rawLiteral = true
+					} else {
+						isDyn = true
+						raw = "<dynamic-sql>"
+					}
+				}
 			case execProcLit, execProcDyn:
 				// group1 = conn, group2 = arg (SP literal or expr)
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
@@ -1131,6 +1147,20 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
 				raw = cleanedGroup(clean, m, 1)
 				rawLiteral = true
+				if p.re == commandTextIdent {
+					expr := strings.TrimSpace(raw)
+					rawLiteral = false
+					raw = expr
+					if funcName != "" && identRe.MatchString(expr) {
+						if lit, ok := literalInMethod[funcName][expr]; ok {
+							raw = lit
+							rawLiteral = true
+						} else {
+							isDyn = true
+							raw = "<dynamic-sql>"
+						}
+					}
+				}
 			}
 
 			if !rawLiteral {
@@ -1210,6 +1240,7 @@ func detectCsMethods(lines []string) []string {
 	methodAtLine := make([]string, len(lines))
 	current := ""
 	re := regexp.MustCompile(`(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+	reNoMod := regexp.MustCompile(`(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`)
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
@@ -1218,6 +1249,11 @@ func detectCsMethods(lines []string) []string {
 		}
 		if m := re.FindStringSubmatch(trimmed); len(m) >= 3 {
 			current = m[2]
+		} else if m := reNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+			kw := strings.ToLower(m[1])
+			if kw != "if" && kw != "for" && kw != "while" && kw != "switch" && kw != "catch" {
+				current = m[1]
+			}
 		}
 		methodAtLine[i] = current
 	}
