@@ -2152,6 +2152,8 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
+var procParamPlaceholderPattern = regexp.MustCompile(`\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`)
+
 func parseProcNameSpec(s string) ObjectToken {
 	trimmed := strings.TrimSpace(s)
 	if strings.HasSuffix(trimmed, ";") {
@@ -2161,9 +2163,14 @@ func parseProcNameSpec(s string) ObjectToken {
 	if idx := strings.Index(trimmed, "("); idx >= 0 {
 		trimmed = strings.TrimSpace(trimmed[:idx])
 	}
+
+	origTrimmed := trimmed
+	trimmed = procParamPlaceholderPattern.ReplaceAllString(trimmed, "")
+	trimmed = strings.TrimSpace(trimmed)
+
 	db, schema, base, isLinked := splitObjectNameParts(trimmed)
 	dyn := false
-	if strings.Contains(trimmed, "[[") || strings.Contains(trimmed, "]]") || strings.ContainsAny(trimmed, "?:") {
+	if strings.Contains(origTrimmed, "[[") || strings.Contains(origTrimmed, "]]") || strings.ContainsAny(origTrimmed, "?:@") {
 		dyn = true
 	}
 	return ObjectToken{
