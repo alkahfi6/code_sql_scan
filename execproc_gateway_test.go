@@ -74,6 +74,35 @@ func TestCSharpExecProcGateway(t *testing.T) {
 			matchRaw: "Sales.uspSync",
 			want:     objectExpectation{schema: "Sales", base: "uspSync", role: "exec", dml: "EXEC", dyn: false},
 		},
+		{
+			name: "SqlCommand uses identifier first arg",
+			content: `using System.Data;
+class R {
+    void Run(){
+        var procName = "dbo.SyncOrders";
+        var cmd = new SqlCommand(procName, new Conn());
+        cmd.CommandType = CommandType.StoredProcedure;
+    }
+}
+class Conn { }`,
+			matchRaw: "dbo.SyncOrders",
+			want:     objectExpectation{schema: "dbo", base: "SyncOrders", role: "exec", dml: "EXEC", dyn: false},
+		},
+		{
+			name: "CommandText assigned from identifier",
+			content: `using System.Data;
+class R {
+    void Run(){
+        var proc = "Inventory.AdjustStock";
+        var cmd = new Cmd();
+        cmd.CommandText = proc;
+        cmd.CommandType = CommandType.StoredProcedure;
+    }
+}
+class Cmd { public string CommandText { get; set; } public CommandType CommandType { get; set; } }`,
+			matchRaw: "Inventory.AdjustStock",
+			want:     objectExpectation{schema: "Inventory", base: "AdjustStock", role: "exec", dml: "EXEC", dyn: false},
+		},
 	}
 
 	for _, tt := range cases {
