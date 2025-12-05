@@ -1887,16 +1887,14 @@ func countLinesUpTo(s string, pos int) int {
 
 func isProcNameSpec(s string) bool {
 	trimmed := strings.TrimSpace(s)
-	l := strings.ToLower(trimmed)
-	if l == "" {
+	if trimmed == "" {
 		return false
 	}
 
-	kw := []string{"select", "insert", "update", "delete", "truncate", "exec"}
-	for _, k := range kw {
-		if strings.Contains(l, k) {
-			return false
-		}
+	firstTok := strings.ToLower(leadingAlphaNumToken(trimmed))
+	switch firstTok {
+	case "select", "insert", "update", "delete", "truncate", "exec", "execute", "with":
+		return false
 	}
 
 	// Allow trailing parameter markers (e.g., "?,?" or "(@p1, @p2)") after the proc name.
@@ -1918,6 +1916,22 @@ func isProcNameSpec(s string) bool {
 	return true
 }
 
+func leadingAlphaNumToken(s string) string {
+	var b strings.Builder
+	started := false
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			b.WriteRune(unicode.ToLower(r))
+			started = true
+			continue
+		}
+		if started {
+			break
+		}
+	}
+	return b.String()
+}
+
 func paramsOnly(s string) bool {
 	if s == "" {
 		return true
@@ -1927,9 +1941,10 @@ func paramsOnly(s string) bool {
 		case '?', '@', ':', ',', '(', ')', '[', ']', '.', '-', '+', '\'', '"':
 		case ' ', '\t', '\r', '\n':
 		default:
-			if r < '0' || r > '9' {
-				return false
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+				continue
 			}
+			return false
 		}
 	}
 	return true

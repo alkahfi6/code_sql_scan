@@ -1,5 +1,5 @@
 AppName,RelPath,File,SourceCategory,SourceKind,LineStart,LineEnd,Func,RawSql,SqlClean,UsageKind,IsWrite,HasCrossDb,DbList,ObjectCount,IsDynamic,ConnName,ConnDb,QueryHash,RiskLevel,DefinedInRelPath,DefinedInLine
-golang,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"[dbo].[UpdateControlTableResikoPasar] ?,?","[dbo].[UpdateControlTableResikoPasar] ?,?",UNKNOWN,false,false,,1,false,db,,6ae73001c2fda128acc6c4df428d721c6c6c3000,LOW,go1/golang/go1/sp.go,3
+golang,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"[dbo].[UpdateControlTableResikoPasar] ?,?","[dbo].[UpdateControlTableResikoPasar] ?,?",EXEC,true,false,,1,false,db,,6ae73001c2fda128acc6c4df428d721c6c6c3000,MEDIUM,go1/golang/go1/sp.go,3
 golang,go1/destination.go,destination.go,code,go,25,25,GetOboxPreviousWorkingDate,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,db,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/golang/go1/query.go,3
 golang,go1/destination.go,destination.go,code,go,41,41,DeleteDuplicateConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
 golang,go1/destination.go,destination.go,code,go,58,58,ExecuteSPMurexTConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
@@ -48,7 +48,7 @@ golang,go1/source.go,source.go,code,go,61,61,GetMK006A,<dynamic-sql>,<dynamic-sq
 golang,go1/source.go,source.go,code,go,71,71,GetMurexAvgPrice,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang,go1/source.go,source.go,code,go,82,82,GetMK005AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang,go1/source.go,source.go,code,go,93,93,GetMK005A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang,go1/source.go,source.go,code,go,112,112,ValidateMKData,[dbo].[MKValidateData] ?,[dbo].[MKValidateData] ?,UNKNOWN,false,false,,0,false,db,,cfac7247a5fa57eb91826f292a7b1996e62814a7,LOW,go1/source.go,104
+golang,go1/source.go,source.go,code,go,112,112,ValidateMKData,[dbo].[MKValidateData] ?,[dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,cfac7247a5fa57eb91826f292a7b1996e62814a7,MEDIUM,go1/source.go,104
 golang,go2/impl.go,impl.go,code,go,26,26,GetCurrWorkingDate,"
 	SELECT TOP 1 current_working_date
 	FROM dbo.control_table
@@ -279,7 +279,7 @@ left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj
 order by aj.NIK",SELECT,false,false,,2,false,ctx,,492edaf631dd771bc526aead7ee6279d70997822,LOW,go3/golang/go3/aajiQueries.sql.go,425
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,487,487,GetLastInsertedBatchId,"-- name: GetLastInsertedBatchId :one
 SELECT cast(max(BatchId) as int) as BatchId FROM BancaMTranAAJIAAUI_TT
-",SELECT cast(max(BatchId) as int) as BatchId FROM BancaMTranAAJIAAUI_TT,SELECT,false,false,,1,false,ctx,,021cb023b31036c7991162b665f49770ba018d0a,LOW,go3/golang/go3/aajiQueries.sql.go,482
+",SELECT cast(max(BatchId) as int) as BatchId FROM BancaMTranAAJIAAUI_TT,EXEC,true,false,,1,false,ctx,,021cb023b31036c7991162b665f49770ba018d0a,MEDIUM,go3/golang/go3/aajiQueries.sql.go,482
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,503,503,GetNIKFromBancaNoAAJITMByAAUIANDNIK,"-- name: GetNIKFromBancaNoAAJITMByAAUIANDNIK :many
 select au.NIK from BancaNoAAUI_TM au where au.AAUI = @p1 and au.NIK != @p2
 ",select au.NIK from BancaNoAAUI_TM au where au.AAUI = @p1 and au.NIK != @p2,SELECT,false,false,,1,false,ctx,,cf88a0ebea8bf362757fa0bc3aaf9abd546c4d4a,LOW,go3/golang/go3/aajiQueries.sql.go,493
@@ -293,7 +293,7 @@ golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,617,InsertBancaMTra
 insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
 select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9
 ","insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
-select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",INSERT,true,false,,2,false,ctx,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/golang/go3/aajiQueries.sql.go,589
+select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",EXEC,true,false,,2,false,ctx,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/golang/go3/aajiQueries.sql.go,589
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,627,627,UpdateBatchCode,"-- name: UpdateBatchCode :exec
 UPDATE BancaMTranAAJIAAUI_TT
 SET BatchCode = 'M' + cast (BatchId as varchar(50)) where BatchId = @p1

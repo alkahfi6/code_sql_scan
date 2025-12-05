@@ -140,6 +140,11 @@ func TestIsProcNameSpecAllowsParamsSuffix(t *testing.T) {
 			expected: true,
 		},
 		{
+			name:     "proc name containing keyword but not leading",
+			input:    "dbo.ProcessUpdateData",
+			expected: true,
+		},
+		{
 			name:     "proc name with named params",
 			input:    "dbo.ProcessData @p1, @p2",
 			expected: true,
@@ -147,6 +152,16 @@ func TestIsProcNameSpecAllowsParamsSuffix(t *testing.T) {
 		{
 			name:     "non-proc due to select keyword",
 			input:    "select * from dbo.TableA",
+			expected: false,
+		},
+		{
+			name:     "non-proc due to exec keyword",
+			input:    "EXEC dbo.SomeProc @p1",
+			expected: false,
+		},
+		{
+			name:     "non-proc due to cte",
+			input:    "WITH cte AS (SELECT 1) SELECT * FROM cte",
 			expected: false,
 		},
 	}
