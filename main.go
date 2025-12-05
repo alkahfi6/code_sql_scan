@@ -69,6 +69,39 @@ func (c *connRegistry) snapshot() map[string]string {
 	return copy
 }
 
+func ensureRelPath(root, p string) string {
+	if p == "" {
+		return ""
+	}
+	clean := filepath.Clean(p)
+	absRoot := filepath.Clean(root)
+	if absRoot == "" {
+		return filepath.ToSlash(clean)
+	}
+
+	if strings.HasPrefix(clean, absRoot) {
+		if rel, err := filepath.Rel(absRoot, clean); err == nil {
+			clean = rel
+		}
+	} else if idx := strings.Index(clean, absRoot); idx >= 0 {
+		trimmed := strings.TrimPrefix(clean[idx+len(absRoot):], string(filepath.Separator))
+		if trimmed != "" {
+			clean = trimmed
+		}
+	}
+
+	if filepath.IsAbs(clean) {
+		if rel, err := filepath.Rel(absRoot, clean); err == nil {
+			clean = rel
+		}
+	}
+
+	if rel, err := filepath.Rel(absRoot, clean); err == nil {
+		return filepath.ToSlash(rel)
+	}
+	return filepath.ToSlash(clean)
+}
+
 // goSymtabCache caches package-wide Go symbol tables per directory to avoid redundant parsing.
 type goSymtabCache struct {
 	mu   sync.RWMutex
@@ -119,6 +152,10 @@ type SqlSymbol struct {
 	Line       int
 	IsComplete bool
 	IsProcSpec bool
+}
+
+type staticSet struct {
+	Values []SqlSymbol
 }
 
 type SqlCandidate struct {
@@ -622,7 +659,7 @@ func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
 						symtab[name.Name] = SqlSymbol{
 							Name:       name.Name,
 							Value:      val,
-							RelPath:    relPath,
+							RelPath:    ensureRelPath(root, relPath),
 							Line:       pos.Line,
 							IsComplete: true,
 							IsProcSpec: isProcNameSpec(val),
@@ -692,6 +729,10 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	}
 
 	// Helper to evaluate an expression as a potential SQL string using local and global symtabs.
+	normalizeDef := func(p string) string {
+		return ensureRelPath(cfg.Root, p)
+	}
+
 	var evalArg func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int)
 	evalArg = func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int) {
 		if expr == nil {
@@ -719,14 +760,14 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			name := v.Name
 			if localSymtab != nil {
 				if sym, ok := localSymtab[name]; ok {
-					return sym.Value, false, sym.RelPath, sym.Line
+					return sym.Value, false, normalizeDef(sym.RelPath), sym.Line
 				}
 				if _, ok := localDyn[name]; ok {
 					return "", true, relPath, 0
 				}
 			}
 			if sym, ok := pkgSymtab[name]; ok && sym.IsComplete {
-				return sym.Value, false, sym.RelPath, sym.Line
+				return sym.Value, false, normalizeDef(sym.RelPath), sym.Line
 			}
 			return "", true, relPath, 0
 		case *ast.CallExpr:
@@ -827,6 +868,38 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		currentFunc := fd.Name.Name
 		localSymtab := make(map[string]SqlSymbol)
 		localDyn := make(map[string]bool)
+		staticAssignments := make(map[string]*staticSet)
+
+		addStaticValue := func(name string, sym SqlSymbol) {
+			set := staticAssignments[name]
+			if set == nil {
+				set = &staticSet{}
+				staticAssignments[name] = set
+			}
+			for _, v := range set.Values {
+				if v.Value == sym.Value && v.RelPath == sym.RelPath && v.Line == sym.Line {
+					return
+				}
+			}
+			set.Values = append(set.Values, sym)
+			combined := combineStaticValues(set.Values)
+			base := set.Values[0]
+			localSymtab[name] = SqlSymbol{
+				Name:       name,
+				Value:      combined,
+				RelPath:    base.RelPath,
+				Line:       base.Line,
+				IsComplete: true,
+				IsProcSpec: isProcNameSpec(combined),
+			}
+			delete(localDyn, name)
+		}
+
+		markDynamic := func(name string) {
+			localDyn[name] = true
+			delete(localSymtab, name)
+			delete(staticAssignments, name)
+		}
 
 		ast.Inspect(fd.Body, func(n ast.Node) bool {
 			switch v := n.(type) {
@@ -839,25 +912,28 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 							return true
 						}
 						// evaluate using local and global symtab
-						rawVal, dyn, _, _ := evalArg(v.Rhs[0], localSymtab, localDyn)
+						rawVal, dyn, defPath, defLine := evalArg(v.Rhs[0], localSymtab, localDyn)
+						defPath = ensureRelPath(cfg.Root, defPath)
 						if dyn || rawVal == "" {
-							delete(localSymtab, name)
-							localDyn[name] = true
+							markDynamic(name)
 						} else {
-							if _, exists := localSymtab[name]; exists {
-								delete(localSymtab, name)
-								localDyn[name] = true
-							} else {
-								pos := fset.Position(lhsIdent.Pos())
-								localSymtab[name] = SqlSymbol{
-									Name:       name,
-									Value:      rawVal,
-									RelPath:    relPath,
-									Line:       pos.Line,
-									IsComplete: true,
-									IsProcSpec: isProcNameSpec(rawVal),
-								}
+							pos := fset.Position(lhsIdent.Pos())
+							line := defLine
+							if line == 0 {
+								line = pos.Line
 							}
+							if defPath == "" {
+								defPath = relPath
+							}
+							sym := SqlSymbol{
+								Name:       name,
+								Value:      rawVal,
+								RelPath:    defPath,
+								Line:       line,
+								IsComplete: true,
+								IsProcSpec: isProcNameSpec(rawVal),
+							}
+							addStaticValue(name, sym)
 						}
 					}
 				}
@@ -877,31 +953,34 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 								continue
 							}
 							if len(vs.Values) <= i {
-								localDyn[name.Name] = true
 								delete(localSymtab, name.Name)
+								delete(staticAssignments, name.Name)
 								continue
 							}
 							valExpr := vs.Values[i]
 							// evaluate using local and global symtab
-							rawVal, dyn, _, _ := evalArg(valExpr, localSymtab, localDyn)
+							rawVal, dyn, defPath, defLine := evalArg(valExpr, localSymtab, localDyn)
+							defPath = ensureRelPath(cfg.Root, defPath)
 							if dyn || rawVal == "" {
-								delete(localSymtab, name.Name)
-								localDyn[name.Name] = true
+								markDynamic(name.Name)
 							} else {
-								if _, exists := localSymtab[name.Name]; exists {
-									delete(localSymtab, name.Name)
-									localDyn[name.Name] = true
-								} else {
-									pos := fset.Position(name.Pos())
-									localSymtab[name.Name] = SqlSymbol{
-										Name:       name.Name,
-										Value:      rawVal,
-										RelPath:    relPath,
-										Line:       pos.Line,
-										IsComplete: true,
-										IsProcSpec: isProcNameSpec(rawVal),
-									}
+								pos := fset.Position(name.Pos())
+								line := defLine
+								if line == 0 {
+									line = pos.Line
 								}
+								if defPath == "" {
+									defPath = relPath
+								}
+								sym := SqlSymbol{
+									Name:       name.Name,
+									Value:      rawVal,
+									RelPath:    defPath,
+									Line:       line,
+									IsComplete: true,
+									IsProcSpec: isProcNameSpec(rawVal),
+								}
+								addStaticValue(name.Name, sym)
 							}
 						}
 					}
@@ -927,6 +1006,7 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 					expr := v.Args[idx]
 					rawProc, dynamicProc, defPath, defLine := evalArg(expr, localSymtab, localDyn)
+					defPath = ensureRelPath(cfg.Root, defPath)
 					rawSql := rawProc
 					isDynamic := dynamicProc
 					if rawSql == "" {
@@ -966,6 +1046,7 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				}
 				expr := v.Args[idx]
 				raw, dynamic, defPath, defLine := evalArg(expr, localSymtab, localDyn)
+				defPath = ensureRelPath(cfg.Root, defPath)
 				if raw == "" && dynamic {
 					raw = "<dynamic-sql>"
 				}
@@ -1073,6 +1154,17 @@ func evalStringExpr(expr ast.Expr, symtab map[string]SqlSymbol) (string, bool) {
 		return "", true
 	}
 	return "", true
+}
+
+func combineStaticValues(vals []SqlSymbol) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, v := range vals {
+		parts = append(parts, v.Value)
+	}
+	return strings.Join(parts, ";\n")
 }
 
 func strconvUnquoteSafe(s string) (string, error) {
