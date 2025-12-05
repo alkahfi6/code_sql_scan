@@ -635,6 +635,46 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 	var cands []SqlCandidate
 
+	var isPureStringLiteral func(expr ast.Expr) bool
+	isPureStringLiteral = func(expr ast.Expr) bool {
+		switch v := expr.(type) {
+		case *ast.BasicLit:
+			return v.Kind == token.STRING
+		case *ast.BinaryExpr:
+			if v.Op == token.ADD {
+				return isPureStringLiteral(v.X) && isPureStringLiteral(v.Y)
+			}
+		case *ast.ParenExpr:
+			return isPureStringLiteral(v.X)
+		}
+		return false
+	}
+
+	var evalLiteralConcat func(expr ast.Expr) (string, bool)
+	evalLiteralConcat = func(expr ast.Expr) (string, bool) {
+		switch v := expr.(type) {
+		case *ast.BasicLit:
+			if v.Kind == token.STRING {
+				s, err := strconvUnquoteSafe(v.Value)
+				if err != nil {
+					return v.Value, true
+				}
+				return s, true
+			}
+		case *ast.BinaryExpr:
+			if v.Op == token.ADD {
+				left, lok := evalLiteralConcat(v.X)
+				right, rok := evalLiteralConcat(v.Y)
+				if lok && rok {
+					return left + right, true
+				}
+			}
+		case *ast.ParenExpr:
+			return evalLiteralConcat(v.X)
+		}
+		return "", false
+	}
+
 	// Helper to evaluate an expression as a potential SQL string using local and global symtabs.
 	var evalArg func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int)
 	evalArg = func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int) {
@@ -652,10 +692,11 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		case *ast.BinaryExpr:
 			if v.Op == token.ADD {
-				left, ld, _, _ := evalArg(v.X, localSymtab, localDyn)
-				right, rd, _, _ := evalArg(v.Y, localSymtab, localDyn)
-				if !ld && !rd {
-					return left + right, false, relPath, 0
+				if !isPureStringLiteral(v) {
+					return "", true, relPath, 0
+				}
+				if combined, ok := evalLiteralConcat(v); ok {
+					return combined, false, relPath, 0
 				}
 			}
 		case *ast.Ident:
@@ -1003,6 +1044,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	}
 
 	identRe := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+	unquoteIfQuoted := func(s string) (string, bool) {
+		trimmed := strings.TrimSpace(s)
+		if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+			if unq, err := strconvUnquoteSafe(trimmed); err == nil {
+				return unq, true
+			}
+		}
+		return s, false
+	}
 
 	for _, p := range patterns {
 		matches := p.re.FindAllStringSubmatchIndex(clean, -1)
@@ -1024,37 +1074,61 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 			isDyn := p.dynamic
 			isExecStub := p.execStub
+			rawLiteral := false
 
 			switch p.re {
 			case newCmd:
 				// group1 = SQL, group2 = conn
 				raw = cleanedGroup(clean, m, 1)
+				rawLiteral = true
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 			case execProcLit, execProcDyn:
 				// group1 = conn, group2 = arg (SP literal or expr)
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
+				if p.re == execProcLit {
+					rawLiteral = true
+				}
 				if p.re == execProcDyn && funcName != "" && identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
 						raw = lit
 						isDyn = false
 						isExecStub = true
+						rawLiteral = true
 					}
-				}
-				if raw == "" && p.dynamic {
-					raw = "<dynamic-proc>"
 				}
 			case callQueryWsLit, callQueryWsDyn:
 				// group1 = SQL or expression
 				raw = cleanedGroup(clean, m, 1)
+				if p.re == callQueryWsLit {
+					rawLiteral = true
+				}
 			default:
 				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
 				raw = cleanedGroup(clean, m, 1)
+				rawLiteral = true
+			}
+
+			if !rawLiteral {
+				if unq, ok := unquoteIfQuoted(raw); ok {
+					raw = unq
+					rawLiteral = true
+				}
+			}
+
+			rawTrim := strings.TrimSpace(raw)
+			if !rawLiteral && (p.re == execProcDyn || p.re == callQueryWsDyn || identRe.MatchString(rawTrim)) {
+				isDyn = true
+				raw = "<dynamic-sql>"
 			}
 
 			if raw == "" {
-				continue
+				if isDyn {
+					raw = "<dynamic-sql>"
+				} else {
+					continue
+				}
 			}
 			// mark dynamic if raw contains interpolations or variables
 			if !p.dynamic {
@@ -1725,6 +1799,12 @@ func isProcNameSpec(s string) bool {
 }
 
 func analyzeCandidate(c *SqlCandidate) {
+	if !c.IsDynamic {
+		raw := c.RawSql
+		if strings.Contains(raw, "[[") || strings.Contains(raw, "]]") || strings.Contains(raw, "${") {
+			c.IsDynamic = true
+		}
+	}
 	sqlClean := StripSqlComments(c.RawSql)
 	sqlClean = strings.TrimSpace(sqlClean)
 	c.SqlClean = sqlClean

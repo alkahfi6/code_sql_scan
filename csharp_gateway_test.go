@@ -33,6 +33,7 @@ func TestCSharpQueryGateways(t *testing.T) {
 			matchRaw:     "[[paramTableName]]",
 			usage:        "SELECT",
 			isWrite:      false,
+			isDynamic:    true,
 			expectations: []objectExpectation{{base: "[schema", role: "source", dml: "SELECT", dyn: true}},
 		},
 		{
@@ -46,7 +47,7 @@ func TestCSharpQueryGateways(t *testing.T) {
 		{
 			name:         "dynamic CallQueryFromWs expression cannot be parsed",
 			content:      `class R { void Run(){ var c = new Db(); var sqlStmt = BuildSql(); c.CallQueryFromWs("http://x", true, sqlStmt); } string BuildSql(){ return ""; } class Db { public void CallQueryFromWs(string u, bool b, string sql){} } }`,
-			matchRaw:     "sqlStmt",
+			matchRaw:     "<dynamic-sql>",
 			usage:        "UNKNOWN",
 			isWrite:      false,
 			isDynamic:    true,
