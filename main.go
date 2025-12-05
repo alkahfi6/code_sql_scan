@@ -1921,11 +1921,12 @@ func findObjectTokens(sql string) []ObjectToken {
 			}
 			dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
 			tokens = append(tokens, ObjectToken{
-				DbName:         dbName,
-				SchemaName:     schemaName,
-				BaseName:       baseName,
-				FullName:       objText,
-				IsLinkedServer: isLinked,
+				DbName:          dbName,
+				SchemaName:      schemaName,
+				BaseName:        baseName,
+				FullName:        objText,
+				IsLinkedServer:  isLinked,
+				IsObjectNameDyn: hasDynamicPlaceholder(objText),
 			})
 			start = end
 		}
@@ -2102,57 +2103,28 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens[i].RepresentativeLine = c.LineStart
 	}
 	// Determine target based on DML keyword position
-	// We'll search for the relevant keyword and then assign the first token whose position is >= keyword position
+	// Choose the first token appearing after the keyword; if none, fall back to the earliest token
 	var targetIdx int = -1
-	switch usageKind {
-	case "INSERT":
-		// find position of "insert" and "into"
-		kw := "insert"
-		posInsert := strings.Index(sqlLower, kw)
-		if posInsert >= 0 {
-			// choose token after position of "insert"
-			minPos := len(sqlLower) + 1
-			for i, p := range positions {
-				if p >= posInsert && p < minPos {
-					targetIdx = i
-					minPos = p
-				}
+	keywordPos := findKeywordPosition(sqlLower, usageKind)
+	if keywordPos >= 0 {
+		minPos := len(sqlLower) + len(sqlLower)
+		for i, p := range positions {
+			if p >= keywordPos && p < minPos && p < len(sqlLower) {
+				targetIdx = i
+				minPos = p
 			}
 		}
-	case "UPDATE":
-		kw := "update"
-		pos := strings.Index(sqlLower, kw)
-		if pos >= 0 {
-			minPos := len(sqlLower) + 1
-			for i, p := range positions {
-				if p >= pos && p < minPos {
-					targetIdx = i
-					minPos = p
-				}
+	}
+	if targetIdx == -1 && len(tokens) > 0 {
+		minPos := len(sqlLower) + len(sqlLower)
+		for i, p := range positions {
+			if p < minPos && p < len(sqlLower) {
+				targetIdx = i
+				minPos = p
 			}
 		}
-	case "DELETE":
-		// support "delete from" or "delete"
-		pos := strings.Index(sqlLower, "delete")
-		if pos >= 0 {
-			minPos := len(sqlLower) + 1
-			for i, p := range positions {
-				if p >= pos && p < minPos {
-					targetIdx = i
-					minPos = p
-				}
-			}
-		}
-	case "TRUNCATE":
-		pos := strings.Index(sqlLower, "truncate")
-		if pos >= 0 {
-			minPos := len(sqlLower) + 1
-			for i, p := range positions {
-				if p >= pos && p < minPos {
-					targetIdx = i
-					minPos = p
-				}
-			}
+		if targetIdx == -1 {
+			targetIdx = 0
 		}
 	}
 	// Assign role and DmlKind based on usageKind
@@ -2229,15 +2201,51 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	// Mark dynamic object names
 	for i := range tokens {
 		full := tokens[i].FullName
-		// detect patterns indicating dynamic names: [[placeholder]], ?, :, or @ variable
-		if strings.Contains(full, "[[") || strings.Contains(full, "]]") ||
-			strings.Contains(full, "?") || strings.Contains(full, ":") ||
-			strings.Contains(full, "@") {
-			tokens[i].IsObjectNameDyn = true
-		}
+		tokens[i].IsObjectNameDyn = tokens[i].IsObjectNameDyn || hasDynamicPlaceholder(full)
 		tokens[i].RepresentativeLine = c.LineStart
 	}
 	c.Objects = tokens
+}
+
+func findKeywordPosition(sqlLower, usageKind string) int {
+	switch usageKind {
+	case "INSERT":
+		if pos := strings.Index(sqlLower, "insert into"); pos >= 0 {
+			return pos + len("insert into")
+		}
+		if pos := strings.Index(sqlLower, "insert"); pos >= 0 {
+			return pos + len("insert")
+		}
+		return strings.Index(sqlLower, "into")
+	case "UPDATE":
+		return strings.Index(sqlLower, "update")
+	case "DELETE":
+		if pos := strings.Index(sqlLower, "delete from"); pos >= 0 {
+			return pos + len("delete from")
+		}
+		return strings.Index(sqlLower, "delete")
+	case "TRUNCATE":
+		return strings.Index(sqlLower, "truncate")
+	case "EXEC":
+		if pos := strings.Index(sqlLower, "exec"); pos >= 0 {
+			return pos + len("exec")
+		}
+		if pos := strings.Index(sqlLower, "execute"); pos >= 0 {
+			return pos + len("execute")
+		}
+		return -1
+	default:
+		return -1
+	}
+}
+
+var dynamicPlaceholderPattern = regexp.MustCompile(`@\w+`)
+
+func hasDynamicPlaceholder(name string) bool {
+	if strings.Contains(name, "[[") || strings.Contains(name, "]]") {
+		return true
+	}
+	return dynamicPlaceholderPattern.MatchString(name)
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
