@@ -8,20 +8,22 @@ This document summarizes a manual spot-check of the latest scanner outputs for t
   - File discovery reported `12` files in `golang` (all `.go`/`.sql`/config; `.txt` helpers intentionally skipped) and `10` files in `dotnet_check` (all `.cs`/config; one non-code ancillary file skipped). The allowed-extension gating in `main.go` (`.go/.sql/.xml/.json/.yaml/.yml/.config` for Go, `.cs/.sql/.xml/.json/.yaml/.yml/.config` for .NET) matches the sample content, so all code/config files with SQL are traversed.
 
 ## Method
-- Parsed the generated CSVs to count usage kinds and cross-database flags.
-- Spot-checked representative source files to confirm whether the scanner classifications matched the code.
+- Parsed the freshly generated CSVs (`out_query_golang.csv`, `out_object_golang.csv`, `out_query_dotnet.csv`, `out_object_dotnet.csv`).
+- Compared them against the curated references (`new_*` CSVs) and directly against the sample source files.
 
 ## Go (`golang`)
-- Usage kinds counted from the fresh `new_golang_query.csv`: 24 `SELECT`, 16 `UNKNOWN`, 5 `EXEC`, 2 `DELETE`, 2 `UPDATE`, 2 `INSERT`.
-- Cross-database flag counts: 49 `false`, 2 `true` (SQL_Employee, SQL_SIBS references).
-- Observations:
-  - The stored procedure call `ExecStoredProcedure(ctx, db, SPUpdateControlTableResikoPasar, ...)` in `go1/destination.go` is now typed as `EXEC` with the procedure text captured.
-  - Dynamic query construction paths (e.g., `DeleteDuplicateConfo`, `ExecuteSPMurexTConfo`, `UpdateTableMK`) still appear as `<dynamic-sql>` with `UsageKind=UNKNOWN`, which is expected because the concrete SQL is chosen at runtime.
+- Fresh run counts: `out_query_golang.csv` = **2,260 rows**, `out_object_golang.csv` = **136 rows**.
+- Reference counts (`new_*`): `new_golang_query.csv` = 1,586 rows, `new_golang_object.csv` = 115 rows.
+- Mismatches vs reference:
+  - Two reference hashes are missing because the new run prepends `EXEC` to stored-procedure calls, changing the hash for:
+    - `UpdateControlTableResikoPasar` (`go1/destination.go`) – now emitted as `EXEC [dbo].[UpdateControlTableResikoPasar] ?,?` (`QueryHash=bf6f164a…`).
+    - `ValidateMKData` (`go1/source.go`) – now emitted as `EXEC [dbo].[MKValidateData] ?` (`QueryHash=28f859d7…`).
+  - Eighteen extra hashes appear from `go1/query.go`, e.g., full-body `INSERT`/`SELECT` text such as `INSERT INTO SQL_REPLICATE.dbo.mk005_a …` (`QueryHash=51bb2133…`) that were not present in the reference.
+- Observed issues when comparing with code:
+  - The stored-procedure strings in `go1/sp.go` do **not** contain the `EXEC` prefix, but the scanner rewrites them with `EXEC`, changing `SqlClean` and `QueryHash` and duplicating object names (e.g., `ControlTableResikoPasar` now appears twice in `out_object_golang.csv`).
+  - Multi-line `INSERT` blocks in `go1/query.go` are now emitted as separate `SqlClean` strings with embedded newlines; they were absent in the reference, so they inflate row counts and object entries for `mk005_a`/`mk006_a`.
 
 ## .NET (`dotnet_check`)
-- Usage kinds counted from the fresh `new_dotnet_query.csv`: 430 `EXEC`, 36 `UNKNOWN`, 30 `TRUNCATE`, 8 `INSERT`, 3 `SELECT`, 1 `DELETE`.
-- Cross-database flag counts: all 508 rows are `false`.
-- Observations:
-  - The `UNKNOWN` rows correspond to `<dynamic-sql>` entries such as `clsAPIServiceInvestmentObligasi.cs:321` and `clsAPISERVICE_NTI.cs:142`, which aligns with dynamic concatenation in the source.
-
-Overall, the CSVs are internally consistent and reflect the dynamic/static SQL usage observed in the code. The `main.go` extension filters ensure every SQL-bearing sample file is scanned; remaining `UNKNOWN` usage kinds come from dynamic SQL that cannot be resolved statically, which is expected for a static-only engine.
+- Fresh run counts: `out_query_dotnet.csv` = **8,643 rows**, `out_object_dotnet.csv` = **433 rows**.
+- Reference counts: `new_dotnet_query.csv` = 8,758 rows, `new_dotnet_object.csv` = 587 rows.
+- Hash comparison shows **no differences** between the fresh run and `new_*` for .NET (the row count delta comes from duplicate hashes being collapsed when counting unique hashes). Spot checks (e.g., `clsDataAccess1.cs`, `ANTSNAModel.cs`) show the same `EXEC` and `TRUNCATE` classifications as the reference.
