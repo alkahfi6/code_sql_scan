@@ -907,16 +907,21 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 // getFuncAndReceiver extracts the function name and the receiver/selector name from a call expression.
 func getFuncAndReceiver(call *ast.CallExpr) (funcName, connName string) {
-	switch fun := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		funcName = fun.Sel.Name
-		connName = getReceiverName(fun.X)
-		return
-	case *ast.Ident:
-		funcName = fun.Name
-		return
-	}
-	return "", ""
+        var unwrap func(ast.Expr) (string, string)
+        unwrap = func(expr ast.Expr) (string, string) {
+                switch v := expr.(type) {
+                case *ast.IndexExpr:
+                        return unwrap(v.X)
+                case *ast.IndexListExpr:
+                        return unwrap(v.X)
+                case *ast.SelectorExpr:
+                        return v.Sel.Name, getReceiverName(v.X)
+                case *ast.Ident:
+                        return v.Name, ""
+                }
+                return "", ""
+        }
+        return unwrap(call.Fun)
 }
 
 func getReceiverName(expr ast.Expr) string {
