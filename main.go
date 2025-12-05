@@ -927,11 +927,11 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 					expr := v.Args[idx]
 					rawProc, dynamicProc, defPath, defLine := evalArg(expr, localSymtab, localDyn)
-					rawSql := "EXEC [[dynamic-proc]]"
-					isDynamic := true
-					if rawProc != "" {
-						rawSql = "EXEC " + rawProc
-						isDynamic = dynamicProc
+					rawSql := rawProc
+					isDynamic := dynamicProc
+					if rawSql == "" {
+						rawSql = "[[dynamic-proc]]"
+						isDynamic = true
 					}
 
 					pos := fset.Position(v.Pos())
@@ -2108,6 +2108,11 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.HasCrossDb = hasCross
 
 	hashInput := c.SqlClean
+	if c.IsExecStub {
+		if normalized := normalizeProcSpecForHash(hashInput); normalized != "" {
+			hashInput = normalized
+		}
+	}
 	if hashInput == "" {
 		hashInput = c.RawSql
 	}
@@ -2192,6 +2197,37 @@ func detectUsageKind(isExecStub bool, sql string) string {
 	}
 
 	return "UNKNOWN"
+}
+
+// normalizeProcSpecForHash removes optional EXEC/EXECUTE prefixes and trailing semicolons
+// to produce a stable hash for stored procedure calls regardless of textual prefixes.
+func normalizeProcSpecForHash(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "exec") {
+		fields := strings.Fields(trimmed)
+		if len(fields) >= 2 {
+			trimmed = strings.Join(fields[1:], " ")
+		} else {
+			trimmed = ""
+		}
+	} else if strings.HasPrefix(lower, "execute") {
+		fields := strings.Fields(trimmed)
+		if len(fields) >= 2 {
+			trimmed = strings.Join(fields[1:], " ")
+		} else {
+			trimmed = ""
+		}
+	}
+
+	trimmed = strings.TrimSpace(trimmed)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	trimmed = strings.TrimSpace(trimmed)
+	return trimmed
 }
 
 func isWriteKind(kind string) bool {

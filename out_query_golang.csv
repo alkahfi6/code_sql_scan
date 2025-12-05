@@ -1,5 +1,5 @@
 AppName,RelPath,File,SourceCategory,SourceKind,LineStart,LineEnd,Func,RawSql,SqlClean,UsageKind,IsWrite,HasCrossDb,DbList,ObjectCount,IsDynamic,ConnName,ConnDb,QueryHash,RiskLevel,DefinedInRelPath,DefinedInLine
-golang-sample,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"EXEC [dbo].[UpdateControlTableResikoPasar] ?,?","EXEC [dbo].[UpdateControlTableResikoPasar] ?,?",EXEC,true,false,,2,false,db,,bf6f164aa3e86951b93fd0b17ebc8dbff98ebd0b,MEDIUM,go1/golang/go1/sp.go,3
+golang-sample,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"[dbo].[UpdateControlTableResikoPasar] ?,?","[dbo].[UpdateControlTableResikoPasar] ?,?",EXEC,true,false,,1,false,db,,6ae73001c2fda128acc6c4df428d721c6c6c3000,MEDIUM,go1/golang/go1/sp.go,3
 golang-sample,go1/destination.go,destination.go,code,go,25,25,GetOboxPreviousWorkingDate,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,db,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/golang/go1/query.go,3
 golang-sample,go1/destination.go,destination.go,code,go,41,41,DeleteDuplicateConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
 golang-sample,go1/destination.go,destination.go,code,go,58,58,ExecuteSPMurexTConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
@@ -33,12 +33,12 @@ where convert(varchar(8), ProcessDate, 112) = @dtToday
 set @dtToday = convert(varchar(8),  getdate(), 112)
 delete mk006_a_actuate
 where convert(varchar(8), ProcessDate, 112) = @dtToday",DELETE,true,false,,1,false,db,,ddae4ff638f42a0c77ee8b075c20298c26048350,MEDIUM,go1/golang/go1/query.go,150
-golang-sample,go1/destination.go,destination.go,code,go,94,94,UpdateTableMK,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,115,115,ExecSPMK,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,129,129,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,137,137,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,151,151,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,179,179,GetFlatFileUnstructuredData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,94,94,UpdateTableMK,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,115,115,ExecSPMK,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,129,129,GetFlatFileData,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,137,137,GetFlatFileData,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,151,151,GetFlatFileData,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,179,179,GetFlatFileUnstructuredData,[[dynamic-proc]],[[dynamic-proc]],EXEC,true,false,,1,true,db,,61f42f84ebd9e2f7130211fdf02200f6d52091c2,HIGH,go1/destination.go,0
 golang-sample,go1/destination.go,destination.go,code,go,191,191,GetTableRetry,select process_type from dbo.control_table_resiko_pasar where success_bit = 0 ,select process_type from dbo.control_table_resiko_pasar where success_bit = 0,SELECT,false,false,,1,false,db,,71a7af3e8ce7fd6589c0bf8df83982f2d4c694f4,LOW,go1/destination.go,190
 golang-sample,go1/destination.go,destination.go,code,go,208,208,DeleteDuplicateDataMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
 golang-sample,go1/query.go,query.go,code,go,3,3,,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/query.go,3
@@ -331,7 +331,7 @@ golang-sample,go1/source.go,source.go,code,go,61,61,GetMK006A,<dynamic-sql>,<dyn
 golang-sample,go1/source.go,source.go,code,go,71,71,GetMurexAvgPrice,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang-sample,go1/source.go,source.go,code,go,82,82,GetMK005AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang-sample,go1/source.go,source.go,code,go,93,93,GetMK005A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,112,112,ValidateMKData,EXEC [dbo].[MKValidateData] ?,EXEC [dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,28f859d7ab79d670095b53ceb14234b366581493,MEDIUM,go1/source.go,104
+golang-sample,go1/source.go,source.go,code,go,112,112,ValidateMKData,[dbo].[MKValidateData] ?,[dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,cfac7247a5fa57eb91826f292a7b1996e62814a7,MEDIUM,go1/source.go,104
 golang-sample,go2/impl.go,impl.go,code,go,26,26,GetCurrWorkingDate,"
 	SELECT TOP 1 current_working_date
 	FROM dbo.control_table
@@ -2254,7 +2254,7 @@ golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,
 		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,32,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,12,12,,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
-",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,09e3f5e7c70f4edd069a225b1172391461671c3f,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
+",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,0c2fcc8d689738b937bc52dfad0621824af66d12,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,46,46,ExecBASelectRefundBilling,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
-",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,ctx,,09e3f5e7c70f4edd069a225b1172391461671c3f,MEDIUM,go3/golang/go3/refundBillingQueries_manual.sql.go,12
+",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,ctx,,0c2fcc8d689738b937bc52dfad0621824af66d12,MEDIUM,go3/golang/go3/refundBillingQueries_manual.sql.go,12
