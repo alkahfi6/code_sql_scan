@@ -1,5 +1,5 @@
 AppName,RelPath,File,SourceCategory,SourceKind,LineStart,LineEnd,Func,RawSql,SqlClean,UsageKind,IsWrite,HasCrossDb,DbList,ObjectCount,IsDynamic,ConnName,ConnDb,QueryHash,RiskLevel,DefinedInRelPath,DefinedInLine
-golang-sample,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"[dbo].[UpdateControlTableResikoPasar] ?,?","[dbo].[UpdateControlTableResikoPasar] ?,?",EXEC,true,false,,1,false,db,,6ae73001c2fda128acc6c4df428d721c6c6c3000,MEDIUM,go1/golang/go1/sp.go,3
+golang-sample,go1/destination.go,destination.go,code,go,15,15,UpdateControlTableResikoPasar,"EXEC [dbo].[UpdateControlTableResikoPasar] ?,?","EXEC [dbo].[UpdateControlTableResikoPasar] ?,?",EXEC,true,false,,2,false,db,,bf6f164aa3e86951b93fd0b17ebc8dbff98ebd0b,MEDIUM,go1/golang/go1/sp.go,3
 golang-sample,go1/destination.go,destination.go,code,go,25,25,GetOboxPreviousWorkingDate,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,db,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/golang/go1/query.go,3
 golang-sample,go1/destination.go,destination.go,code,go,41,41,DeleteDuplicateConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
 golang-sample,go1/destination.go,destination.go,code,go,58,58,ExecuteSPMurexTConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
@@ -33,12 +33,12 @@ where convert(varchar(8), ProcessDate, 112) = @dtToday
 set @dtToday = convert(varchar(8),  getdate(), 112)
 delete mk006_a_actuate
 where convert(varchar(8), ProcessDate, 112) = @dtToday",DELETE,true,false,,1,false,db,,ddae4ff638f42a0c77ee8b075c20298c26048350,MEDIUM,go1/golang/go1/query.go,150
-golang-sample,go1/destination.go,destination.go,code,go,94,94,UpdateTableMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,115,115,ExecSPMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,129,129,GetFlatFileData,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,137,137,GetFlatFileData,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,151,151,GetFlatFileData,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
-golang-sample,go1/destination.go,destination.go,code,go,179,179,GetFlatFileUnstructuredData,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,94,94,UpdateTableMK,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,115,115,ExecSPMK,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,129,129,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,137,137,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,151,151,GetFlatFileData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
+golang-sample,go1/destination.go,destination.go,code,go,179,179,GetFlatFileUnstructuredData,EXEC [[dynamic-proc]],EXEC [[dynamic-proc]],EXEC,true,false,,1,true,db,,651c5bb288d62e8ad7b7fccb0467d154c0767ee3,HIGH,go1/destination.go,0
 golang-sample,go1/destination.go,destination.go,code,go,191,191,GetTableRetry,select process_type from dbo.control_table_resiko_pasar where success_bit = 0 ,select process_type from dbo.control_table_resiko_pasar where success_bit = 0,SELECT,false,false,,1,false,db,,71a7af3e8ce7fd6589c0bf8df83982f2d4c694f4,LOW,go1/destination.go,190
 golang-sample,go1/destination.go,destination.go,code,go,208,208,DeleteDuplicateDataMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/destination.go,0
 golang-sample,go1/query.go,query.go,code,go,3,3,,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/query.go,3
@@ -318,7 +318,7 @@ from [[schema]].BOND_DETAIL where trim(SECID) not in (
 select distinct trim(SECID) from [[schema]].BOND_JOURNAL where TDPRINTAMT > 0
 )
 and TRIM(SECID) IN ([[param]])
-group by SECID",SELECT,false,false,,3,true,,,58b836ac3e25feb6f7f2ff92f82b638a00effcfc,LOW,go1/query.go,157
+group by SECID",SELECT,false,false,,1,true,,,58b836ac3e25feb6f7f2ff92f82b638a00effcfc,LOW,go1/query.go,157
 golang-sample,go1/query.go,query.go,code,go,171,171,,"
 INSERT INTO [dbo].[mk006_a_actuate] (secid,avg_price,ProcessDate)
 SELECT ?,?,?
@@ -331,7 +331,7 @@ golang-sample,go1/source.go,source.go,code,go,61,61,GetMK006A,<dynamic-sql>,<dyn
 golang-sample,go1/source.go,source.go,code,go,71,71,GetMurexAvgPrice,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang-sample,go1/source.go,source.go,code,go,82,82,GetMK005AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang-sample,go1/source.go,source.go,code,go,93,93,GetMK005A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,112,112,ValidateMKData,[dbo].[MKValidateData] ?,[dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,cfac7247a5fa57eb91826f292a7b1996e62814a7,MEDIUM,go1/source.go,104
+golang-sample,go1/source.go,source.go,code,go,112,112,ValidateMKData,EXEC [dbo].[MKValidateData] ?,EXEC [dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,28f859d7ab79d670095b53ceb14234b366581493,MEDIUM,go1/source.go,104
 golang-sample,go2/impl.go,impl.go,code,go,26,26,GetCurrWorkingDate,"
 	SELECT TOP 1 current_working_date
 	FROM dbo.control_table
@@ -558,7 +558,7 @@ where aj.NIK is null
 			(au.DateUpload  >= convert(varchar,@p3,112) 
 				and au.DateUpload < dateadd(dd,1,@p4)  )
 			OR @p2 IN ('N') 
-		)",SELECT,false,false,,4,false,,,ed6f6b30f5e3fa33792f6e74777324b3a497ec21,LOW,go3/aajiQueries.sql.go,13
+		)",SELECT,false,false,,2,false,,,ed6f6b30f5e3fa33792f6e74777324b3a497ec21,LOW,go3/aajiQueries.sql.go,13
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,60,65,PopulateDataFromBancaNoAAUITMAndBancaNoAAUITM,"-- name: PopulateDataFromBancaNoAAUITMAndBancaNoAAUITM :many
 select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExpire, aj.DateUpload, aj.NIKUpload 
 from BancaNoAAJI_TM aj
@@ -607,7 +607,7 @@ where aj.NIK is null
 			(au.DateUpload  >= convert(varchar,@p3,112) 
 				and au.DateUpload < dateadd(dd,1,@p4)  )
 			OR @p2 IN ('N') 
-		)",SELECT,false,false,,4,false,ctx,,ed6f6b30f5e3fa33792f6e74777324b3a497ec21,LOW,go3/golang/go3/aajiQueries.sql.go,13
+		)",SELECT,false,false,,2,false,ctx,,ed6f6b30f5e3fa33792f6e74777324b3a497ec21,LOW,go3/golang/go3/aajiQueries.sql.go,13
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,97,97,,"-- name: GetDataFromAAJITM :many
 select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, 
 (
@@ -628,7 +628,7 @@ from BancaNoAAJI_TM aj order by NIK desc
     select top 1 au.DateExpire from BancaNoAAUI_TM au where au.NIK = aj.NIK
 	order by au.DateUpload desc
 ) as DateExpireAAUI, aj.DateUpload, aj.NIKUpload 
-from BancaNoAAJI_TM aj order by NIK desc",SELECT,false,false,,3,false,,,982f032c438801a2a2472bb95b27fc058f073069,LOW,go3/aajiQueries.sql.go,97
+from BancaNoAAJI_TM aj order by NIK desc",SELECT,false,false,,2,false,,,982f032c438801a2a2472bb95b27fc058f073069,LOW,go3/aajiQueries.sql.go,97
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,123,123,GetDataFromAAJITM,"-- name: GetDataFromAAJITM :many
 select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, 
 (
@@ -649,7 +649,7 @@ from BancaNoAAJI_TM aj order by NIK desc
     select top 1 au.DateExpire from BancaNoAAUI_TM au where au.NIK = aj.NIK
 	order by au.DateUpload desc
 ) as DateExpireAAUI, aj.DateUpload, aj.NIKUpload 
-from BancaNoAAJI_TM aj order by NIK desc",SELECT,false,false,,3,false,ctx,,982f032c438801a2a2472bb95b27fc058f073069,LOW,go3/golang/go3/aajiQueries.sql.go,97
+from BancaNoAAJI_TM aj order by NIK desc",SELECT,false,false,,2,false,ctx,,982f032c438801a2a2472bb95b27fc058f073069,LOW,go3/golang/go3/aajiQueries.sql.go,97
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,155,155,,"-- name: GetDataFromAAUITM :many
 select au.NIK, au.Nama, au.JobTitle,
 ( 
@@ -674,7 +674,7 @@ where aj.NIK is null
 ) as DateExpireAAJI, au.AAUI, au.DateExpire, au.DateUpload, au.NIKUpload 
 from BancaNoAAUI_TM au left join BancaNoAAJI_TM aj
 on aj.NIK = au.NIK
-where aj.NIK is null",SELECT,false,false,,4,false,,,19c8d45f263b4cff05ce871776081c4d676490ba,LOW,go3/aajiQueries.sql.go,155
+where aj.NIK is null",SELECT,false,false,,2,false,,,19c8d45f263b4cff05ce871776081c4d676490ba,LOW,go3/aajiQueries.sql.go,155
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,183,183,GetDataFromAAUITM,"-- name: GetDataFromAAUITM :many
 select au.NIK, au.Nama, au.JobTitle,
 ( 
@@ -699,7 +699,7 @@ where aj.NIK is null
 ) as DateExpireAAJI, au.AAUI, au.DateExpire, au.DateUpload, au.NIKUpload 
 from BancaNoAAUI_TM au left join BancaNoAAJI_TM aj
 on aj.NIK = au.NIK
-where aj.NIK is null",SELECT,false,false,,4,false,ctx,,19c8d45f263b4cff05ce871776081c4d676490ba,LOW,go3/golang/go3/aajiQueries.sql.go,155
+where aj.NIK is null",SELECT,false,false,,2,false,ctx,,19c8d45f263b4cff05ce871776081c4d676490ba,LOW,go3/golang/go3/aajiQueries.sql.go,155
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,215,215,,"-- name: DeleteBatchIdFromBancaMTranAAJIAAUITT :exec
 delete from BancaMTranAAJIAAUI_TT where BatchId = @p1
 ",delete from BancaMTranAAJIAAUI_TT where BatchId = @p1,DELETE,true,false,,2,false,,,8594b37a90090ac9fe85b2a291a6b0de2d13af73,MEDIUM,go3/aajiQueries.sql.go,215
@@ -2251,7 +2251,7 @@ golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,
 		DROP TABLE #tmp_SOF
 
 	IF OBJECT_ID('tempdb..#tmpSumberDana') IS NOT NULL  
-		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,67,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
+		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,32,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,12,12,,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
 ",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,09e3f5e7c70f4edd069a225b1172391461671c3f,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
