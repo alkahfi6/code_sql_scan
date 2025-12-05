@@ -42,6 +42,151 @@ func TestDetectUsageKindSkipsLeadingStatements(t *testing.T) {
 	}
 }
 
+func TestAnalyzeCandidateExecStubAndDynamicCases(t *testing.T) {
+	tests := []struct {
+		name          string
+		cand          SqlCandidate
+		wantUsage     string
+		wantObjCount  int
+		wantBaseNames []string
+		wantDynFlags  []bool
+		wantCrossDb   []bool
+	}{
+		{
+			name: "exec stub literal dbo schema",
+			cand: SqlCandidate{
+				RawSql:     "dbo.SBNSchedGetGeneralParam",
+				IsExecStub: true,
+				ConnDb:     "SQL_APP",
+				RelPath:    "clsDataAccess1.cs",
+				Func:       "GetGeneralParam",
+				LineStart:  12,
+			},
+			wantUsage:     "EXEC",
+			wantObjCount:  1,
+			wantBaseNames: []string{"SBNSchedGetGeneralParam"},
+			wantDynFlags:  []bool{false},
+			wantCrossDb:   []bool{false},
+		},
+		{
+			name: "exec stub cross-db spec",
+			cand: SqlCandidate{
+				RawSql:     "SQL_DBA.dbo.OMValidateCustomer",
+				IsExecStub: true,
+				ConnDb:     "SQL_DBB",
+				RelPath:    "clsDataAccess2.cs",
+				Func:       "ValidateCustomer",
+				LineStart:  20,
+			},
+			wantUsage:     "EXEC",
+			wantObjCount:  1,
+			wantBaseNames: []string{"OMValidateCustomer"},
+			wantDynFlags:  []bool{false},
+			wantCrossDb:   []bool{true},
+		},
+		{
+			name: "dynamic schema placeholder query",
+			cand: SqlCandidate{
+				RawSql:    "SELECT * FROM [[schema]].MK005_A WHERE TRIM(SECID) IN ([[param]])",
+				IsDynamic: true,
+				ConnDb:    "SQL_APP",
+				RelPath:   "query.go",
+				Func:      "GetMK006AConfo",
+				LineStart: 33,
+			},
+			wantUsage:    "SELECT",
+			wantObjCount: 1,
+			wantDynFlags: []bool{true},
+			wantCrossDb:  []bool{false},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			analyzeCandidate(&tt.cand)
+			if tt.cand.UsageKind != tt.wantUsage {
+				t.Fatalf("unexpected usage kind: got %s want %s", tt.cand.UsageKind, tt.wantUsage)
+			}
+			if len(tt.cand.Objects) != tt.wantObjCount {
+				t.Fatalf("expected %d objects, got %d", tt.wantObjCount, len(tt.cand.Objects))
+			}
+			for i, obj := range tt.cand.Objects {
+				if i < len(tt.wantBaseNames) && obj.BaseName != tt.wantBaseNames[i] {
+					t.Fatalf("object %d base name mismatch: got %s want %s", i, obj.BaseName, tt.wantBaseNames[i])
+				}
+				if i < len(tt.wantDynFlags) && obj.IsObjectNameDyn != tt.wantDynFlags[i] {
+					t.Fatalf("object %d dynamic flag mismatch: got %v want %v", i, obj.IsObjectNameDyn, tt.wantDynFlags[i])
+				}
+				if i < len(tt.wantCrossDb) && obj.IsCrossDb != tt.wantCrossDb[i] {
+					t.Fatalf("object %d cross-db flag mismatch: got %v want %v", i, obj.IsCrossDb, tt.wantCrossDb[i])
+				}
+			}
+			if tt.wantUsage == "EXEC" && !tt.cand.IsWrite {
+				t.Fatalf("exec stub should be treated as write")
+			}
+		})
+	}
+}
+
+func TestAnalyzeCandidateMultiStatementAndCommentsOnly(t *testing.T) {
+	t.Run("multi-statement with cross-db join", func(t *testing.T) {
+		sql := `-- name: inquiry
+DECLARE @x INT; SET @x = 1;
+IF @x = 1 BEGIN
+    SELECT c.Id, a.AccountNo FROM dbo.Customers c JOIN SQL_DBA..Accounts a ON a.Id = c.AccountId
+END`
+		cand := &SqlCandidate{RawSql: sql, ConnDb: "SQL_APP", RelPath: "clsAPIServiceNTI.cs", Func: "Inquiry", LineStart: 101}
+		analyzeCandidate(cand)
+		if cand.UsageKind != "SELECT" {
+			t.Fatalf("expected SELECT usage, got %s", cand.UsageKind)
+		}
+		if !cand.HasCrossDb {
+			t.Fatalf("expected cross-db detection from SQL_DBA..Accounts")
+		}
+		if len(cand.Objects) != 2 {
+			t.Fatalf("expected two objects (customers + accounts), got %d", len(cand.Objects))
+		}
+		var seenCustomers, seenAccounts bool
+		for _, obj := range cand.Objects {
+			switch obj.BaseName {
+			case "Customers":
+				seenCustomers = true
+				if obj.IsCrossDb {
+					t.Fatalf("dbo.Customers should not be cross-db")
+				}
+			case "Accounts":
+				seenAccounts = true
+				if !obj.IsCrossDb {
+					t.Fatalf("SQL_DBA..Accounts should be cross-db")
+				}
+			}
+			if obj.DmlKind != "SELECT" || obj.Role != "source" {
+				t.Fatalf("expected source SELECT for %s, got %+v", obj.BaseName, obj)
+			}
+		}
+		if !seenCustomers || !seenAccounts {
+			t.Fatalf("expected both Customers and Accounts tokens to be present")
+		}
+	})
+
+	t.Run("comments only are ignored", func(t *testing.T) {
+		cand := &SqlCandidate{RawSql: "-- just a comment\n/* nothing */", RelPath: "query.sql", Func: "noop", LineStart: 5}
+		analyzeCandidate(cand)
+		if cand.SqlClean != "" {
+			t.Fatalf("expected cleaned SQL to be empty, got %q", cand.SqlClean)
+		}
+		if cand.UsageKind != "UNKNOWN" {
+			t.Fatalf("expected UNKNOWN usage for comment-only SQL, got %s", cand.UsageKind)
+		}
+		if len(cand.Objects) != 0 {
+			t.Fatalf("expected no objects for comment-only SQL, got %d", len(cand.Objects))
+		}
+		if cand.QueryHash == "" {
+			t.Fatalf("expected query hash to still be populated")
+		}
+	})
+}
+
 func TestParseProcNameSpecDropsParamsAndFlagsDynamics(t *testing.T) {
 	cases := []struct {
 		name       string
