@@ -1,0 +1,23 @@
+package dbobox
+
+const SPUpdateControlTableResikoPasar = "[dbo].[UpdateControlTableResikoPasar] ?,?"
+const SPMurexMK006 = "[[schema]].sp_mk006_a(:1);"
+const SPMurexMK005 = "[[schema]].sp_mk005_a(:1);"
+const SPMurexConfoMK006 = "[[schema]].SP_CONFO_MK006A;"
+const SPMurexConfoMK005 = "[[schema]].SP_CONFO_MK005A;"
+const SPTRSRetailTConfoMK005A = "dbo.TConfoMK005_A"
+const SPTRSRetailTConfoMK006A = "dbo.TConfoMK006_A"
+const SPTrsRetailMK006UpdateValue = "[dbo].[MK006-A_UpdateValue]"
+const SPTRSRetailMK006A = "[dbo].[MK006-A]"
+const SPTRSRetailMK005AUpdateJumlah = "[dbo].[MK005-A_UpdateJumlah]"
+const SPTRSRetailMK005A = "[dbo].[MK005-A]"
+const SPTRSRetailMK002A = "[dbo].[MK002-A]"
+const SPTRSRetailMK002ADetail = "[dbo].[MK002-A_detail]"
+const SPTRSRetailValidateMK = "[dbo].[MKValidateData] ?"
+
+const SPFlatFileMk006 = "[dbo].[MK006-A_flatfile]"
+const SPFlatFileMK006UN = "[dbo].[MK006UN-A_flatfile]"
+const SPFlatFileMk005 = "[dbo].[MK005-A_flatfile]"
+const SPFlatFileMK005UN = "[dbo].[MK005UN-A_flatfile]"
+const SPFlatFileMK002 = "[dbo].[MK002-A_flatfile]"
+const SPFlatFileMK002UN = "[dbo].[MK002UN-A_flatfile]"
