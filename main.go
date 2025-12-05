@@ -842,7 +842,15 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					continue
 				}
 				// Heuristic: consider package-level const that looks like SQL or whose name starts with "Query"/"SQL".
-				if !looksLikeSQL(val) && !(strings.HasPrefix(name.Name, "Query") || strings.HasPrefix(name.Name, "SQL") || strings.HasPrefix(name.Name, "Sql")) {
+				// Also include sqlc-generated *.sql.go constants that often begin with a "-- name:" comment block.
+				sqlLike := looksLikeSQL(val)
+				if !sqlLike {
+					lowerVal := strings.ToLower(val)
+					if strings.Contains(lowerVal, "-- name:") || strings.HasSuffix(strings.ToLower(path), ".sql.go") {
+						sqlLike = true
+					}
+				}
+				if !sqlLike && !(strings.HasPrefix(name.Name, "Query") || strings.HasPrefix(name.Name, "SQL") || strings.HasPrefix(name.Name, "Sql")) {
 					continue
 				}
 				pos := fset.Position(name.Pos())
@@ -2222,11 +2230,6 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.HasCrossDb = hasCross
 
 	hashInput := c.SqlClean
-	if c.IsExecStub {
-		if normalized := normalizeProcSpecForHash(hashInput); normalized != "" {
-			hashInput = normalized
-		}
-	}
 	if hashInput == "" {
 		hashInput = c.RawSql
 	}
