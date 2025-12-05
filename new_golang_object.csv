@@ -1,9 +1,10 @@
 AppName,RelPath,File,SourceCategory,SourceKind,Line,Func,QueryHash,ObjectName,DbName,SchemaName,BaseName,IsCrossDb,IsLinkedServer,Role,DmlKind,IsWrite,IsObjectNameDynamic
-golang,go1/destination.go,destination.go,code,go,15,UpdateControlTableResikoPasar,6ae73001c2fda128acc6c4df428d721c6c6c3000,ControlTableResikoPasar,,,ControlTableResikoPasar,false,false,source,UNKNOWN,false,false
+golang,go1/destination.go,destination.go,code,go,15,UpdateControlTableResikoPasar,6ae73001c2fda128acc6c4df428d721c6c6c3000,ControlTableResikoPasar,,,ControlTableResikoPasar,false,false,exec,EXEC,true,false
 golang,go1/destination.go,destination.go,code,go,25,GetOboxPreviousWorkingDate,2b670ce0899d69a442ab570b63ab71cd8d786174,OBOXGetPrevDate_v,,,OBOXGetPrevDate_v,false,false,source,SELECT,false,false
 golang,go1/destination.go,destination.go,code,go,68,GetNamaSSB,5d86ef43abc26b943749f6859c9f9a67e7b3d938,mk006_a,,,mk006_a,false,false,source,SELECT,false,false
 golang,go1/destination.go,destination.go,code,go,78,DeleteAvgPrice,ddae4ff638f42a0c77ee8b075c20298c26048350,mk006_a_actuate,,,mk006_a_actuate,false,false,target,DELETE,true,false
 golang,go1/destination.go,destination.go,code,go,191,GetTableRetry,71a7af3e8ce7fd6589c0bf8df83982f2d4c694f4,dbo.control_table_resiko_pasar,,dbo,control_table_resiko_pasar,false,false,source,SELECT,false,false
+golang,go1/source.go,source.go,code,go,112,ValidateMKData,cfac7247a5fa57eb91826f292a7b1996e62814a7,[dbo].[MKValidateData],,dbo,MKValidateData,false,false,exec,EXEC,true,true
 golang,go2/impl.go,impl.go,code,go,26,GetCurrWorkingDate,5e2e34e6c7b66a6e103a624e2b7e66e772c61c4e,dbo.control_table,,dbo,control_table,false,false,source,SELECT,false,false
 golang,go2/impl.go,impl.go,code,go,30,GetCFCOUN,a9228bfc4e196770dce2c08013cd672b99697836,dbo.CFMAST,,dbo,CFMAST,false,false,source,SELECT,false,false
 golang,go2/impl.go,impl.go,code,go,34,GetBIRates,4c3e21fd67aec85e9073cc9adcf7b2154bed6d74,dbo.SIBSCurrencyTable_TM,,dbo,SIBSCurrencyTable_TM,false,false,source,SELECT,false,false
@@ -33,12 +34,12 @@ golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,393,GetBancaNoAAJITMByD
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,393,GetBancaNoAAJITMByDate,8121c8af7ca0ff58f16d025cb36b8770c85578f9,BancaNoAAUI_TM,,,BancaNoAAUI_TM,false,false,source,SELECT,false,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,450,GetBancaNoAAJITMByNIKDate,492edaf631dd771bc526aead7ee6279d70997822,BancaNoAAJI_TM,,,BancaNoAAJI_TM,false,false,source,SELECT,false,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,450,GetBancaNoAAJITMByNIKDate,492edaf631dd771bc526aead7ee6279d70997822,BancaNoAAUI_TM,,,BancaNoAAUI_TM,false,false,source,SELECT,false,false
-golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,487,GetLastInsertedBatchId,021cb023b31036c7991162b665f49770ba018d0a,BancaMTranAAJIAAUI_TT,,,BancaMTranAAJIAAUI_TT,false,false,source,SELECT,false,false
+golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,487,GetLastInsertedBatchId,021cb023b31036c7991162b665f49770ba018d0a,BancaMTranAAJIAAUI_TT,,,BancaMTranAAJIAAUI_TT,false,false,exec,EXEC,true,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,503,GetNIKFromBancaNoAAJITMByAAUIANDNIK,cf88a0ebea8bf362757fa0bc3aaf9abd546c4d4a,BancaNoAAUI_TM,,,BancaNoAAUI_TM,false,false,source,SELECT,false,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,535,GetNIKFromBancaNoAAUITMByAAJIANDNIK,a6de6b7a9e8e75b86bed7c4064b9d637f5a30c5e,BancaNoAAJI_TM,,,BancaNoAAJI_TM,false,false,source,SELECT,false,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,567,GetNameAndJobTitleByNIK,f3860bd8363f4c1b31aa319f192df22b84c49621,SQL_Employee.dbo.PSEmployee_v,SQL_Employee,dbo,PSEmployee_v,true,false,source,SELECT,false,false
-golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,InsertBancaMTranAAJIAAUITT,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,BancaMTranAAJIAAUI_TT,,,BancaMTranAAJIAAUI_TT,false,false,target,INSERT,true,false
-golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,InsertBancaMTranAAJIAAUITT,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,dXML,,,dXML,false,false,source,SELECT,false,false
+golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,InsertBancaMTranAAJIAAUITT,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,BancaMTranAAJIAAUI_TT,,,BancaMTranAAJIAAUI_TT,false,false,exec,EXEC,true,false
+golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,InsertBancaMTranAAJIAAUITT,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,dXML,,,dXML,false,false,exec,EXEC,true,false
 golang,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,627,UpdateBatchCode,7b5b09858b7c9ee766100f268d169bf056fd960e,BancaMTranAAJIAAUI_TT,,,BancaMTranAAJIAAUI_TT,false,false,target,UPDATE,true,false
 golang,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,code,go,45,InsertDeleteTT,08712dc65d8db891bf09f92c1b3fc008f39074a9,BancaDelete_TT,,,BancaDelete_TT,false,false,target,INSERT,true,false
 golang,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,code,go,45,InsertDeleteTT,08712dc65d8db891bf09f92c1b3fc008f39074a9,_TT,,,_TT,false,false,source,SELECT,false,false
