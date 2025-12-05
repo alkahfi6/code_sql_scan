@@ -1485,6 +1485,9 @@ func StripCodeCommentsCStyle(src string, isCSharp bool) string {
 				out.WriteByte(c)
 			}
 		case stateBlockComment:
+			if c == '\n' {
+				out.WriteByte(c)
+			}
 			if c == '*' && next == '/' {
 				state = stateNormal
 				i++
