@@ -230,6 +230,7 @@ func main() {
 
 	for i := range cands {
 		analyzeCandidate(&cands[i])
+		dedupeObjectTokens(&cands[i])
 		// sort objects inside candidate for deterministic output
 		if len(cands[i].Objects) > 1 {
 			sort.Slice(cands[i].Objects, func(a, b int) bool {
@@ -250,6 +251,8 @@ func main() {
 			})
 		}
 	}
+
+	cands = dedupeCandidates(cands)
 
 	// sort candidates deterministically by path, line and hash
 	sort.Slice(cands, func(i, j int) bool {
@@ -912,6 +915,48 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				if !ok || len(v.Args) <= idx {
 					return true
 				}
+				// Special handling for stored procedure helpers to ensure EXEC classification
+				if fname == "ExecStoredProcedure" || fname == "ExecStoredProcedureWithReturn" {
+					// Determine connection name: for custom calls, use argument before SQL parameter if available
+					connName := initialConn
+					if idx > 0 && len(v.Args) > idx-1 {
+						if cn := getReceiverName(v.Args[idx-1]); cn != "" {
+							connName = cn
+						}
+					}
+
+					expr := v.Args[idx]
+					rawProc, dynamicProc, defPath, defLine := evalArg(expr, localSymtab, localDyn)
+					rawSql := "EXEC [[dynamic-proc]]"
+					isDynamic := true
+					if rawProc != "" {
+						rawSql = "EXEC " + rawProc
+						isDynamic = dynamicProc
+					}
+
+					pos := fset.Position(v.Pos())
+					endPos := fset.Position(v.End())
+					cand := SqlCandidate{
+						AppName:     cfg.AppName,
+						RelPath:     relPath,
+						File:        filepath.Base(path),
+						SourceCat:   "code",
+						SourceKind:  "go",
+						LineStart:   pos.Line,
+						LineEnd:     endPos.Line,
+						Func:        currentFunc,
+						RawSql:      rawSql,
+						IsDynamic:   isDynamic,
+						IsExecStub:  true,
+						ConnName:    connName,
+						ConnDb:      "",
+						DefinedPath: defPath,
+						DefinedLine: defLine,
+					}
+					cands = append(cands, cand)
+					return true
+				}
+
 				// Determine connection name: for custom calls, use argument before SQL parameter if available
 				connName := initialConn
 				if idx > 0 && len(v.Args) > idx-1 {
@@ -2573,6 +2618,46 @@ func classifyRisk(c *SqlCandidate) string {
 		return "HIGH"
 	}
 	return "MEDIUM"
+}
+
+func dedupeObjectTokens(c *SqlCandidate) {
+	if len(c.Objects) <= 1 {
+		return
+	}
+
+	seen := make(map[string]bool)
+	var uniq []ObjectToken
+	for _, o := range c.Objects {
+		full := o.FullName
+		if full == "" {
+			full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
+		}
+		key := fmt.Sprintf("%s|%s|%d|%s|%s|%s", c.QueryHash, c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniq = append(uniq, o)
+	}
+	c.Objects = uniq
+}
+
+func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
+	if len(cands) <= 1 {
+		return cands
+	}
+
+	seen := make(map[string]bool)
+	var uniq []SqlCandidate
+	for _, c := range cands {
+		key := fmt.Sprintf("%s|%s|%d|%d|%s|%s|%s", c.AppName, c.RelPath, c.LineStart, c.LineEnd, c.Func, c.SqlClean, c.UsageKind)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniq = append(uniq, c)
+	}
+	return uniq
 }
 
 // ------------------------------------------------------------
