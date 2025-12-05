@@ -1033,6 +1033,33 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 					pos := fset.Position(v.Pos())
 					endPos := fset.Position(v.End())
+
+					if !isDynamic {
+						if split := splitProcSpecs(rawSql); len(split) > 1 {
+							for _, proc := range split {
+								cand := SqlCandidate{
+									AppName:     cfg.AppName,
+									RelPath:     relPath,
+									File:        filepath.Base(path),
+									SourceCat:   "code",
+									SourceKind:  "go",
+									LineStart:   pos.Line,
+									LineEnd:     endPos.Line,
+									Func:        currentFunc,
+									RawSql:      proc,
+									IsDynamic:   false,
+									IsExecStub:  true,
+									ConnName:    connName,
+									ConnDb:      "",
+									DefinedPath: defPath,
+									DefinedLine: defLine,
+								}
+								cands = append(cands, cand)
+							}
+							return true
+						}
+					}
+
 					cand := SqlCandidate{
 						AppName:     cfg.AppName,
 						RelPath:     relPath,
@@ -1073,6 +1100,33 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				}
 				pos := fset.Position(v.Pos())
 				endPos := fset.Position(v.End())
+
+				if isExecStub && !dynamic {
+					if split := splitProcSpecs(raw); len(split) > 1 {
+						for _, proc := range split {
+							cand := SqlCandidate{
+								AppName:     cfg.AppName,
+								RelPath:     relPath,
+								File:        filepath.Base(path),
+								SourceCat:   "code",
+								SourceKind:  "go",
+								LineStart:   pos.Line,
+								LineEnd:     endPos.Line,
+								Func:        currentFunc,
+								RawSql:      proc,
+								IsDynamic:   false,
+								IsExecStub:  true,
+								ConnName:    connName,
+								ConnDb:      "",
+								DefinedPath: defPath,
+								DefinedLine: defLine,
+							}
+							cands = append(cands, cand)
+						}
+						return true
+					}
+				}
+
 				cand := SqlCandidate{
 					AppName:     cfg.AppName,
 					RelPath:     relPath,
@@ -1182,6 +1236,27 @@ func combineStaticValues(vals []SqlSymbol) string {
 		parts = append(parts, v.Value)
 	}
 	return strings.Join(parts, ";\n")
+}
+
+// splitProcSpecs separates a combined stored procedure literal (often joined by
+// semicolons/newlines when multiple static assignments exist) into individual
+// proc specs. Only entries that look like a proc spec are returned.
+func splitProcSpecs(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ';' || r == '\n'
+	})
+	var out []string
+	for _, p := range parts {
+		val := strings.TrimSpace(p)
+		if val == "" || !isProcNameSpec(val) {
+			continue
+		}
+		out = append(out, val)
+	}
+	return out
 }
 
 func strconvUnquoteSafe(s string) (string, error) {
