@@ -996,8 +996,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]string)
-	simpleDeclAssign := regexp.MustCompile(`(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]+)"`)
-	bareAssign := regexp.MustCompile(`(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]+)"`)
+	simpleDeclAssign := regexp.MustCompile(`(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`)
+	bareAssign := regexp.MustCompile(`(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`)
+	verbatimAssign := regexp.MustCompile(`(?is)(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@"([^"]+)"`)
 	recordLiteral := func(method, name, val string) {
 		if method == "" || name == "" {
 			return
@@ -1006,6 +1007,19 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			literalInMethod[method] = make(map[string]string)
 		}
 		literalInMethod[method][name] = val
+	}
+	for _, m := range verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
+		line := countLinesUpTo(clean, m[0])
+		funcName := ""
+		if line-1 >= 0 && line-1 < len(methodAtLine) {
+			funcName = methodAtLine[line-1]
+		}
+		if funcName == "" {
+			continue
+		}
+		name := cleanedGroup(clean, m, 1)
+		val := cleanedGroup(clean, m, 2)
+		recordLiteral(funcName, name, val)
 	}
 	for i, line := range lines {
 		method := ""
@@ -1044,6 +1058,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	// CallQueryFromWs(url, ignoreSSL, sql, ...)
 	callQueryWsLit := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*"([^"]+)"`)
 	callQueryWsDyn := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`)
+	execQueryIdent := regexp.MustCompile(`(?i)\.\s*ExecuteQuery\s*\(\s*([^,]+),\s*([A-Za-z_][A-Za-z0-9_]*)`)
 
 	// CommandText assignment: cmd.CommandText = "ProcName" or variable
 	commandTextLit := regexp.MustCompile(`(?i)\.\s*CommandText\s*=\s*"([^"]+)"`)
@@ -1064,6 +1079,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		{efFromSql, false, false},
 		{efExecRaw, false, false},
 		{execQuery, false, false},      // ExecuteQuery(conn, "SQL")
+		{execQueryIdent, false, false}, // ExecuteQuery(conn, variable)
 		{callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
 		{callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
 		{commandTextLit, false, false}, // CommandText = "ProcName"
@@ -1135,6 +1151,33 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						isDyn = false
 						isExecStub = true
 						rawLiteral = true
+					}
+				}
+			case execQueryIdent:
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
+				raw = expr
+				rawLiteral = false
+				if funcName != "" && identRe.MatchString(expr) {
+					if lit, ok := literalInMethod[funcName][expr]; ok {
+						raw = lit
+						rawLiteral = true
+					} else {
+						assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
+						if prefix := clean[:start]; prefix != "" {
+							if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
+								last := matches[len(matches)-1]
+								if len(last) >= 2 {
+									raw = last[1]
+									rawLiteral = true
+									isDyn = false
+								}
+							}
+						}
+						if !rawLiteral {
+							isDyn = true
+							raw = "<dynamic-sql>"
+						}
 					}
 				}
 			case callQueryWsLit, callQueryWsDyn:
