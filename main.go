@@ -74,32 +74,44 @@ func ensureRelPath(root, p string) string {
 		return ""
 	}
 	clean := filepath.Clean(p)
-	absRoot := filepath.Clean(root)
-	if absRoot == "" {
+	rootClean := filepath.Clean(root)
+	if rootClean == "" {
 		return filepath.ToSlash(clean)
 	}
-
-	if strings.HasPrefix(clean, absRoot) {
-		if rel, err := filepath.Rel(absRoot, clean); err == nil {
-			clean = rel
-		}
-	} else if idx := strings.Index(clean, absRoot); idx >= 0 {
-		trimmed := strings.TrimPrefix(clean[idx+len(absRoot):], string(filepath.Separator))
-		if trimmed != "" {
-			clean = trimmed
-		}
+	rootAbs, err := filepath.Abs(rootClean)
+	if err != nil {
+		rootAbs = rootClean
 	}
+	rootSlash := filepath.ToSlash(rootAbs)
+	rootSlashTrim := strings.TrimPrefix(rootSlash, "/")
+	cleanSlash := filepath.ToSlash(clean)
 
 	if filepath.IsAbs(clean) {
-		if rel, err := filepath.Rel(absRoot, clean); err == nil {
-			clean = rel
+		if rel, err := filepath.Rel(rootAbs, clean); err == nil {
+			return filepath.ToSlash(filepath.Clean(rel))
 		}
 	}
 
-	if rel, err := filepath.Rel(absRoot, clean); err == nil {
-		return filepath.ToSlash(rel)
+	if idx := strings.Index(cleanSlash, rootSlash); idx >= 0 {
+		trimmed := strings.TrimPrefix(cleanSlash[idx+len(rootSlash):], "/")
+		if trimmed != "" {
+			return filepath.ToSlash(filepath.Clean(trimmed))
+		}
 	}
-	return filepath.ToSlash(clean)
+	if idx := strings.Index(cleanSlash, rootSlashTrim); idx >= 0 {
+		trimmed := strings.TrimPrefix(cleanSlash[idx+len(rootSlashTrim):], "/")
+		if trimmed != "" {
+			return filepath.ToSlash(filepath.Clean(trimmed))
+		}
+	}
+
+	if !filepath.IsAbs(clean) {
+		clean = filepath.Join(rootAbs, clean)
+	}
+	if rel, err := filepath.Rel(rootAbs, clean); err == nil {
+		return filepath.ToSlash(filepath.Clean(rel))
+	}
+	return filepath.ToSlash(filepath.Clean(clean))
 }
 
 // goSymtabCache caches package-wide Go symbol tables per directory to avoid redundant parsing.
@@ -330,6 +342,12 @@ func parseFlags() *Config {
 		os.Exit(1)
 	}
 
+	if absRoot, err := filepath.Abs(*root); err == nil {
+		*root = filepath.Clean(absRoot)
+	} else {
+		*root = filepath.Clean(*root)
+	}
+
 	l := strings.ToLower(*lang)
 	if l == "cs" || l == "csharp" {
 		l = "dotnet"
@@ -529,7 +547,7 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 	}
 
 	ext := strings.ToLower(filepath.Ext(path))
-	relPath, _ := filepath.Rel(cfg.Root, path)
+	relPath := ensureRelPath(cfg.Root, path)
 
 	switch ext {
 	case ".go":
@@ -636,10 +654,7 @@ func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
 	for _, pkg := range pkgs {
 		for fileName, f := range pkg.Files {
 			absPath := filepath.Join(dir, fileName)
-			relPath, errRel := filepath.Rel(root, absPath)
-			if errRel != nil {
-				relPath = absPath
-			}
+			relPath := ensureRelPath(root, absPath)
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch v := n.(type) {
 				case *ast.ValueSpec:
@@ -2208,9 +2223,6 @@ func analyzeCandidate(c *SqlCandidate) {
 	if hashInput == "" {
 		hashInput = c.RawSql
 	}
-	if hashInput == "" {
-		hashInput = fmt.Sprintf("%s:%d:%d:%s", c.RelPath, c.LineStart, c.LineEnd, c.Func)
-	}
 	h := sha1.Sum([]byte(hashInput))
 	c.QueryHash = fmt.Sprintf("%x", h[:])
 
@@ -2334,6 +2346,7 @@ func isWriteKind(kind string) bool {
 func findObjectTokens(sql string) []ObjectToken {
 	lower := strings.ToLower(sql)
 	var tokens []ObjectToken
+	seen := make(map[string]bool)
 
 	keywords := []string{
 		"from", "join", "update", "into",
@@ -2370,10 +2383,12 @@ func findObjectTokens(sql string) []ObjectToken {
 				break
 			}
 			objText, _ := scanObjectName(sql, lower, p)
-			if objText == "" {
+			key := strings.ToLower(strings.TrimSpace(objText))
+			if objText == "" || seen[key] {
 				start = end
 				continue
 			}
+			seen[key] = true
 			dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
 			tokens = append(tokens, ObjectToken{
 				DbName:          dbName,
@@ -2582,6 +2597,8 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			targetIdx = 0
 		}
 	}
+	multiDeleteTargets := usageKind == "DELETE" && strings.Count(sqlLower, "delete") >= len(tokens) && len(tokens) > 1
+
 	// Assign role and DmlKind based on usageKind
 	switch usageKind {
 	case "SELECT":
@@ -2616,7 +2633,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	case "DELETE":
 		for i := range tokens {
-			if i == targetIdx {
+			if multiDeleteTargets || i == targetIdx {
 				tokens[i].Role = "target"
 				tokens[i].DmlKind = "DELETE"
 				tokens[i].IsWrite = true

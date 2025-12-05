@@ -5219,7 +5219,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2821,2821,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2821
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2821
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2827,2827,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5445,7 +5445,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2827,2827,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2827
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2827
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2833,2833,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5671,7 +5671,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2833,2833,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2833
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2833
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3086,3086,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5897,7 +5897,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3086,3086,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3086
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3086
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3092,3092,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -6123,7 +6123,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3092,3092,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3092
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3092
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3098,3098,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -6349,7 +6349,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3098,3098,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3098
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3098
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3418,3418,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3418
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3468,3468,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3468
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3518,3518,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3518
@@ -7746,7 +7746,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6008,6008,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6008
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6008
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6097,6097,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -7972,7 +7972,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6097,6097,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6097
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6097
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6371,6371,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
