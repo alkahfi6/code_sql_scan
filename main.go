@@ -765,6 +765,56 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		return "", true, relPath, 0
 	}
 
+	// Promote package-level SQL constants to candidates
+	for _, decl := range fileAst.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, name := range vs.Names {
+				if name == nil || name.Name == "_" {
+					continue
+				}
+				if len(vs.Values) <= i {
+					continue
+				}
+				valExpr := vs.Values[i]
+				val, dyn := evalStringExpr(valExpr, pkgSymtab)
+				if dyn || val == "" {
+					continue
+				}
+				// Heuristic: consider package-level const that looks like SQL or whose name starts with "Query"/"SQL".
+				if !looksLikeSQL(val) && !(strings.HasPrefix(name.Name, "Query") || strings.HasPrefix(name.Name, "SQL") || strings.HasPrefix(name.Name, "Sql")) {
+					continue
+				}
+				pos := fset.Position(name.Pos())
+				cand := SqlCandidate{
+					AppName:     cfg.AppName,
+					RelPath:     relPath,
+					File:        filepath.Base(path),
+					SourceCat:   "code",
+					SourceKind:  "go",
+					LineStart:   pos.Line,
+					LineEnd:     pos.Line,
+					Func:        "",
+					RawSql:      val,
+					IsDynamic:   false,
+					IsExecStub:  isProcNameSpec(val),
+					ConnName:    "",
+					ConnDb:      "",
+					DefinedPath: relPath,
+					DefinedLine: pos.Line,
+				}
+				cands = append(cands, cand)
+			}
+		}
+	}
+
 	// Process each function separately
 	for _, decl := range fileAst.Decls {
 		fd, ok := decl.(*ast.FuncDecl)
