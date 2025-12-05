@@ -907,21 +907,21 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 // getFuncAndReceiver extracts the function name and the receiver/selector name from a call expression.
 func getFuncAndReceiver(call *ast.CallExpr) (funcName, connName string) {
-        var unwrap func(ast.Expr) (string, string)
-        unwrap = func(expr ast.Expr) (string, string) {
-                switch v := expr.(type) {
-                case *ast.IndexExpr:
-                        return unwrap(v.X)
-                case *ast.IndexListExpr:
-                        return unwrap(v.X)
-                case *ast.SelectorExpr:
-                        return v.Sel.Name, getReceiverName(v.X)
-                case *ast.Ident:
-                        return v.Name, ""
-                }
-                return "", ""
-        }
-        return unwrap(call.Fun)
+	var unwrap func(ast.Expr) (string, string)
+	unwrap = func(expr ast.Expr) (string, string) {
+		switch v := expr.(type) {
+		case *ast.IndexExpr:
+			return unwrap(v.X)
+		case *ast.IndexListExpr:
+			return unwrap(v.X)
+		case *ast.SelectorExpr:
+			return v.Sel.Name, getReceiverName(v.X)
+		case *ast.Ident:
+			return v.Name, ""
+		}
+		return "", ""
+	}
+	return unwrap(call.Fun)
 }
 
 func getReceiverName(expr ast.Expr) string {
@@ -1886,21 +1886,51 @@ func countLinesUpTo(s string, pos int) int {
 // ------------------------------------------------------------
 
 func isProcNameSpec(s string) bool {
-	l := strings.ToLower(strings.TrimSpace(s))
+	trimmed := strings.TrimSpace(s)
+	l := strings.ToLower(trimmed)
 	if l == "" {
 		return false
 	}
+
 	kw := []string{"select", "insert", "update", "delete", "truncate", "exec"}
 	for _, k := range kw {
 		if strings.Contains(l, k) {
 			return false
 		}
 	}
-	if strings.ContainsAny(l, " \t\r\n") {
+
+	// Allow trailing parameter markers (e.g., "?,?" or "(@p1, @p2)") after the proc name.
+	base := trimmed
+	if idx := strings.IndexAny(trimmed, " \t\r\n("); idx >= 0 {
+		base = strings.TrimSpace(trimmed[:idx])
+		tail := strings.TrimSpace(trimmed[idx:])
+		if tail != "" && !paramsOnly(tail) {
+			return false
+		}
+	}
+
+	if base == "" || strings.ContainsAny(base, " \t\r\n") {
 		return false
 	}
-	if strings.Contains(s, "[[") || strings.Contains(s, "]]") || strings.ContainsAny(s, "?:") {
+	if strings.Contains(base, "[[") || strings.Contains(base, "]]") || strings.ContainsAny(base, "?:") {
 		return true
+	}
+	return true
+}
+
+func paramsOnly(s string) bool {
+	if s == "" {
+		return true
+	}
+	for _, r := range s {
+		switch r {
+		case '?', '@', ':', ',', '(', ')', '[', ']', '.', '-', '+', '\'', '"':
+		case ' ', '\t', '\r', '\n':
+		default:
+			if r < '0' || r > '9' {
+				return false
+			}
+		}
 	}
 	return true
 }

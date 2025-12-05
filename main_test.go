@@ -128,6 +128,38 @@ func TestAnalyzeCandidateExecStubAndDynamicCases(t *testing.T) {
 	}
 }
 
+func TestIsProcNameSpecAllowsParamsSuffix(t *testing.T) {
+	cases := []struct {
+		name     string
+		input    string
+		expected bool
+	}{
+		{
+			name:     "proc name with positional params",
+			input:    "[dbo].[UpdateControlTableResikoPasar] ?,?",
+			expected: true,
+		},
+		{
+			name:     "proc name with named params",
+			input:    "dbo.ProcessData @p1, @p2",
+			expected: true,
+		},
+		{
+			name:     "non-proc due to select keyword",
+			input:    "select * from dbo.TableA",
+			expected: false,
+		},
+	}
+
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isProcNameSpec(tt.input); got != tt.expected {
+				t.Fatalf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
 func TestAnalyzeCandidateMultiStatementAndCommentsOnly(t *testing.T) {
 	t.Run("multi-statement with cross-db join", func(t *testing.T) {
 		sql := `-- name: inquiry
