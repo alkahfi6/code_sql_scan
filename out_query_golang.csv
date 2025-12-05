@@ -7,7 +7,7 @@ DELETE FROM confomk006_a
 WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)","DELETE FROM confomk005_a 
 WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112);
 DELETE FROM confomk006_a 
-WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,3,false,db,,ad30b57d9a7fe072b0f9f08a707acb6ec00eb0f8,MEDIUM,go1/query.go,5
+WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,2,false,db,,ad30b57d9a7fe072b0f9f08a707acb6ec00eb0f8,MEDIUM,go1/query.go,5
 golang-sample,go1/destination.go,destination.go,code,go,58,58,ExecuteSPMurexTConfo,"dbo.TConfoMK005_A;
 dbo.TConfoMK006_A","dbo.TConfoMK005_A;
 dbo.TConfoMK006_A",EXEC,true,true,dbo,1,false,db,,093ff02222045afca6ee001726690189757f01e0,HIGH,go1/sp.go,8
@@ -74,14 +74,14 @@ delete from mk006_a
 where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)","delete from mk005_a 
 where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112);
 delete from mk006_a 
-where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,3,false,db,,ad63663f55caa1bf42b771265ec89230d8689158,MEDIUM,go1/query.go,77
+where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,2,false,db,,ad63663f55caa1bf42b771265ec89230d8689158,MEDIUM,go1/query.go,77
 golang-sample,go1/query.go,query.go,code,go,3,3,,select * from OBOXGetPrevDate_v,select * from OBOXGetPrevDate_v,SELECT,false,false,,1,false,,,2b670ce0899d69a442ab570b63ab71cd8d786174,LOW,go1/query.go,3
 golang-sample,go1/query.go,query.go,code,go,5,5,,"DELETE FROM confomk005_a 
 WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)","DELETE FROM confomk005_a 
-WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,2,false,,,04045bf8ecb0bab0e865d4b28e0b6af8411a7b60,MEDIUM,go1/query.go,5
+WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,1,false,,,04045bf8ecb0bab0e865d4b28e0b6af8411a7b60,MEDIUM,go1/query.go,5
 golang-sample,go1/query.go,query.go,code,go,7,7,,"DELETE FROM confomk006_a 
 WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)","DELETE FROM confomk006_a 
-WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,2,false,,,20f7ae043f59da4d3a7c4e67b50df022253776ba,MEDIUM,go1/query.go,7
+WHERE convert(varchar(8), ProcessDate, 112) >= convert(varchar(8), getdate(), 112)",DELETE,true,false,,1,false,,,20f7ae043f59da4d3a7c4e67b50df022253776ba,MEDIUM,go1/query.go,7
 golang-sample,go1/query.go,query.go,code,go,10,10,,"
 select CFN1,CA1
 ,CA2,CA3,CA4,DEALNO,PS_1
@@ -202,10 +202,10 @@ values (:CFN1,:CA1,:CA2,:CA3,:CA4,
 :X_M_NB )",INSERT,true,true,SQL_REPLICATE,1,false,,,7713fe8dae13c3944cf3992d190884b460d97a84,HIGH,go1/query.go,55
 golang-sample,go1/query.go,query.go,code,go,77,77,,"delete from mk005_a 
 where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)","delete from mk005_a 
-where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,2,false,,,879f4afcb1006b1bc7e8bbee8048307332323261,MEDIUM,go1/query.go,77
+where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,1,false,,,879f4afcb1006b1bc7e8bbee8048307332323261,MEDIUM,go1/query.go,77
 golang-sample,go1/query.go,query.go,code,go,79,79,,"delete from mk006_a 
 where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)","delete from mk006_a 
-where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,2,false,,,35ac35ba5b29092d6277439b95af20442af92717,MEDIUM,go1/query.go,79
+where convert(varchar(8),ProcessDate, 112) = convert(varchar(8),getdate(), 112)",DELETE,true,false,,1,false,,,35ac35ba5b29092d6277439b95af20442af92717,MEDIUM,go1/query.go,79
 golang-sample,go1/query.go,query.go,code,go,82,82,,"
 select DEALNO,BRANCHTRANSACTION  ,BRANCHCOMPLETION
 ,USERCOMPLETION ,STATUSDOKUMEN ,TRANSACTIONDATE
@@ -736,10 +736,10 @@ on aj.NIK = au.NIK
 where aj.NIK is null",SELECT,false,false,,2,false,ctx,,19c8d45f263b4cff05ce871776081c4d676490ba,LOW,go3/aajiQueries.sql.go,155
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,215,215,,"-- name: DeleteBatchIdFromBancaMTranAAJIAAUITT :exec
 delete from BancaMTranAAJIAAUI_TT where BatchId = @p1
-",delete from BancaMTranAAJIAAUI_TT where BatchId = @p1,DELETE,true,false,,2,false,,,8594b37a90090ac9fe85b2a291a6b0de2d13af73,MEDIUM,go3/aajiQueries.sql.go,215
+",delete from BancaMTranAAJIAAUI_TT where BatchId = @p1,DELETE,true,false,,1,false,,,8594b37a90090ac9fe85b2a291a6b0de2d13af73,MEDIUM,go3/aajiQueries.sql.go,215
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,220,220,DeleteBatchIdFromBancaMTranAAJIAAUITT,"-- name: DeleteBatchIdFromBancaMTranAAJIAAUITT :exec
 delete from BancaMTranAAJIAAUI_TT where BatchId = @p1
-",delete from BancaMTranAAJIAAUI_TT where BatchId = @p1,DELETE,true,false,,2,false,ctx,,8594b37a90090ac9fe85b2a291a6b0de2d13af73,MEDIUM,go3/aajiQueries.sql.go,215
+",delete from BancaMTranAAJIAAUI_TT where BatchId = @p1,DELETE,true,false,,1,false,ctx,,8594b37a90090ac9fe85b2a291a6b0de2d13af73,MEDIUM,go3/aajiQueries.sql.go,215
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,224,224,,"-- name: CheckNIKIfNotRegisterOnPeopleSoftFromPSEmployeev :many
 select EMPLID from PSEmployee_v where EMPLID = @p1
 ",select EMPLID from PSEmployee_v where EMPLID = @p1,SELECT,false,false,,1,false,,,4b9a303582b4b4c3d18e0003684205396626dc65,LOW,go3/aajiQueries.sql.go,224
@@ -2285,7 +2285,7 @@ golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,
 		DROP TABLE #tmp_SOF
 
 	IF OBJECT_ID('tempdb..#tmpSumberDana') IS NOT NULL  
-		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,32,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
+		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,31,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,12,12,,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
 ",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,0c2fcc8d689738b937bc52dfad0621824af66d12,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
