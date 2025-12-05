@@ -930,6 +930,39 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	lines := strings.Split(src, "\n")
 	methodAtLine := detectCsMethods(lines)
 
+	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
+	literalInMethod := make(map[string]map[string]string)
+	simpleDeclAssign := regexp.MustCompile(`(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]+)"`)
+	bareAssign := regexp.MustCompile(`(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*"([^"]+)"`)
+	recordLiteral := func(method, name, val string) {
+		if method == "" || name == "" {
+			return
+		}
+		if _, ok := literalInMethod[method]; !ok {
+			literalInMethod[method] = make(map[string]string)
+		}
+		literalInMethod[method][name] = val
+	}
+	for i, line := range lines {
+		method := ""
+		if i < len(methodAtLine) {
+			method = methodAtLine[i]
+		}
+		if method == "" {
+			continue
+		}
+		if m := simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
+			recordLiteral(method, m[1], m[2])
+			continue
+		}
+		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
+			continue
+		}
+		if m := bareAssign.FindStringSubmatch(line); len(m) == 3 {
+			recordLiteral(method, m[1], m[2])
+		}
+	}
+
 	var cands []SqlCandidate
 
 	execProcLit := regexp.MustCompile(`(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*"([^"]+)"`)
@@ -969,6 +1002,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		{commandTextLit, false, false}, // CommandText = "ProcName"
 	}
 
+	identRe := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
+
 	for _, p := range patterns {
 		matches := p.re.FindAllStringSubmatchIndex(clean, -1)
 		for _, m := range matches {
@@ -982,6 +1017,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw      string
 			)
 
+			funcName := ""
+			if line-1 >= 0 && line-1 < len(methodAtLine) {
+				funcName = methodAtLine[line-1]
+			}
+
+			isDyn := p.dynamic
+			isExecStub := p.execStub
+
 			switch p.re {
 			case newCmd:
 				// group1 = SQL, group2 = conn
@@ -990,7 +1033,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			case execProcLit, execProcDyn:
 				// group1 = conn, group2 = arg (SP literal or expr)
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
-				raw = cleanedGroup(clean, m, 2)
+				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
+				raw = rawArg
+				if p.re == execProcDyn && funcName != "" && identRe.MatchString(rawArg) {
+					if lit, ok := literalInMethod[funcName][rawArg]; ok {
+						raw = lit
+						isDyn = false
+						isExecStub = true
+					}
+				}
 				if raw == "" && p.dynamic {
 					raw = "<dynamic-proc>"
 				}
@@ -1005,11 +1056,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			if raw == "" {
 				continue
 			}
-			funcName := ""
-			if line-1 >= 0 && line-1 < len(methodAtLine) {
-				funcName = methodAtLine[line-1]
-			}
-			isDyn := p.dynamic
 			// mark dynamic if raw contains interpolations or variables
 			if !p.dynamic {
 				if strings.Contains(raw, "$") || (strings.Contains(raw, "{") && strings.Contains(raw, "}")) {
@@ -1017,7 +1063,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				}
 			}
 			// Determine exec stub: if pattern flagged or the raw string looks like a proc name spec
-			isExecStub := p.execStub
 			if !isDyn && !isExecStub {
 				if isProcNameSpec(raw) {
 					isExecStub = true
@@ -2196,6 +2241,8 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
+var procParamPlaceholderPattern = regexp.MustCompile(`\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`)
+
 func parseProcNameSpec(s string) ObjectToken {
 	trimmed := strings.TrimSpace(s)
 	if strings.HasSuffix(trimmed, ";") {
@@ -2205,9 +2252,14 @@ func parseProcNameSpec(s string) ObjectToken {
 	if idx := strings.Index(trimmed, "("); idx >= 0 {
 		trimmed = strings.TrimSpace(trimmed[:idx])
 	}
+
+	origTrimmed := trimmed
+	trimmed = procParamPlaceholderPattern.ReplaceAllString(trimmed, "")
+	trimmed = strings.TrimSpace(trimmed)
+
 	db, schema, base, isLinked := splitObjectNameParts(trimmed)
 	dyn := false
-	if strings.Contains(trimmed, "[[") || strings.Contains(trimmed, "]]") || strings.ContainsAny(trimmed, "?:") {
+	if strings.Contains(origTrimmed, "[[") || strings.Contains(origTrimmed, "]]") || strings.ContainsAny(origTrimmed, "?:@") {
 		dyn = true
 	}
 	return ObjectToken{
