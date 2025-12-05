@@ -28,20 +28,73 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"sort"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
-	"runtime"
 )
 
-// connNameToDb holds mapping from logical connection names to their default database names.
-// This is populated when scanning configuration files (.config/.xml) that contain <connectionStrings> entries.
-// Access to this map should be guarded by connMu to avoid races when updated concurrently by workers.
+// connRegistry keeps connection name -> database mappings with concurrency safety.
+type connRegistry struct {
+	mu   sync.RWMutex
+	data map[string]string
+}
+
+func newConnRegistry() *connRegistry {
+	return &connRegistry{data: make(map[string]string)}
+}
+
+func (c *connRegistry) set(name, db string) {
+	c.mu.Lock()
+	c.data[name] = db
+	c.mu.Unlock()
+}
+
+func (c *connRegistry) get(name string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	db, ok := c.data[name]
+	return db, ok
+}
+
+func (c *connRegistry) snapshot() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	copy := make(map[string]string, len(c.data))
+	for k, v := range c.data {
+		copy[k] = v
+	}
+	return copy
+}
+
+// goSymtabCache caches package-wide Go symbol tables per directory to avoid redundant parsing.
+type goSymtabCache struct {
+	mu   sync.RWMutex
+	data map[string]map[string]SqlSymbol
+}
+
+func newGoSymtabCache() *goSymtabCache {
+	return &goSymtabCache{data: make(map[string]map[string]SqlSymbol)}
+}
+
+func (c *goSymtabCache) load(dir string) (map[string]SqlSymbol, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	val, ok := c.data[dir]
+	return val, ok
+}
+
+func (c *goSymtabCache) store(dir string, symtab map[string]SqlSymbol) {
+	c.mu.Lock()
+	c.data[dir] = symtab
+	c.mu.Unlock()
+}
+
 var (
-	connNameToDb = make(map[string]string)
-	connMu       sync.RWMutex
+	connStore     = newConnRegistry()
+	goSymtabStore = newGoSymtabCache()
 )
 
 // ------------------------------------------------------------
@@ -170,10 +223,10 @@ func main() {
 	log.Printf("[INFO] starting scan root=%s app=%s lang=%s workers=%d maxSize=%d",
 		cfg.Root, cfg.AppName, cfg.Lang, cfg.Workers, cfg.MaxFileSize)
 
-	paths := collectFiles(cfg)
-	log.Printf("[INFO] total files to scan: %d", len(paths))
-
-	cands := runWorkers(cfg, paths)
+	pathCh, countCh := streamFiles(cfg)
+	cands := runWorkers(cfg, pathCh)
+	fileCount := <-countCh
+	log.Printf("[INFO] total files to scan: %d", fileCount)
 
 	for i := range cands {
 		analyzeCandidate(&cands[i])
@@ -294,33 +347,41 @@ var skipDirs = []string{
 	"bin", "obj", "dist", "out", "target", "node_modules", "packages", "vendor",
 }
 
-func collectFiles(cfg *Config) []string {
-	var paths []string
-	err := filepath.WalkDir(cfg.Root, func(path string, d os.DirEntry, err error) error {
-		if err != nil {
-			log.Printf("[WARN] walk error on %s: %v", path, err)
-			return nil
-		}
-		if d.IsDir() {
-			name := strings.ToLower(d.Name())
-			for _, s := range skipDirs {
-				if name == s {
-					return filepath.SkipDir
-				}
+func streamFiles(cfg *Config) (<-chan string, <-chan int) {
+	paths := make(chan string, cfg.Workers*2)
+	count := make(chan int, 1)
+	go func() {
+		defer close(paths)
+		defer close(count)
+		total := 0
+		err := filepath.WalkDir(cfg.Root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				log.Printf("[WARN] walk error on %s: %v", path, err)
+				return nil
 			}
+			if d.IsDir() {
+				name := strings.ToLower(d.Name())
+				for _, s := range skipDirs {
+					if name == s {
+						return filepath.SkipDir
+					}
+				}
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			if !isAllowedExt(cfg, ext) {
+				return nil
+			}
+			total++
+			paths <- path
 			return nil
+		})
+		if err != nil {
+			log.Printf("[WARN] walkdir error: %v", err)
 		}
-		ext := strings.ToLower(filepath.Ext(path))
-		if !isAllowedExt(cfg, ext) {
-			return nil
-		}
-		paths = append(paths, path)
-		return nil
-	})
-	if err != nil {
-		log.Printf("[WARN] walkdir error: %v", err)
-	}
-	return paths
+		count <- total
+	}()
+	return paths, count
 }
 
 func isAllowedExt(cfg *Config, ext string) bool {
@@ -349,7 +410,7 @@ func isAllowedExt(cfg *Config, ext string) bool {
 // Worker pool
 // ------------------------------------------------------------
 
-func runWorkers(cfg *Config, paths []string) []SqlCandidate {
+func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
 	jobs := make(chan string, cfg.Workers*2)
 	results := make(chan []SqlCandidate, cfg.Workers*2)
 
@@ -382,7 +443,7 @@ func runWorkers(cfg *Config, paths []string) []SqlCandidate {
 	}
 
 	go func() {
-		for _, p := range paths {
+		for p := range paths {
 			jobs <- p
 		}
 		close(jobs)
@@ -485,12 +546,12 @@ var goDbCallArgIndex = map[string]int{
 	"ExecContext":     1,
 	"QueryRowContext": 1,
 	// Custom DB util functions: (ctx, conn, query [, args...])
-	"QuerySingleRow":               2,
-	"QueryMultipleRows":            2,
-	"QueryMultipleRowsInArg":       2,
-	"ExecStoredProcedure":          2,
+	"QuerySingleRow":                2,
+	"QueryMultipleRows":             2,
+	"QueryMultipleRowsInArg":        2,
+	"ExecStoredProcedure":           2,
 	"ExecStoredProcedureWithReturn": 2,
-	"ExecNonQuery":                 2,
+	"ExecNonQuery":                  2,
 	// Oracle stored procedure support: (ctx, conn, procName, args...)
 	"ExecStoredProcedureOracle": 2,
 }
@@ -509,10 +570,15 @@ func init() {
 // a package-wide symbol table of constant string definitions.
 // Only simple literal concatenations are resolved; dynamic expressions are skipped.
 func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
+	if cached, ok := goSymtabStore.load(dir); ok {
+		return cached
+	}
+
 	symtab := make(map[string]SqlSymbol)
 	fset := token.NewFileSet()
 	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
 	if err != nil {
+		goSymtabStore.store(dir, symtab)
 		return symtab
 	}
 	for _, pkg := range pkgs {
@@ -570,7 +636,8 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	var cands []SqlCandidate
 
 	// Helper to evaluate an expression as a potential SQL string using local and global symtabs.
-	evalArg := func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int) {
+	var evalArg func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int)
+	evalArg = func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int) {
 		if expr == nil {
 			return "", true, relPath, 0
 		}
@@ -638,7 +705,8 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			val, dyn := evalStringExpr(expr, pkgSymtab)
 			if dyn || val == "" {
 				return "", true, relPath, 0
-						return val, false, relPath, 0
+			}
+			return val, false, relPath, 0
 		}
 		return "", true, relPath, 0
 	}
@@ -664,7 +732,7 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 							return true
 						}
 						// evaluate using local and global symtab
-						rawVal, dyn := evalArg(v.Rhs[0], localSymtab, localDyn)
+						rawVal, dyn, _, _ := evalArg(v.Rhs[0], localSymtab, localDyn)
 						if dyn || rawVal == "" {
 							delete(localSymtab, name)
 							localDyn[name] = true
@@ -708,7 +776,7 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 							}
 							valExpr := vs.Values[i]
 							// evaluate using local and global symtab
-							rawVal, dyn := evalArg(valExpr, localSymtab, localDyn)
+							rawVal, dyn, _, _ := evalArg(valExpr, localSymtab, localDyn)
 							if dyn || rawVal == "" {
 								delete(localSymtab, name.Name)
 								localDyn[name.Name] = true
@@ -1310,10 +1378,7 @@ func extractConnectionStrings(content string) {
 		if dbName == "" {
 			continue
 		}
-		// update global map with lock
-		connMu.Lock()
-		connNameToDb[name] = dbName
-		connMu.Unlock()
+		connStore.set(name, dbName)
 	}
 }
 
@@ -1616,13 +1681,11 @@ func analyzeCandidate(c *SqlCandidate) {
 	sqlClean = strings.TrimSpace(sqlClean)
 	c.SqlClean = sqlClean
 
-	// Attempt to map ConnName to default database via global connection map.
+	// Attempt to map ConnName to default database via shared connection registry.
 	if c.ConnDb == "" && c.ConnName != "" {
-		connMu.RLock()
-		if db, ok := connNameToDb[c.ConnName]; ok {
+		if db, ok := connStore.get(c.ConnName); ok {
 			c.ConnDb = db
 		}
-		connMu.RUnlock()
 	}
 
 	usage := detectUsageKind(c.IsExecStub, sqlClean)
@@ -2263,24 +2326,16 @@ func boolToStr(b bool) string {
 // It searches for common DML keywords like select, insert, update, delete, truncate, or exec.
 // A simple lower-case search is performed and only returns true if at least one keyword is found.
 func looksLikeSQL(s string) bool {
-	ls := strings.ToLower(s)
-	if strings.Contains(ls, "select ") {
-		return true
+	norm := strings.ToLower(StripSqlComments(strings.TrimSpace(s)))
+	norm = strings.Join(strings.Fields(norm), " ")
+	if norm == "" {
+		return false
 	}
-	if strings.Contains(ls, "insert ") {
-		return true
-	}
-	if strings.Contains(ls, "update ") {
-		return true
-	}
-	if strings.Contains(ls, "delete ") {
-		return true
-	}
-	if strings.Contains(ls, "truncate ") {
-		return true
-	}
-	if strings.Contains(ls, "exec ") || strings.Contains(ls, "execute ") {
-		return true
+	keywords := []string{"select", "insert", "update", "delete", "truncate", "exec", "execute"}
+	for _, kw := range keywords {
+		if strings.HasPrefix(norm, kw) || strings.Contains(norm, kw+" ") {
+			return true
+		}
 	}
 	return false
 }
