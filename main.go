@@ -78,40 +78,31 @@ func ensureRelPath(root, p string) string {
 	if rootClean == "" {
 		return filepath.ToSlash(clean)
 	}
+
 	rootAbs, err := filepath.Abs(rootClean)
 	if err != nil {
 		rootAbs = rootClean
 	}
-	rootSlash := filepath.ToSlash(rootAbs)
-	rootSlashTrim := strings.TrimPrefix(rootSlash, "/")
-	cleanSlash := filepath.ToSlash(clean)
 
+	var absPath string
 	if filepath.IsAbs(clean) {
-		if rel, err := filepath.Rel(rootAbs, clean); err == nil {
-			return filepath.ToSlash(filepath.Clean(rel))
+		absPath = clean
+	} else {
+		cleanSlash := filepath.ToSlash(clean)
+		rootSlash := filepath.ToSlash(rootClean)
+		if strings.HasPrefix(cleanSlash, rootSlash+"/") {
+			trimmed := strings.TrimPrefix(cleanSlash[len(rootSlash):], "/")
+			clean = filepath.FromSlash(trimmed)
+		} else if cleanSlash == rootSlash {
+			clean = ""
 		}
+		absPath = filepath.Join(rootAbs, clean)
 	}
 
-	if idx := strings.Index(cleanSlash, rootSlash); idx >= 0 {
-		trimmed := strings.TrimPrefix(cleanSlash[idx+len(rootSlash):], "/")
-		if trimmed != "" {
-			return filepath.ToSlash(filepath.Clean(trimmed))
-		}
-	}
-	if idx := strings.Index(cleanSlash, rootSlashTrim); idx >= 0 {
-		trimmed := strings.TrimPrefix(cleanSlash[idx+len(rootSlashTrim):], "/")
-		if trimmed != "" {
-			return filepath.ToSlash(filepath.Clean(trimmed))
-		}
-	}
-
-	if !filepath.IsAbs(clean) {
-		clean = filepath.Join(rootAbs, clean)
-	}
-	if rel, err := filepath.Rel(rootAbs, clean); err == nil {
+	if rel, err := filepath.Rel(rootAbs, absPath); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
 		return filepath.ToSlash(filepath.Clean(rel))
 	}
-	return filepath.ToSlash(filepath.Clean(clean))
+	return filepath.ToSlash(filepath.Clean(absPath))
 }
 
 // goSymtabCache caches package-wide Go symbol tables per directory to avoid redundant parsing.
@@ -653,7 +644,10 @@ func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
 	}
 	for _, pkg := range pkgs {
 		for fileName, f := range pkg.Files {
-			absPath := filepath.Join(dir, fileName)
+			absPath := fileName
+			if !filepath.IsAbs(fileName) {
+				absPath = filepath.Join(dir, fileName)
+			}
 			relPath := ensureRelPath(root, absPath)
 			ast.Inspect(f, func(n ast.Node) bool {
 				switch v := n.(type) {
@@ -1874,6 +1868,7 @@ func StripCodeCommentsCStyle(src string, isCSharp bool) string {
 		stateStringVerbatim
 	)
 	state := stateNormal
+	blockDepth := 0
 	for i := 0; i < len(src); i++ {
 		c := src[i]
 		var next byte
@@ -1889,6 +1884,7 @@ func StripCodeCommentsCStyle(src string, isCSharp bool) string {
 			}
 			if c == '/' && next == '*' {
 				state = stateBlockComment
+				blockDepth = 1
 				i++
 				continue
 			}
@@ -1916,9 +1912,20 @@ func StripCodeCommentsCStyle(src string, isCSharp bool) string {
 			if c == '\n' {
 				out.WriteByte(c)
 			}
-			if c == '*' && next == '/' {
-				state = stateNormal
+			if c == '/' && next == '*' {
+				blockDepth++
 				i++
+				continue
+			}
+			if c == '*' && next == '/' {
+				if blockDepth > 0 {
+					blockDepth--
+				}
+				i++
+				if blockDepth == 0 {
+					state = stateNormal
+				}
+				continue
 			}
 		case stateStringDouble:
 			out.WriteByte(c)
