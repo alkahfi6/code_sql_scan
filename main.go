@@ -411,14 +411,21 @@ func isAllowedExt(cfg *Config, ext string) bool {
 // ------------------------------------------------------------
 
 func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
-	jobs := make(chan string, cfg.Workers*2)
-	results := make(chan []SqlCandidate, cfg.Workers*2)
-
-	var wg sync.WaitGroup
 	workers := cfg.Workers
 	if workers <= 0 {
 		workers = 4
 	}
+
+	jobBuf := workers * 2
+	if jobBuf < workers {
+		jobBuf = workers
+	}
+	resultBuf := workers * 4
+
+	jobs := make(chan string, jobBuf)
+	results := make(chan []SqlCandidate, resultBuf)
+
+	var wg sync.WaitGroup
 
 	for i := 0; i < workers; i++ {
 		wg.Add(1)
@@ -471,7 +478,12 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 		log.Printf("[INFO] skip too large file: %s (%d bytes)", path, info.Size())
 		return nil, nil
 	}
-	if isBinaryFile(path) {
+	isBin, binErr := isBinaryFile(path)
+	if binErr != nil {
+		log.Printf("[WARN] skip file due to read error: %s (%v)", path, binErr)
+		return nil, nil
+	}
+	if isBin {
 		log.Printf("[INFO] skip binary file: %s", path)
 		return nil, nil
 	}
@@ -503,31 +515,31 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 // Binary sniff
 // ------------------------------------------------------------
 
-func isBinaryFile(path string) bool {
+func isBinaryFile(path string) (bool, error) {
 	f, err := os.Open(path)
 	if err != nil {
-		return true
+		return false, err
 	}
 	defer f.Close()
 	buf := make([]byte, 2048)
 	n, err := f.Read(buf)
 	if err != nil && err != io.EOF {
-		return true
+		return false, err
 	}
 	ctrl := 0
 	for i := 0; i < n; i++ {
 		b := buf[i]
 		if b == 0 {
-			return true
+			return true, nil
 		}
 		if b < 0x09 {
 			ctrl++
 			if ctrl > 5 {
-				return true
+				return true, nil
 			}
 		}
 	}
-	return false
+	return false, nil
 }
 
 // ------------------------------------------------------------
@@ -618,6 +630,7 @@ func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
 			})
 		}
 	}
+	goSymtabStore.store(dir, symtab)
 	return symtab
 }
 
@@ -911,7 +924,17 @@ func getReceiverName(expr ast.Expr) string {
 	case *ast.Ident:
 		return v.Name
 	case *ast.SelectorExpr:
-		return v.Sel.Name
+		prefix := getReceiverName(v.X)
+		if prefix == "" {
+			return v.Sel.Name
+		}
+		return prefix + "." + v.Sel.Name
+	case *ast.IndexExpr:
+		return getReceiverName(v.X)
+	case *ast.StarExpr:
+		return getReceiverName(v.X)
+	case *ast.CallExpr:
+		return getReceiverName(v.Fun)
 	}
 	return ""
 }
