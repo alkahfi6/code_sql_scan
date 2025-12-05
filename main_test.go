@@ -2,62 +2,38 @@ package main
 
 import "testing"
 
-func TestParseProcNameSpecRemovesParamPlaceholders(t *testing.T) {
+func TestDetectUsageKindSkipsLeadingStatements(t *testing.T) {
 	tests := []struct {
-		name   string
-		spec   string
-		full   string
-		base   string
-		schema string
-		db     string
-		isDyn  bool
+		name     string
+		sql      string
+		expected string
 	}{
 		{
-			name:   "Bracketed schema with question marks",
-			spec:   "[dbo].[MyProc] ?, ?",
-			full:   "[dbo].[MyProc]",
-			base:   "MyProc",
-			schema: "dbo",
-			db:     "",
-			isDyn:  true,
+			name:     "select after declare and if",
+			sql:      "DECLARE @foo INT; IF @foo = 1 BEGIN SELECT * FROM table1; END",
+			expected: "SELECT",
 		},
 		{
-			name:   "Bracketed db and schema with named params",
-			spec:   "[db].[schema].[ProcName] @p1, @p2",
-			full:   "[db].[schema].[ProcName]",
-			base:   "ProcName",
-			schema: "schema",
-			db:     "db",
-			isDyn:  true,
+			name:     "insert after declare and set",
+			sql:      "DECLARE @foo INT; SET @foo = 1; IF @foo = 1 BEGIN INSERT INTO table1(id) VALUES (1); END",
+			expected: "INSERT",
 		},
 		{
-			name:   "Colon parameters",
-			spec:   "[dbo].[ProcWithParams] :1, :2",
-			full:   "[dbo].[ProcWithParams]",
-			base:   "ProcWithParams",
-			schema: "dbo",
-			db:     "",
-			isDyn:  true,
+			name:     "delete after temp table management",
+			sql:      "IF OBJECT_ID('tempdb..#temp') IS NOT NULL DROP TABLE #temp; CREATE TABLE #temp(id INT); DELETE FROM table1 WHERE id = 1;",
+			expected: "DELETE",
+		},
+		{
+			name:     "truncate after declare and if",
+			sql:      "DECLARE @exists BIT; IF @exists = 1 BEGIN TRUNCATE TABLE #temp; END",
+			expected: "TRUNCATE",
 		},
 	}
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			tok := parseProcNameSpec(tt.spec)
-			if tok.FullName != tt.full {
-				t.Fatalf("FullName = %q, want %q", tok.FullName, tt.full)
-			}
-			if tok.BaseName != tt.base {
-				t.Fatalf("BaseName = %q, want %q", tok.BaseName, tt.base)
-			}
-			if tok.SchemaName != tt.schema {
-				t.Fatalf("SchemaName = %q, want %q", tok.SchemaName, tt.schema)
-			}
-			if tok.DbName != tt.db {
-				t.Fatalf("DbName = %q, want %q", tok.DbName, tt.db)
-			}
-			if tok.IsObjectNameDyn != tt.isDyn {
-				t.Fatalf("IsObjectNameDyn = %v, want %v", tok.IsObjectNameDyn, tt.isDyn)
+			if got := detectUsageKind(false, tt.sql); got != tt.expected {
+				t.Fatalf("expected %s, got %s", tt.expected, got)
 			}
 		})
 	}

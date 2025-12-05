@@ -13,7 +13,6 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"crypto/sha1"
 	"encoding/csv"
@@ -34,6 +33,7 @@ import (
 	"strings"
 	"sync"
 	"time"
+	"unicode"
 )
 
 // connRegistry keeps connection name -> database mappings with concurrency safety.
@@ -1800,27 +1800,71 @@ func detectUsageKind(isExecStub bool, sql string) string {
 	if sql == "" {
 		return "UNKNOWN"
 	}
-	l := strings.ToLower(strings.TrimSpace(sql))
-	r := bufio.NewReader(strings.NewReader(l))
-	word, _ := r.ReadString(' ')
-	word = strings.TrimSpace(word)
 
-	switch {
-	case strings.HasPrefix(word, "select"):
-		return "SELECT"
-	case strings.HasPrefix(word, "insert"):
-		return "INSERT"
-	case strings.HasPrefix(word, "update"):
-		return "UPDATE"
-	case strings.HasPrefix(word, "delete"):
-		return "DELETE"
-	case strings.HasPrefix(word, "truncate"):
-		return "TRUNCATE"
-	case strings.HasPrefix(word, "exec"), strings.HasPrefix(word, "execute"):
-		return "EXEC"
-	default:
+	trimmed := strings.ToLower(strings.TrimSpace(sql))
+	if trimmed == "" {
 		return "UNKNOWN"
 	}
+
+	targets := map[string]string{
+		"select":   "SELECT",
+		"insert":   "INSERT",
+		"update":   "UPDATE",
+		"delete":   "DELETE",
+		"truncate": "TRUNCATE",
+		"exec":     "EXEC",
+		"execute":  "EXEC",
+	}
+
+	skipTokens := map[string]struct{}{
+		"declare": {},
+		"set":     {},
+		"if":      {},
+		"begin":   {},
+		"end":     {},
+		"drop":    {},
+		"create":  {},
+		"alter":   {},
+		"use":     {},
+		"go":      {},
+	}
+
+	var tokenBuf strings.Builder
+	flushToken := func() string {
+		tok := strings.Trim(tokenBuf.String(), "[]")
+		tokenBuf.Reset()
+		return tok
+	}
+
+	processToken := func(tok string) (string, bool) {
+		if tok == "" {
+			return "", false
+		}
+		if _, skip := skipTokens[tok]; skip {
+			return "", false
+		}
+		if val, ok := targets[tok]; ok {
+			return val, true
+		}
+		return "", false
+	}
+
+	for _, r := range trimmed {
+		if unicode.IsSpace(r) || strings.ContainsRune("();,", r) {
+			tok := flushToken()
+			if kind, ok := processToken(tok); ok {
+				return kind
+			}
+			continue
+		}
+		tokenBuf.WriteRune(r)
+	}
+
+	if kind, ok := processToken(flushToken()); ok {
+		return kind
+	}
+
+	return "UNKNOWN"
 }
 
 func isWriteKind(kind string) bool {
