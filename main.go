@@ -201,7 +201,7 @@ func initRegexes() {
 		methodRe:             mustCompileRegex("methodWithMods", `(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
 		methodReNoMod:        mustCompileRegex("methodNoMods", `(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`),
 		xmlAttr:              mustCompileRegex("xmlAttr", `(?i)(sql|query|command|commandtext|storedprocedure)\s*=\s*"([^"]+)"`),
-		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*\1\s*>`),
+xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
 		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
 		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
 		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
@@ -1483,14 +1483,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			rawLiteral := false
 
 			switch p.re {
-			case newCmd:
-				// group1 = SQL, group2 = conn
-				raw = cleanedGroup(clean, m, 1)
-				rawLiteral = true
-				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
-			case newCmdIdent:
-				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
-				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+case regexes.newCmd:
+// group1 = SQL, group2 = conn
+raw = cleanedGroup(clean, m, 1)
+rawLiteral = true
+connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+case regexes.newCmdIdent:
+raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 				if funcName != "" && regexes.identRe.MatchString(raw) {
 					if lit, ok := literalInMethod[funcName][raw]; ok {
 						raw = lit
@@ -1500,15 +1500,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						raw = "<dynamic-sql>"
 					}
 				}
-			case execProcLit, execProcDyn:
-				// group1 = conn, group2 = arg (SP literal or expr)
-				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
-				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
+case regexes.execProcLit, regexes.execProcDyn:
+// group1 = conn, group2 = arg (SP literal or expr)
+connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
-				if p.re == execProcLit {
-					rawLiteral = true
-				}
-				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
+if p.re == regexes.execProcLit {
+rawLiteral = true
+}
+if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
 						raw = lit
 						isDyn = false
@@ -1516,7 +1516,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						rawLiteral = true
 					}
 				}
-			case execQueryIdent:
+case regexes.execQueryIdent:
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = expr
@@ -1543,17 +1543,17 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						}
 					}
 				}
-			case callQueryWsLit, callQueryWsDyn:
+case regexes.callQueryWsLit, regexes.callQueryWsDyn:
 				// group1 = SQL or expression
 				raw = cleanedGroup(clean, m, 1)
-				if p.re == callQueryWsLit {
+if p.re == regexes.callQueryWsLit {
 					rawLiteral = true
 				}
 			default:
 				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
 				raw = cleanedGroup(clean, m, 1)
 				rawLiteral = true
-				if p.re == commandTextIdent {
+if p.re == regexes.commandTextIdent {
 					expr := strings.TrimSpace(raw)
 					rawLiteral = false
 					raw = expr
