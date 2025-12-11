@@ -28,6 +28,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"runtime/debug"
 	"sort"
 	"strconv"
 	"strings"
@@ -132,6 +133,81 @@ var (
 	connStore     = newConnRegistry()
 	goSymtabStore = newGoSymtabCache()
 )
+
+type regexRegistry struct {
+	// dotnet source code patterns
+	simpleDeclAssign *regexp.Regexp
+	bareAssign       *regexp.Regexp
+	verbatimAssign   *regexp.Regexp
+	execProcLit      *regexp.Regexp
+	execProcDyn      *regexp.Regexp
+	newCmd           *regexp.Regexp
+	newCmdIdent      *regexp.Regexp
+	dapperQuery      *regexp.Regexp
+	dapperExec       *regexp.Regexp
+	efFromSql        *regexp.Regexp
+	efExecRaw        *regexp.Regexp
+	execQuery        *regexp.Regexp
+	callQueryWsLit   *regexp.Regexp
+	callQueryWsDyn   *regexp.Regexp
+	execQueryIdent   *regexp.Regexp
+	commandTextLit   *regexp.Regexp
+	commandTextIdent *regexp.Regexp
+	identRe          *regexp.Regexp
+	methodRe         *regexp.Regexp
+	methodReNoMod    *regexp.Regexp
+
+	// config / markup patterns
+	xmlAttr        *regexp.Regexp
+	xmlElem        *regexp.Regexp
+	pipeField      *regexp.Regexp
+	connStringAttr *regexp.Regexp
+
+	// helpers
+	dynamicPlaceholder   *regexp.Regexp
+	procParamPlaceholder *regexp.Regexp
+}
+
+var regexes regexRegistry
+
+func mustCompileRegex(name, pattern string) *regexp.Regexp {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		log.Fatalf("[FATAL] compile regex name=%s pattern=%q err=%v", name, pattern, err)
+	}
+	return re
+}
+
+func initRegexes() {
+	regexes = regexRegistry{
+		simpleDeclAssign:     mustCompileRegex("simpleDeclAssign", `(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`),
+		bareAssign:           mustCompileRegex("bareAssign", `(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`),
+		verbatimAssign:       mustCompileRegex("verbatimAssign", `(?is)(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@"([^"]+)"`),
+		execProcLit:          mustCompileRegex("execProcLit", `(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*"([^"]+)"`),
+		execProcDyn:          mustCompileRegex("execProcDyn", `(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*([^),]+)`),
+		newCmd:               mustCompileRegex("newCmd", `(?i)new\s+SqlCommand\s*\(\s*"([^"]+)"\s*,\s*([^)]+?)\)`),
+		newCmdIdent:          mustCompileRegex("newCmdIdent", `(?i)new\s+SqlCommand\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([^)]+?)\)`),
+		dapperQuery:          mustCompileRegex("dapperQuery", `(?i)\.\s*Query(?:Async)?(?:<[^>]*>)?\s*\(\s*"([^"]+)"`),
+		dapperExec:           mustCompileRegex("dapperExec", `(?i)\.\s*Execute(?:Async)?\s*\(\s*"([^"]+)"`),
+		efFromSql:            mustCompileRegex("efFromSql", `(?i)\.\s*FromSqlRaw\s*\(\s*"([^"]+)"`),
+		efExecRaw:            mustCompileRegex("efExecRaw", `(?i)\.\s*ExecuteSqlRaw\s*\(\s*"([^"]+)"`),
+		execQuery:            mustCompileRegex("execQuery", `(?i)\.\s*ExecuteQuery\s*\(\s*[^,]+,\s*"([^"]+)"`),
+		callQueryWsLit:       mustCompileRegex("callQueryWsLit", `(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*"([^"]+)"`),
+		callQueryWsDyn:       mustCompileRegex("callQueryWsDyn", `(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`),
+		execQueryIdent:       mustCompileRegex("execQueryIdent", `(?i)\.\s*ExecuteQuery\s*\(\s*([^,]+),\s*([A-Za-z_][A-Za-z0-9_]*)`),
+		commandTextLit:       mustCompileRegex("commandTextLit", `(?i)\.\s*CommandText\s*=\s*"([^"]+)"`),
+		commandTextIdent:     mustCompileRegex("commandTextIdent", `(?i)\.\s*CommandText\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b`),
+		identRe:              mustCompileRegex("ident", `^[A-Za-z_][A-Za-z0-9_]*$`),
+		methodRe:             mustCompileRegex("methodWithMods", `(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
+		methodReNoMod:        mustCompileRegex("methodNoMods", `(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`),
+		xmlAttr:              mustCompileRegex("xmlAttr", `(?i)(sql|query|command|commandtext|storedprocedure)\s*=\s*"([^"]+)"`),
+		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*\1\s*>`),
+		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
+		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
+		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
+		procParamPlaceholder: mustCompileRegex("procParamPlaceholder", `\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`),
+	}
+}
 
 // ------------------------------------------------------------
 // Konfigurasi & tipe data utama
@@ -257,6 +333,8 @@ type ObjectUsageRow struct {
 
 func main() {
 	log.SetFlags(log.LstdFlags | log.Lmicroseconds)
+
+	initRegexes()
 
 	cfg := parseFlags()
 	start := time.Now()
@@ -396,6 +474,31 @@ var skipDirs = []string{
 	"bin", "obj", "dist", "out", "target", "node_modules", "packages", "vendor",
 }
 
+func extractRegexpPattern(msg string) string {
+	start := strings.Index(msg, "regexp: Compile(")
+	if start == -1 {
+		return ""
+	}
+	start += len("regexp: Compile(")
+	end := strings.Index(msg[start:], ")")
+	if end == -1 {
+		return ""
+	}
+	return msg[start : start+end]
+}
+
+func stackSingleLine() string {
+	return strings.ReplaceAll(strings.TrimSpace(string(debug.Stack())), "\n", "|")
+}
+
+func workerRecover(id int, cfg *Config, stage *string, currentPath *string) {
+	if r := recover(); r != nil {
+		msg := fmt.Sprint(r)
+		pattern := extractRegexpPattern(msg)
+		log.Printf("[ERROR] stage=%s lang=%s worker=%d root=%q file=%q err=%q pattern=%q stack=%q", *stage, cfg.Lang, id, cfg.Root, *currentPath, msg, pattern, stackSingleLine())
+	}
+}
+
 func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 	paths := make(chan string, cfg.Workers*2)
 	count := make(chan int, 1)
@@ -480,15 +583,16 @@ func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
 		wg.Add(1)
 		go func(id int) {
 			defer wg.Done()
-			defer func() {
-				if r := recover(); r != nil {
-					log.Printf("[ERROR] worker %d panic: %v", id, r)
-				}
-			}()
+			stage := "init"
+			currentPath := ""
+			defer workerRecover(id, cfg, &stage, &currentPath)
+
 			for path := range jobs {
+				currentPath = path
+				stage = fmt.Sprintf("scan-%s-file", cfg.Lang)
 				cs, err := scanFile(cfg, path)
 				if err != nil {
-					log.Printf("[WARN] scan file %s: %v", path, err)
+					log.Printf("[WARN] stage=%s lang=%s worker=%d root=%q file=%q err=%v", stage, cfg.Lang, id, cfg.Root, path, err)
 					continue
 				}
 				if len(cs) > 0 {
@@ -521,19 +625,19 @@ func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
 func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 	info, err := os.Stat(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stage=stat file=%q err=%w", path, err)
 	}
 	if info.Size() > cfg.MaxFileSize {
-		log.Printf("[INFO] skip too large file: %s (%d bytes)", path, info.Size())
+		log.Printf("[INFO] stage=skip-too-large lang=%s root=%q file=%q size=%d", cfg.Lang, cfg.Root, path, info.Size())
 		return nil, nil
 	}
 	isBin, binErr := isBinaryFile(path)
 	if binErr != nil {
-		log.Printf("[WARN] skip file due to read error: %s (%v)", path, binErr)
+		log.Printf("[WARN] stage=read-bytes lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, binErr)
 		return nil, nil
 	}
 	if isBin {
-		log.Printf("[INFO] skip binary file: %s", path)
+		log.Printf("[INFO] stage=skip-binary lang=%s root=%q file=%q", cfg.Lang, cfg.Root, path)
 		return nil, nil
 	}
 
@@ -690,7 +794,7 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	fset := token.NewFileSet()
 	fileAst, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stage=parse-go lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	dir := filepath.Dir(path)
 	pkgSymtab := buildGoSymtabForDir(dir, cfg.Root)
@@ -1270,7 +1374,7 @@ func strconvUnquoteSafe(s string) (string, error) {
 func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stage=read-cs lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	src := string(data)
 	clean := StripCodeCommentsCStyle(src, true)
@@ -1280,9 +1384,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]string)
-	simpleDeclAssign := regexp.MustCompile(`(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`)
-	bareAssign := regexp.MustCompile(`(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`)
-	verbatimAssign := regexp.MustCompile(`(?is)(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@"([^"]+)"`)
 	recordLiteral := func(method, name, val string) {
 		if method == "" || name == "" {
 			return
@@ -1292,7 +1393,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		}
 		literalInMethod[method][name] = val
 	}
-	for _, m := range verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
+	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
 		line := countLinesUpTo(clean, m[0])
 		funcName := ""
 		if line-1 >= 0 && line-1 < len(methodAtLine) {
@@ -1313,40 +1414,19 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		if method == "" {
 			continue
 		}
-		if m := simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
+		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
 			recordLiteral(method, m[1], m[2])
 			continue
 		}
 		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
 			continue
 		}
-		if m := bareAssign.FindStringSubmatch(line); len(m) == 3 {
+		if m := regexes.bareAssign.FindStringSubmatch(line); len(m) == 3 {
 			recordLiteral(method, m[1], m[2])
 		}
 	}
 
 	var cands []SqlCandidate
-
-	execProcLit := regexp.MustCompile(`(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*"([^"]+)"`)
-	execProcDyn := regexp.MustCompile(`(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*([^),]+)`)
-	newCmd := regexp.MustCompile(`(?i)new\s+SqlCommand\s*\(\s*"([^"]+)"\s*,\s*([^)]+?)\)`)                     // group1=sql, group2=conn
-	newCmdIdent := regexp.MustCompile(`(?i)new\s+SqlCommand\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([^)]+?)\)`) // identifier first arg
-	// Dapper-style Query<T>("SQL", ...) and Execute("SQL", ...)
-	dapperQuery := regexp.MustCompile(`(?i)\.\s*Query(?:Async)?(?:<[^>]*>)?\s*\(\s*"([^"]+)"`)
-	dapperExec := regexp.MustCompile(`(?i)\.\s*Execute(?:Async)?\s*\(\s*"([^"]+)"`)
-	// EF Core raw SQL
-	efFromSql := regexp.MustCompile(`(?i)\.\s*FromSqlRaw\s*\(\s*"([^"]+)"`)
-	efExecRaw := regexp.MustCompile(`(?i)\.\s*ExecuteSqlRaw\s*\(\s*"([^"]+)"`)
-	// Additional helpers: ExecuteQuery(conn, sql, ...)
-	execQuery := regexp.MustCompile(`(?i)\.\s*ExecuteQuery\s*\(\s*[^,]+,\s*"([^"]+)"`)
-	// CallQueryFromWs(url, ignoreSSL, sql, ...)
-	callQueryWsLit := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*"([^"]+)"`)
-	callQueryWsDyn := regexp.MustCompile(`(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`)
-	execQueryIdent := regexp.MustCompile(`(?i)\.\s*ExecuteQuery\s*\(\s*([^,]+),\s*([A-Za-z_][A-Za-z0-9_]*)`)
-
-	// CommandText assignment: cmd.CommandText = "ProcName" or variable
-	commandTextLit := regexp.MustCompile(`(?i)\.\s*CommandText\s*=\s*"([^"]+)"`)
-	commandTextIdent := regexp.MustCompile(`(?i)\.\s*CommandText\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b`)
 
 	type pat struct {
 		re       *regexp.Regexp
@@ -1354,23 +1434,22 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		dynamic  bool
 	}
 	patterns := []pat{
-		{execProcLit, true, false},
-		{execProcDyn, true, true},
-		{newCmd, false, false},
-		{newCmdIdent, false, false},
-		{dapperQuery, false, false},
-		{dapperExec, false, false},
-		{efFromSql, false, false},
-		{efExecRaw, false, false},
-		{execQuery, false, false},      // ExecuteQuery(conn, "SQL")
-		{execQueryIdent, false, false}, // ExecuteQuery(conn, variable)
-		{callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
-		{callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
-		{commandTextLit, false, false}, // CommandText = "ProcName"
-		{commandTextIdent, false, false},
+		{regexes.execProcLit, true, false},
+		{regexes.execProcDyn, true, true},
+		{regexes.newCmd, false, false},
+		{regexes.newCmdIdent, false, false},
+		{regexes.dapperQuery, false, false},
+		{regexes.dapperExec, false, false},
+		{regexes.efFromSql, false, false},
+		{regexes.efExecRaw, false, false},
+		{regexes.execQuery, false, false},      // ExecuteQuery(conn, "SQL")
+		{regexes.execQueryIdent, false, false}, // ExecuteQuery(conn, variable)
+		{regexes.callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
+		{regexes.callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
+		{regexes.commandTextLit, false, false}, // CommandText = "ProcName"
+		{regexes.commandTextIdent, false, false},
 	}
 
-	identRe := regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	unquoteIfQuoted := func(s string) (string, bool) {
 		trimmed := strings.TrimSpace(s)
 		if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
@@ -1412,7 +1491,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			case newCmdIdent:
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
-				if funcName != "" && identRe.MatchString(raw) {
+				if funcName != "" && regexes.identRe.MatchString(raw) {
 					if lit, ok := literalInMethod[funcName][raw]; ok {
 						raw = lit
 						rawLiteral = true
@@ -1429,7 +1508,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				if p.re == execProcLit {
 					rawLiteral = true
 				}
-				if p.re == execProcDyn && funcName != "" && identRe.MatchString(rawArg) {
+				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
 						raw = lit
 						isDyn = false
@@ -1442,7 +1521,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = expr
 				rawLiteral = false
-				if funcName != "" && identRe.MatchString(expr) {
+				if funcName != "" && regexes.identRe.MatchString(expr) {
 					if lit, ok := literalInMethod[funcName][expr]; ok {
 						raw = lit
 						rawLiteral = true
@@ -1478,7 +1557,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					expr := strings.TrimSpace(raw)
 					rawLiteral = false
 					raw = expr
-					if funcName != "" && identRe.MatchString(expr) {
+					if funcName != "" && regexes.identRe.MatchString(expr) {
 						if lit, ok := literalInMethod[funcName][expr]; ok {
 							raw = lit
 							rawLiteral = true
@@ -1498,7 +1577,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 
 			rawTrim := strings.TrimSpace(raw)
-			if !rawLiteral && (p.re == execProcDyn || p.re == callQueryWsDyn || identRe.MatchString(rawTrim)) {
+			if !rawLiteral && (p.re == regexes.execProcDyn || p.re == regexes.callQueryWsDyn || regexes.identRe.MatchString(rawTrim)) {
 				isDyn = true
 				raw = "<dynamic-sql>"
 			}
@@ -1566,17 +1645,15 @@ func cleanedGroup(s string, idxs []int, groupNumber int) string {
 func detectCsMethods(lines []string) []string {
 	methodAtLine := make([]string, len(lines))
 	current := ""
-	re := regexp.MustCompile(`(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
-	reNoMod := regexp.MustCompile(`(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`)
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
 		if trimmed == "" {
 			methodAtLine[i] = current
 			continue
 		}
-		if m := re.FindStringSubmatch(trimmed); len(m) >= 3 {
+		if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
 			current = m[2]
-		} else if m := reNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+		} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
 			kw := strings.ToLower(m[1])
 			if kw != "if" && kw != "for" && kw != "while" && kw != "switch" && kw != "catch" {
 				current = m[1]
@@ -1594,7 +1671,7 @@ func detectCsMethods(lines []string) []string {
 func scanConfigFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stage=read-config lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	ext := strings.ToLower(filepath.Ext(path))
 	fileName := filepath.Base(path)
@@ -1605,7 +1682,7 @@ func scanConfigFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		clean := StripJsonLineComments(string(data))
 		var obj interface{}
 		if err := json.Unmarshal([]byte(clean), &obj); err != nil {
-			log.Printf("[WARN] json parse failed on %s: %v", path, err)
+			log.Printf("[WARN] stage=parse-json lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
 			return nil, nil
 		}
 		walkJSONForSQL(cfg, obj, "", relPath, fileName, &cands)
@@ -1786,8 +1863,7 @@ func indentation(s string) int {
 }
 
 func scanXmlForSQL(cfg *Config, content, relPath, fileName string, cands *[]SqlCandidate) {
-	reAttr := regexp.MustCompile(`(?i)(sql|query|command|commandtext|storedprocedure)\s*=\s*"([^"]+)"`)
-	for _, m := range reAttr.FindAllStringSubmatch(content, -1) {
+	for _, m := range regexes.xmlAttr.FindAllStringSubmatch(content, -1) {
 		if len(m) >= 3 {
 			raw := strings.TrimSpace(m[2])
 			if raw == "" {
@@ -1813,10 +1889,37 @@ func scanXmlForSQL(cfg *Config, content, relPath, fileName string, cands *[]SqlC
 			*cands = append(*cands, cand)
 		}
 	}
-	reElem := regexp.MustCompile(`(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*\1\s*>`)
-	matches := reElem.FindAllStringSubmatch(content, -1)
+	matches := regexes.xmlElem.FindAllStringSubmatch(content, -1)
 	for _, m := range matches {
 		if len(m) >= 3 {
+			raw := strings.TrimSpace(m[2])
+			if raw == "" {
+				continue
+			}
+			cand := SqlCandidate{
+				AppName:     cfg.AppName,
+				RelPath:     relPath,
+				File:        fileName,
+				SourceCat:   "config",
+				SourceKind:  "xml",
+				LineStart:   0,
+				LineEnd:     0,
+				Func:        "",
+				RawSql:      raw,
+				IsDynamic:   false,
+				IsExecStub:  isProcNameSpec(raw),
+				ConnName:    "",
+				ConnDb:      "",
+				DefinedPath: relPath,
+				DefinedLine: 0,
+			}
+			*cands = append(*cands, cand)
+		}
+		// handle pipe-delimited config entries like "sql: SELECT ... | conn"
+		for _, m := range regexes.pipeField.FindAllStringSubmatch(content, -1) {
+			if len(m) < 3 {
+				continue
+			}
 			raw := strings.TrimSpace(m[2])
 			if raw == "" {
 				continue
@@ -1848,8 +1951,7 @@ func scanXmlForSQL(cfg *Config, content, relPath, fileName string, cands *[]SqlC
 // invoked during scanning of .config/.xml files. It uses regex to find <add name="..."
 func extractConnectionStrings(content string) {
 	// regex to find <add name="ConnName" connectionString="...">
-	re := regexp.MustCompile(`(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`)
-	matches := re.FindAllStringSubmatch(content, -1)
+	matches := regexes.connStringAttr.FindAllStringSubmatch(content, -1)
 	for _, m := range matches {
 		if len(m) < 3 {
 			continue
@@ -1890,7 +1992,7 @@ func extractConnectionStrings(content string) {
 func scanSqlFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("stage=read-sql lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	lines := strings.Split(string(data), "\n")
 	var cands []SqlCandidate
@@ -2796,17 +2898,14 @@ func findKeywordPosition(sqlLower, usageKind string) int {
 	}
 }
 
-var dynamicPlaceholderPattern = regexp.MustCompile(`@\w+`)
-
 func hasDynamicPlaceholder(name string) bool {
 	if strings.Contains(name, "[[") || strings.Contains(name, "]]") {
 		return true
 	}
-	return dynamicPlaceholderPattern.MatchString(name)
+	return regexes.dynamicPlaceholder.MatchString(name)
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
-var procParamPlaceholderPattern = regexp.MustCompile(`\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`)
 
 func parseProcNameSpec(s string) ObjectToken {
 	trimmed := strings.TrimSpace(s)
@@ -2819,7 +2918,7 @@ func parseProcNameSpec(s string) ObjectToken {
 	}
 
 	origTrimmed := trimmed
-	trimmed = procParamPlaceholderPattern.ReplaceAllString(trimmed, "")
+	trimmed = regexes.procParamPlaceholder.ReplaceAllString(trimmed, "")
 	trimmed = strings.TrimSpace(trimmed)
 
 	db, schema, base, isLinked := splitObjectNameParts(trimmed)
