@@ -2555,16 +2555,26 @@ func findObjectTokens(sql string) []ObjectToken {
 		"exec", "execute",
 	}
 
-	for _, kw := range keywords {
-		k := kw
-		start := 0
-		for {
-			idx := strings.Index(lower[start:], k)
-			if idx < 0 {
-				break
-			}
-			pos := start + idx
-			end := pos + len(k)
+for _, kw := range keywords {
+k := kw
+start := 0
+for {
+idx := strings.Index(lower[start:], k)
+if idx < 0 {
+break
+}
+pos := start + idx
+end := pos + len(k)
+
+// Ensure the keyword is not in the middle of an identifier (e.g., object name containing "update").
+if pos > 0 && isIdentChar(lower[pos-1]) {
+start = end
+continue
+}
+if end < len(lower) && isIdentChar(lower[end]) {
+start = end
+continue
+}
 
 			if k == "delete" && strings.HasPrefix(lower[end:], " from") {
 				start = end
@@ -2691,10 +2701,10 @@ func scanObjectName(sql, lower string, i int) (string, int) {
 }
 
 func isIdentChar(b byte) bool {
-	return (b >= '0' && b <= '9') ||
-		(b >= 'a' && b <= 'z') ||
-		(b >= 'A' && b <= 'Z') ||
-		b == '_' || b == '.' || b == '$'
+return (b >= '0' && b <= '9') ||
+(b >= 'a' && b <= 'z') ||
+(b >= 'A' && b <= 'Z') ||
+b == '_' || b == '.' || b == '$' || b == '-'
 }
 
 func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) {

@@ -814,12 +814,12 @@ golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,589,589,,"-- nam
 insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
 select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9
 ","insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
-select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",EXEC,true,false,,2,false,,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/aajiQueries.sql.go,589
+select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",EXEC,true,false,,1,false,,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/aajiQueries.sql.go,589
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,607,617,InsertBancaMTranAAJIAAUITT,"-- name: InsertBancaMTranAAJIAAUITT :exec
 insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
 select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9
 ","insert into BancaMTranAAJIAAUI_TT (NIKSeller, InputDate, AAJI, AAJIExpireDate, AAUI, AAUIExpireDate, NIKInputer, Status, ActionType, DeletedXML)    
-select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",EXEC,true,false,,2,false,ctx,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/aajiQueries.sql.go,589
+select @p1, @p2, @p3, @p4, @p5, @p6, @p7, 0, @p8, @p9",EXEC,true,false,,1,false,ctx,,ff975a72c42e1c69f611fd9a1134dc9a49c39d4c,MEDIUM,go3/aajiQueries.sql.go,589
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,code,go,621,621,,"-- name: UpdateBatchCode :exec
 UPDATE BancaMTranAAJIAAUI_TT
 SET BatchCode = 'M' + cast (BatchId as varchar(50)) where BatchId = @p1
@@ -872,7 +872,7 @@ VALUES(@p1, @p2, @p3, @p4)
 
 SELECT BatchId, Jenis, UserInput
 		, UserOtor, DateOtor, StatusOtor,ActionType
-FROM @InsertedData;",INSERT,true,false,,2,false,,,08712dc65d8db891bf09f92c1b3fc008f39074a9,MEDIUM,go3/bancaQueries_manual.sql.go,13
+FROM @InsertedData;",INSERT,true,false,,1,false,,,08712dc65d8db891bf09f92c1b3fc008f39074a9,MEDIUM,go3/bancaQueries_manual.sql.go,13
 golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,code,go,45,50,InsertDeleteTT,"-- name: InsertDeleteTT :one
 DECLARE @InsertedData TABLE (BatchId int
 		, Jenis tinyint
@@ -915,7 +915,7 @@ VALUES(@p1, @p2, @p3, @p4)
 
 SELECT BatchId, Jenis, UserInput
 		, UserOtor, DateOtor, StatusOtor,ActionType
-FROM @InsertedData;",INSERT,true,false,,2,false,ctx,,08712dc65d8db891bf09f92c1b3fc008f39074a9,MEDIUM,go3/bancaQueries_manual.sql.go,13
+FROM @InsertedData;",INSERT,true,false,,1,false,ctx,,08712dc65d8db891bf09f92c1b3fc008f39074a9,MEDIUM,go3/bancaQueries_manual.sql.go,13
 golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,code,go,64,64,,"-- name: GetBancaControlTableTM :one
 	DECLARE  @outPreviousDate			smalldatetime
 			,@outCurrentDate			smalldatetime
@@ -2273,7 +2273,7 @@ golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,
 		DROP TABLE #tmp_SOF
 
 	IF OBJECT_ID('tempdb..#tmpSumberDana') IS NOT NULL  
-		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,31,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
+		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,29,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,12,12,,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
 ",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,09e3f5e7c70f4edd069a225b1172391461671c3f,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
