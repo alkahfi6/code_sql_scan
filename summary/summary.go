@@ -58,19 +58,21 @@ type FunctionSummaryRow struct {
 
 // ObjectSummaryRow represents aggregated information per database object.
 type ObjectSummaryRow struct {
-	AppName        string
-	RelPath        string
-	File           string
-	DbName         string
-	SchemaName     string
-	BaseName       string
-	FullObjectName string
-	UsedInFuncs    string
-	DmlKinds       string
-	Roles          string
-	TotalReads     int
-	TotalWrites    int
-	IsCrossDb      bool
+	AppName         string
+	RelPath         string
+	File            string
+	DbName          string
+	SchemaName      string
+	BaseName        string
+	FullObjectName  string
+	UsedInFuncs     string
+	DmlKinds        string
+	Roles           string
+	TotalReads      int
+	TotalWrites     int
+	IsCrossDb       bool
+	IsDynamicObject bool
+	DynamicKind     string
 }
 
 // FormSummaryRow represents aggregated information per file/form.
@@ -192,7 +194,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	hashByFunc := make(map[string]map[string]struct{})
 
 	for _, q := range queries {
-		key := functionKey(q.AppName, q.RelPath, q.File, q.Func)
+		normFunc := normalizeFuncName(q.Func)
+		key := functionKey(q.AppName, q.RelPath, q.File, normFunc)
 		grouped[key] = append(grouped[key], q)
 		if _, ok := hashByFunc[key]; !ok {
 			hashByFunc[key] = make(map[string]struct{})
@@ -211,6 +214,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		app, rel, file, fn := splitFunctionKey(key)
 		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalWrite int
 		hasCross := false
+		var hasRealObject bool
+		var hasDynamicObject bool
 		for _, q := range qRows {
 			switch strings.ToUpper(q.UsageKind) {
 			case "EXEC":
@@ -240,6 +245,11 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				qKey := queryObjectKey(app, rel, file, h)
 				for _, o := range objectsByQuery[qKey] {
 					objSet[o.BaseName] = struct{}{}
+					if isDynamicBaseName(o.BaseName) {
+						hasDynamicObject = true
+					} else {
+						hasRealObject = true
+					}
 					if o.IsCrossDb {
 						hasCross = true
 					}
@@ -255,6 +265,15 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 		}
 		objNames := setToSortedSlice(objSet)
+		objectsUsed := strings.Join(objNames, ";")
+		dynamicOnly := (hasDynamicObject && !hasRealObject) || (len(objNames) == 0 && totalDynamic > 0)
+		if (totalWrite > 0 || totalExec > 0) && objectsUsed == "" {
+			if dynamicOnly {
+				objectsUsed = "<dynamic-only>"
+			} else {
+				objectsUsed = "<unknown-object>"
+			}
+		}
 
 		result = append(result, FunctionSummaryRow{
 			AppName:       app,
@@ -271,7 +290,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalDynamic:  totalDynamic,
 			TotalWrite:    totalWrite,
 			HasCrossDb:    hasCross,
-			ObjectsUsed:   strings.Join(objNames, ";"),
+			ObjectsUsed:   objectsUsed,
 		})
 	}
 
@@ -313,6 +332,11 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		totalReads := 0
 		totalWrites := 0
 		hasCross := false
+		isDynamicObj := isDynamicBaseName(base)
+		dynamicKind := ""
+		if isDynamicObj {
+			dynamicKind = "unknown-target"
+		}
 
 		for _, o := range objs {
 			dmlSet[strings.ToUpper(o.DmlKind)] = struct{}{}
@@ -327,24 +351,26 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			}
 			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 			if q, ok := queryByKey[qKey]; ok {
-				funcSet[q.Func] = struct{}{}
+				funcSet[normalizeFuncName(q.Func)] = struct{}{}
 			}
 		}
 
 		result = append(result, ObjectSummaryRow{
-			AppName:        app,
-			RelPath:        rel,
-			File:           file,
-			DbName:         db,
-			SchemaName:     schema,
-			BaseName:       base,
-			FullObjectName: buildFullName(db, schema, base),
-			UsedInFuncs:    strings.Join(setToSortedSlice(funcSet), ";"),
-			DmlKinds:       strings.Join(setToSortedSlice(dmlSet), ";"),
-			Roles:          strings.Join(setToSortedSlice(roleSet), ";"),
-			TotalReads:     totalReads,
-			TotalWrites:    totalWrites,
-			IsCrossDb:      hasCross,
+			AppName:         app,
+			RelPath:         rel,
+			File:            file,
+			DbName:          db,
+			SchemaName:      schema,
+			BaseName:        base,
+			FullObjectName:  buildFullName(db, schema, base),
+			UsedInFuncs:     strings.Join(setToSortedSlice(funcSet), ";"),
+			DmlKinds:        strings.Join(setToSortedSlice(dmlSet), ";"),
+			Roles:           strings.Join(setToSortedSlice(roleSet), ";"),
+			TotalReads:      totalReads,
+			TotalWrites:     totalWrites,
+			IsCrossDb:       hasCross,
+			IsDynamicObject: isDynamicObj,
+			DynamicKind:     dynamicKind,
 		})
 	}
 
@@ -399,7 +425,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 		totalWrite := 0
 		totalDynamic := 0
 		for _, q := range qRows {
-			funcSet[q.Func] = struct{}{}
+			funcSet[normalizeFuncName(q.Func)] = struct{}{}
 			if strings.ToUpper(q.UsageKind) == "EXEC" {
 				totalExec++
 			}
@@ -494,7 +520,7 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "DbName", "SchemaName", "BaseName", "FullObjectName", "UsedInFuncs", "DmlKinds", "Roles", "TotalReads", "TotalWrites", "IsCrossDb"}
+	header := []string{"AppName", "RelPath", "File", "DbName", "SchemaName", "BaseName", "FullObjectName", "UsedInFuncs", "DmlKinds", "Roles", "TotalReads", "TotalWrites", "IsCrossDb", "IsDynamicObject", "DynamicKind"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -513,6 +539,8 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalReads),
 			fmt.Sprintf("%d", r.TotalWrites),
 			boolToStr(r.IsCrossDb),
+			boolToStr(r.IsDynamicObject),
+			r.DynamicKind,
 		}
 		if err := w.Write(rec); err != nil {
 			return err
@@ -631,4 +659,56 @@ func buildFullName(db, schema, base string) string {
 		parts = append(parts, base)
 	}
 	return strings.Join(parts, ".")
+}
+
+func normalizeFuncName(raw string) string {
+	name := strings.TrimSpace(raw)
+	if name == "" {
+		return "<unknown-func>"
+	}
+	lower := strings.ToLower(name)
+	if _, banned := forbiddenFuncNames()[lower]; banned {
+		return "<unknown-func>"
+	}
+	if isLikelyFuncName(name) {
+		return name
+	}
+	return "<unknown-func>"
+}
+
+func forbiddenFuncNames() map[string]struct{} {
+	return map[string]struct{}{
+		"exception": {},
+		"convert":   {},
+		"cast":      {},
+		"in":        {},
+		"isnull":    {},
+		"len":       {},
+		"openxml":   {},
+		"varchar":   {},
+	}
+}
+
+func isLikelyFuncName(name string) bool {
+	if strings.HasPrefix(name, "<") && strings.HasSuffix(name, ">") {
+		return false
+	}
+	forbidden := forbiddenFuncNames()
+	if _, ok := forbidden[strings.ToLower(name)]; ok {
+		return false
+	}
+	for _, r := range name {
+		if !(r == '_' || r == '.' || r == '@' || ('0' <= r && r <= '9') || ('A' <= r && r <= 'Z') || ('a' <= r && r <= 'z')) {
+			return false
+		}
+	}
+	first := name[0]
+	if (first >= '0' && first <= '9') || first == '.' {
+		return false
+	}
+	return true
+}
+
+func isDynamicBaseName(base string) bool {
+	return strings.EqualFold(strings.TrimSpace(base), "<dynamic-sql>")
 }
