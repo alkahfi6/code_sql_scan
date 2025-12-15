@@ -1,9 +1,15 @@
-package main
+package scan
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
+
+func TestMain(m *testing.M) {
+	initRegexes()
+	os.Exit(m.Run())
+}
 
 func TestDetectUsageKindSkipsLeadingStatements(t *testing.T) {
 	tests := []struct {

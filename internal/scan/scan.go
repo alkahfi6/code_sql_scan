@@ -1,0 +1,3153 @@
+// code_sql_scan.go
+//
+// Static SQL scanner for Go / .NET code + config.
+//
+// - Membaca folder project (-root) secara rekursif.
+// - Mengabaikan komentar (Go/C#/SQL/JSON/YAML/XML).
+// - Menemukan SQL / SP usage di Go, C#, XML/JSON/YAML, .sql.
+// - Menganalisa DML utama, write/read, objek (DB/schema/table/proc).
+// - Menghasilkan 2 CSV: QueryUsage & ObjectUsage.
+//
+// Engine ini murni static analysis, tidak pernah connect ke database.
+
+package scan
+
+import (
+	"bytes"
+	summary "code_sql_scan/summary"
+	"crypto/sha1"
+	"encoding/csv"
+	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"io"
+	"log"
+	"os"
+	"path/filepath"
+	"regexp"
+	"runtime/debug"
+	"sort"
+	"strconv"
+	"strings"
+	"sync"
+	"time"
+	"unicode"
+)
+
+// connRegistry keeps connection name -> database mappings with concurrency safety.
+type connRegistry struct {
+	mu   sync.RWMutex
+	data map[string]string
+}
+
+func newConnRegistry() *connRegistry {
+	return &connRegistry{data: make(map[string]string)}
+}
+
+func (c *connRegistry) set(name, db string) {
+	c.mu.Lock()
+	c.data[name] = db
+	c.mu.Unlock()
+}
+
+func (c *connRegistry) get(name string) (string, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	db, ok := c.data[name]
+	return db, ok
+}
+
+func (c *connRegistry) snapshot() map[string]string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	copy := make(map[string]string, len(c.data))
+	for k, v := range c.data {
+		copy[k] = v
+	}
+	return copy
+}
+
+func ensureRelPath(root, p string) string {
+	if p == "" {
+		return ""
+	}
+	clean := filepath.Clean(p)
+	rootClean := filepath.Clean(root)
+	if rootClean == "" {
+		return filepath.ToSlash(clean)
+	}
+
+	rootAbs, err := filepath.Abs(rootClean)
+	if err != nil {
+		rootAbs = rootClean
+	}
+
+	var absPath string
+	if filepath.IsAbs(clean) {
+		absPath = clean
+	} else {
+		cleanSlash := filepath.ToSlash(clean)
+		rootSlash := filepath.ToSlash(rootClean)
+		if strings.HasPrefix(cleanSlash, rootSlash+"/") {
+			trimmed := strings.TrimPrefix(cleanSlash[len(rootSlash):], "/")
+			clean = filepath.FromSlash(trimmed)
+		} else if cleanSlash == rootSlash {
+			clean = ""
+		}
+		absPath = filepath.Join(rootAbs, clean)
+	}
+
+	if rel, err := filepath.Rel(rootAbs, absPath); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
+		return filepath.ToSlash(filepath.Clean(rel))
+	}
+	return filepath.ToSlash(filepath.Clean(absPath))
+}
+
+// goSymtabCache caches package-wide Go symbol tables per directory to avoid redundant parsing.
+type goSymtabCache struct {
+	mu   sync.RWMutex
+	data map[string]map[string]SqlSymbol
+}
+
+func newGoSymtabCache() *goSymtabCache {
+	return &goSymtabCache{data: make(map[string]map[string]SqlSymbol)}
+}
+
+func (c *goSymtabCache) load(dir string) (map[string]SqlSymbol, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	val, ok := c.data[dir]
+	return val, ok
+}
+
+func (c *goSymtabCache) store(dir string, symtab map[string]SqlSymbol) {
+	c.mu.Lock()
+	c.data[dir] = symtab
+	c.mu.Unlock()
+}
+
+var (
+	connStore     = newConnRegistry()
+	goSymtabStore = newGoSymtabCache()
+)
+
+type regexRegistry struct {
+	// dotnet source code patterns
+	simpleDeclAssign *regexp.Regexp
+	bareAssign       *regexp.Regexp
+	verbatimAssign   *regexp.Regexp
+	execProcLit      *regexp.Regexp
+	execProcDyn      *regexp.Regexp
+	newCmd           *regexp.Regexp
+	newCmdIdent      *regexp.Regexp
+	dapperQuery      *regexp.Regexp
+	dapperExec       *regexp.Regexp
+	efFromSql        *regexp.Regexp
+	efExecRaw        *regexp.Regexp
+	execQuery        *regexp.Regexp
+	callQueryWsLit   *regexp.Regexp
+	callQueryWsDyn   *regexp.Regexp
+	execQueryIdent   *regexp.Regexp
+	commandTextLit   *regexp.Regexp
+	commandTextIdent *regexp.Regexp
+	identRe          *regexp.Regexp
+	methodRe         *regexp.Regexp
+	methodReNoMod    *regexp.Regexp
+
+	// config / markup patterns
+	xmlAttr        *regexp.Regexp
+	xmlElem        *regexp.Regexp
+	pipeField      *regexp.Regexp
+	connStringAttr *regexp.Regexp
+
+	// helpers
+	dynamicPlaceholder   *regexp.Regexp
+	procParamPlaceholder *regexp.Regexp
+}
+
+var regexes regexRegistry
+
+func mustCompileRegex(name, pattern string) *regexp.Regexp {
+	re, err := regexp.Compile(pattern)
+	if err != nil {
+		log.Fatalf("[FATAL] compile regex name=%s pattern=%q err=%v", name, pattern, err)
+	}
+	return re
+}
+
+func initRegexes() {
+	regexes = regexRegistry{
+		simpleDeclAssign:     mustCompileRegex("simpleDeclAssign", `(?i)\b(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`),
+		bareAssign:           mustCompileRegex("bareAssign", `(?i)\b([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@?"([^"]+)"`),
+		verbatimAssign:       mustCompileRegex("verbatimAssign", `(?is)(?:var|const|string)\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*@"([^"]+)"`),
+		execProcLit:          mustCompileRegex("execProcLit", `(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*"([^"]+)"`),
+		execProcDyn:          mustCompileRegex("execProcDyn", `(?i)(\w+)\s*\.\s*ExecProc\s*\(\s*([^),]+)`),
+		newCmd:               mustCompileRegex("newCmd", `(?i)new\s+SqlCommand\s*\(\s*"([^"]+)"\s*,\s*([^)]+?)\)`),
+		newCmdIdent:          mustCompileRegex("newCmdIdent", `(?i)new\s+SqlCommand\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)\s*,\s*([^)]+?)\)`),
+		dapperQuery:          mustCompileRegex("dapperQuery", `(?i)\.\s*Query(?:Async)?(?:<[^>]*>)?\s*\(\s*"([^"]+)"`),
+		dapperExec:           mustCompileRegex("dapperExec", `(?i)\.\s*Execute(?:Async)?\s*\(\s*"([^"]+)"`),
+		efFromSql:            mustCompileRegex("efFromSql", `(?i)\.\s*FromSqlRaw\s*\(\s*"([^"]+)"`),
+		efExecRaw:            mustCompileRegex("efExecRaw", `(?i)\.\s*ExecuteSqlRaw\s*\(\s*"([^"]+)"`),
+		execQuery:            mustCompileRegex("execQuery", `(?i)\.\s*ExecuteQuery\s*\(\s*[^,]+,\s*"([^"]+)"`),
+		callQueryWsLit:       mustCompileRegex("callQueryWsLit", `(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*"([^"]+)"`),
+		callQueryWsDyn:       mustCompileRegex("callQueryWsDyn", `(?i)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`),
+		execQueryIdent:       mustCompileRegex("execQueryIdent", `(?i)\.\s*ExecuteQuery\s*\(\s*([^,]+),\s*([A-Za-z_][A-Za-z0-9_]*)`),
+		commandTextLit:       mustCompileRegex("commandTextLit", `(?i)\.\s*CommandText\s*=\s*"([^"]+)"`),
+		commandTextIdent:     mustCompileRegex("commandTextIdent", `(?i)\.\s*CommandText\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b`),
+		identRe:              mustCompileRegex("ident", `^[A-Za-z_][A-Za-z0-9_]*$`),
+		methodRe:             mustCompileRegex("methodWithMods", `(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
+		methodReNoMod:        mustCompileRegex("methodNoMods", `(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`),
+		xmlAttr:              mustCompileRegex("xmlAttr", `(?i)(sql|query|command|commandtext|storedprocedure)\s*=\s*"([^"]+)"`),
+		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
+		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
+		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
+		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
+		procParamPlaceholder: mustCompileRegex("procParamPlaceholder", `\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`),
+	}
+}
+
+// ------------------------------------------------------------
+// Konfigurasi & tipe data utama
+// ------------------------------------------------------------
+
+type Config struct {
+	Root             string
+	AppName          string
+	Lang             string
+	OutDir           string
+	OutQuery         string
+	OutObject        string
+	OutSummaryFunc   string
+	OutSummaryObject string
+	OutSummaryForm   string
+	MaxFileSize      int64
+	Workers          int
+	IncludeExt       map[string]struct{}
+}
+
+type SqlSymbol struct {
+	Name       string
+	Value      string
+	RelPath    string
+	Line       int
+	IsComplete bool
+	IsProcSpec bool
+}
+
+type staticSet struct {
+	Values []SqlSymbol
+}
+
+type SqlCandidate struct {
+	AppName     string
+	RelPath     string
+	File        string
+	SourceCat   string // code / config / script
+	SourceKind  string // go / csharp / xml / yaml / json / sql
+	LineStart   int
+	LineEnd     int
+	Func        string
+	RawSql      string
+	SqlClean    string
+	UsageKind   string // SELECT/INSERT/UPDATE/DELETE/TRUNCATE/EXEC/UNKNOWN
+	IsWrite     bool
+	IsDynamic   bool
+	IsExecStub  bool
+	ConnName    string
+	ConnDb      string
+	DefinedPath string
+	DefinedLine int
+	// Analisis objek
+	HasCrossDb bool
+	DbList     []string
+	Objects    []ObjectToken
+	// Flags
+	QueryHash string
+	RiskLevel string
+}
+
+type ObjectToken struct {
+	DbName             string
+	SchemaName         string
+	BaseName           string
+	FullName           string
+	Role               string // target/source/exec
+	DmlKind            string // SELECT/INSERT/...
+	IsWrite            bool
+	IsCrossDb          bool
+	IsLinkedServer     bool
+	IsObjectNameDyn    bool
+	RepresentativeLine int
+}
+
+// CSV row untuk QueryUsage
+type QueryUsageRow struct {
+	AppName     string
+	RelPath     string
+	File        string
+	SourceCat   string
+	SourceKind  string
+	LineStart   int
+	LineEnd     int
+	Func        string
+	RawSql      string
+	SqlClean    string
+	UsageKind   string
+	IsWrite     bool
+	HasCrossDb  bool
+	DbList      string
+	ObjectCount int
+	IsDynamic   bool
+	ConnName    string
+	ConnDb      string
+	QueryHash   string
+	RiskLevel   string
+	DefinedPath string
+	DefinedLine int
+}
+
+// CSV row untuk ObjectUsage
+type ObjectUsageRow struct {
+	AppName         string
+	RelPath         string
+	File            string
+	SourceCat       string
+	SourceKind      string
+	Line            int
+	Func            string
+	QueryHash       string
+	ObjectName      string
+	DbName          string
+	SchemaName      string
+	BaseName        string
+	IsCrossDb       bool
+	IsLinkedServer  bool
+	Role            string
+	DmlKind         string
+	IsWrite         bool
+	IsObjectNameDyn bool
+}
+
+// ------------------------------------------------------------
+// Entrypoint orchestration
+// ------------------------------------------------------------
+
+func Run(cfg *Config) ([]string, error) {
+	initRegexes()
+
+	start := time.Now()
+	log.Printf("[INFO] starting scan root=%s app=%s lang=%s workers=%d maxSize=%d",
+		cfg.Root, cfg.AppName, cfg.Lang, cfg.Workers, cfg.MaxFileSize)
+
+	pathCh, countCh := streamFiles(cfg)
+	cands := runWorkers(cfg, pathCh)
+	fileCount := <-countCh
+	log.Printf("[INFO] total files to scan: %d", fileCount)
+
+	for i := range cands {
+		analyzeCandidate(&cands[i])
+		dedupeObjectTokens(&cands[i])
+		// sort objects inside candidate for deterministic output
+		if len(cands[i].Objects) > 1 {
+			sort.Slice(cands[i].Objects, func(a, b int) bool {
+				oa, ob := cands[i].Objects[a], cands[i].Objects[b]
+				if oa.DbName != ob.DbName {
+					return oa.DbName < ob.DbName
+				}
+				if oa.SchemaName != ob.SchemaName {
+					return oa.SchemaName < ob.SchemaName
+				}
+				if oa.BaseName != ob.BaseName {
+					return oa.BaseName < ob.BaseName
+				}
+				if oa.Role != ob.Role {
+					return oa.Role < ob.Role
+				}
+				return oa.DmlKind < ob.DmlKind
+			})
+		}
+	}
+
+	cands = dedupeCandidates(cands)
+
+	// sort candidates deterministically by path, line and hash
+	sort.Slice(cands, func(i, j int) bool {
+		a, b := cands[i], cands[j]
+		if a.RelPath != b.RelPath {
+			return a.RelPath < b.RelPath
+		}
+		if a.LineStart != b.LineStart {
+			return a.LineStart < b.LineStart
+		}
+		if a.QueryHash != b.QueryHash {
+			return a.QueryHash < b.QueryHash
+		}
+		return a.SourceKind < b.SourceKind
+	})
+
+	if err := writeCSVs(cfg, cands); err != nil {
+		return nil, fmt.Errorf("write CSV failed: %w", err)
+	}
+	if err := generateSummaries(cfg); err != nil {
+		return nil, fmt.Errorf("write summary failed: %w", err)
+	}
+
+	log.Printf("[INFO] done in %s", time.Since(start))
+	return CollectOutputPaths(cfg), nil
+}
+
+func CollectOutputPaths(cfg *Config) []string {
+	var paths []string
+	if cfg.OutQuery != "" {
+		paths = append(paths, cfg.OutQuery)
+	}
+	if cfg.OutObject != "" {
+		paths = append(paths, cfg.OutObject)
+	}
+	if cfg.OutSummaryFunc != "" {
+		paths = append(paths, cfg.OutSummaryFunc)
+	}
+	if cfg.OutSummaryObject != "" {
+		paths = append(paths, cfg.OutSummaryObject)
+	}
+	if cfg.OutSummaryForm != "" {
+		paths = append(paths, cfg.OutSummaryForm)
+	}
+	return paths
+}
+
+// ------------------------------------------------------------
+// File discovery & filtering
+// ------------------------------------------------------------
+
+var skipDirs = []string{
+	"bin", "obj", "dist", "out", "target", "node_modules", "packages", "vendor",
+}
+
+func extractRegexpPattern(msg string) string {
+	start := strings.Index(msg, "regexp: Compile(")
+	if start == -1 {
+		return ""
+	}
+	start += len("regexp: Compile(")
+	end := strings.Index(msg[start:], ")")
+	if end == -1 {
+		return ""
+	}
+	return msg[start : start+end]
+}
+
+func stackSingleLine() string {
+	return strings.ReplaceAll(strings.TrimSpace(string(debug.Stack())), "\n", "|")
+}
+
+func workerRecover(id int, cfg *Config, stage *string, currentPath *string) {
+	if r := recover(); r != nil {
+		msg := fmt.Sprint(r)
+		pattern := extractRegexpPattern(msg)
+		log.Printf("[ERROR] stage=%s lang=%s worker=%d root=%q file=%q err=%q pattern=%q stack=%q", *stage, cfg.Lang, id, cfg.Root, *currentPath, msg, pattern, stackSingleLine())
+	}
+}
+
+func streamFiles(cfg *Config) (<-chan string, <-chan int) {
+	paths := make(chan string, cfg.Workers*2)
+	count := make(chan int, 1)
+	go func() {
+		defer close(paths)
+		defer close(count)
+		total := 0
+		err := filepath.WalkDir(cfg.Root, func(path string, d os.DirEntry, err error) error {
+			if err != nil {
+				log.Printf("[WARN] walk error on %s: %v", path, err)
+				return nil
+			}
+			if d.IsDir() {
+				name := strings.ToLower(d.Name())
+				for _, s := range skipDirs {
+					if name == s {
+						return filepath.SkipDir
+					}
+				}
+				return nil
+			}
+			ext := strings.ToLower(filepath.Ext(path))
+			if !isAllowedExt(cfg, ext) {
+				return nil
+			}
+			total++
+			paths <- path
+			return nil
+		})
+		if err != nil {
+			log.Printf("[WARN] walkdir error: %v", err)
+		}
+		count <- total
+	}()
+	return paths, count
+}
+
+func isAllowedExt(cfg *Config, ext string) bool {
+	if ext == "" {
+		return false
+	}
+	switch cfg.Lang {
+	case "go":
+		switch ext {
+		case ".go", ".xml", ".config", ".json", ".yaml", ".yml", ".sql":
+			return true
+		}
+	case "dotnet":
+		switch ext {
+		case ".cs", ".xml", ".config", ".json", ".yaml", ".yml", ".sql":
+			return true
+		}
+	}
+	if _, ok := cfg.IncludeExt[ext]; ok {
+		return true
+	}
+	return false
+}
+
+// ------------------------------------------------------------
+// Worker pool
+// ------------------------------------------------------------
+
+func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
+	workers := cfg.Workers
+	if workers <= 0 {
+		workers = 4
+	}
+
+	jobBuf := workers * 2
+	if jobBuf < workers {
+		jobBuf = workers
+	}
+	resultBuf := workers * 4
+
+	jobs := make(chan string, jobBuf)
+	results := make(chan []SqlCandidate, resultBuf)
+
+	var wg sync.WaitGroup
+
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func(id int) {
+			defer wg.Done()
+			stage := "init"
+			currentPath := ""
+			defer workerRecover(id, cfg, &stage, &currentPath)
+
+			for path := range jobs {
+				currentPath = path
+				stage = fmt.Sprintf("scan-%s-file", cfg.Lang)
+				cs, err := scanFile(cfg, path)
+				if err != nil {
+					log.Printf("[WARN] stage=%s lang=%s worker=%d root=%q file=%q err=%v", stage, cfg.Lang, id, cfg.Root, path, err)
+					continue
+				}
+				if len(cs) > 0 {
+					results <- cs
+				}
+			}
+		}(i + 1)
+	}
+
+	go func() {
+		for p := range paths {
+			jobs <- p
+		}
+		close(jobs)
+		wg.Wait()
+		close(results)
+	}()
+
+	var all []SqlCandidate
+	for batch := range results {
+		all = append(all, batch...)
+	}
+	return all
+}
+
+// ------------------------------------------------------------
+// File-level scanner dispatcher
+// ------------------------------------------------------------
+
+func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
+	info, err := os.Stat(path)
+	if err != nil {
+		return nil, fmt.Errorf("stage=stat file=%q err=%w", path, err)
+	}
+	if info.Size() > cfg.MaxFileSize {
+		log.Printf("[INFO] stage=skip-too-large lang=%s root=%q file=%q size=%d", cfg.Lang, cfg.Root, path, info.Size())
+		return nil, nil
+	}
+	isBin, binErr := isBinaryFile(path)
+	if binErr != nil {
+		log.Printf("[WARN] stage=read-bytes lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, binErr)
+		return nil, nil
+	}
+	if isBin {
+		log.Printf("[INFO] stage=skip-binary lang=%s root=%q file=%q", cfg.Lang, cfg.Root, path)
+		return nil, nil
+	}
+
+	ext := strings.ToLower(filepath.Ext(path))
+	relPath := ensureRelPath(cfg.Root, path)
+
+	switch ext {
+	case ".go":
+		if cfg.Lang != "go" {
+			return nil, nil
+		}
+		return scanGoFile(cfg, path, relPath)
+	case ".cs":
+		if cfg.Lang != "dotnet" {
+			return nil, nil
+		}
+		return scanCsFile(cfg, path, relPath)
+	case ".xml", ".config", ".json", ".yaml", ".yml":
+		return scanConfigFile(cfg, path, relPath)
+	case ".sql":
+		return scanSqlFile(cfg, path, relPath)
+	default:
+		return nil, nil
+	}
+}
+
+// ------------------------------------------------------------
+// Binary sniff
+// ------------------------------------------------------------
+
+func isBinaryFile(path string) (bool, error) {
+	f, err := os.Open(path)
+	if err != nil {
+		return false, err
+	}
+	defer f.Close()
+	buf := make([]byte, 2048)
+	n, err := f.Read(buf)
+	if err != nil && err != io.EOF {
+		return false, err
+	}
+	ctrl := 0
+	for i := 0; i < n; i++ {
+		b := buf[i]
+		if b == 0 {
+			return true, nil
+		}
+		if b < 0x09 {
+			ctrl++
+			if ctrl > 5 {
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+// ------------------------------------------------------------
+// Go extractor (AST-based, package-wide symtab & local vars)
+// ------------------------------------------------------------
+
+// goDbCallArgIndex maps DB gateway names to the zero-based index of the SQL argument.
+// Functions that receive a context and connection first have index=2, etc.
+var goDbCallArgIndex = map[string]int{
+	// Standard *sql.DB methods without context
+	"Query":    0,
+	"Exec":     0,
+	"QueryRow": 0,
+	// Standard methods with context as first argument
+	"QueryContext":    1,
+	"ExecContext":     1,
+	"QueryRowContext": 1,
+	// Custom DB util functions: (ctx, conn, query [, args...])
+	"QuerySingleRow":                2,
+	"QueryMultipleRows":             2,
+	"QueryMultipleRowsInArg":        2,
+	"ExecStoredProcedure":           2,
+	"ExecStoredProcedureWithReturn": 2,
+	"ExecNonQuery":                  2,
+	// Oracle stored procedure support: (ctx, conn, procName, args...)
+	"ExecStoredProcedureOracle": 2,
+}
+
+// goDbCalls contains the set of names considered DB gateway functions.
+var goDbCalls map[string]bool
+
+func init() {
+	goDbCalls = make(map[string]bool)
+	for k := range goDbCallArgIndex {
+		goDbCalls[k] = true
+	}
+}
+
+// buildGoSymtabForDir parses all Go files in the given directory to construct
+// a package-wide symbol table of constant string definitions.
+// Only simple literal concatenations are resolved; dynamic expressions are skipped.
+func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
+	if cached, ok := goSymtabStore.load(dir); ok {
+		return cached
+	}
+
+	symtab := make(map[string]SqlSymbol)
+	fset := token.NewFileSet()
+	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
+	if err != nil {
+		goSymtabStore.store(dir, symtab)
+		return symtab
+	}
+	for _, pkg := range pkgs {
+		for fileName, f := range pkg.Files {
+			absPath := fileName
+			if !filepath.IsAbs(fileName) {
+				absPath = filepath.Join(dir, fileName)
+			}
+			relPath := ensureRelPath(root, absPath)
+			ast.Inspect(f, func(n ast.Node) bool {
+				switch v := n.(type) {
+				case *ast.ValueSpec:
+					for i, name := range v.Names {
+						if name.Name == "_" {
+							continue
+						}
+						if len(v.Values) <= i {
+							continue
+						}
+						valExpr := v.Values[i]
+						val, dyn := evalStringExpr(valExpr, nil)
+						if dyn || val == "" {
+							continue
+						}
+						pos := fset.Position(name.Pos())
+						symtab[name.Name] = SqlSymbol{
+							Name:       name.Name,
+							Value:      val,
+							RelPath:    ensureRelPath(root, relPath),
+							Line:       pos.Line,
+							IsComplete: true,
+							IsProcSpec: isProcNameSpec(val),
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	goSymtabStore.store(dir, symtab)
+	return symtab
+}
+
+// scanGoFile analyses a single Go source file for SQL usage.
+// It builds a package-wide symtab for constants and then processes each function
+// individually, tracking local variables for inline query definitions.
+func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
+	fset := token.NewFileSet()
+	fileAst, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("stage=parse-go lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
+	}
+	dir := filepath.Dir(path)
+	pkgSymtab := buildGoSymtabForDir(dir, cfg.Root)
+
+	var cands []SqlCandidate
+
+	var isPureStringLiteral func(expr ast.Expr) bool
+	isPureStringLiteral = func(expr ast.Expr) bool {
+		switch v := expr.(type) {
+		case *ast.BasicLit:
+			return v.Kind == token.STRING
+		case *ast.BinaryExpr:
+			if v.Op == token.ADD {
+				return isPureStringLiteral(v.X) && isPureStringLiteral(v.Y)
+			}
+		case *ast.ParenExpr:
+			return isPureStringLiteral(v.X)
+		}
+		return false
+	}
+
+	var evalLiteralConcat func(expr ast.Expr) (string, bool)
+	evalLiteralConcat = func(expr ast.Expr) (string, bool) {
+		switch v := expr.(type) {
+		case *ast.BasicLit:
+			if v.Kind == token.STRING {
+				s, err := strconvUnquoteSafe(v.Value)
+				if err != nil {
+					return v.Value, true
+				}
+				return s, true
+			}
+		case *ast.BinaryExpr:
+			if v.Op == token.ADD {
+				left, lok := evalLiteralConcat(v.X)
+				right, rok := evalLiteralConcat(v.Y)
+				if lok && rok {
+					return left + right, true
+				}
+			}
+		case *ast.ParenExpr:
+			return evalLiteralConcat(v.X)
+		}
+		return "", false
+	}
+
+	// Helper to evaluate an expression as a potential SQL string using local and global symtabs.
+	normalizeDef := func(p string) string {
+		return ensureRelPath(cfg.Root, p)
+	}
+
+	var evalArg func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int)
+	evalArg = func(expr ast.Expr, localSymtab map[string]SqlSymbol, localDyn map[string]bool) (raw string, dynamic bool, defPath string, defLine int) {
+		if expr == nil {
+			return "", true, relPath, 0
+		}
+		switch v := expr.(type) {
+		case *ast.BasicLit:
+			if v.Kind == token.STRING {
+				s, err := strconvUnquoteSafe(v.Value)
+				if err != nil {
+					return v.Value, true, relPath, 0
+				}
+				return s, false, relPath, 0
+			}
+		case *ast.BinaryExpr:
+			if v.Op == token.ADD {
+				if !isPureStringLiteral(v) {
+					return "", true, relPath, 0
+				}
+				if combined, ok := evalLiteralConcat(v); ok {
+					return combined, false, relPath, 0
+				}
+			}
+		case *ast.Ident:
+			name := v.Name
+			if localSymtab != nil {
+				if sym, ok := localSymtab[name]; ok {
+					return sym.Value, false, normalizeDef(sym.RelPath), sym.Line
+				}
+				if _, ok := localDyn[name]; ok {
+					return "", true, relPath, 0
+				}
+			}
+			if sym, ok := pkgSymtab[name]; ok && sym.IsComplete {
+				return sym.Value, false, normalizeDef(sym.RelPath), sym.Line
+			}
+			return "", true, relPath, 0
+		case *ast.CallExpr:
+			// handle string replacement functions like strings.ReplaceAll and strings.Replace
+			// If the call is of the form strings.ReplaceAll(base, old, new) or strings.Replace(base, old, new, n)
+			// then preserve the base SQL template but mark the result as dynamic because it depends on runtime
+			if sel, ok := v.Fun.(*ast.SelectorExpr); ok {
+				if pkgIdent, ok2 := sel.X.(*ast.Ident); ok2 && pkgIdent.Name == "strings" {
+					if sel.Sel.Name == "ReplaceAll" || sel.Sel.Name == "Replace" {
+						if len(v.Args) > 0 {
+							// evaluate first argument to get the base constant; use local symtab for local vars
+							baseRaw, baseDyn, baseDefPath, baseDefLine := evalArg(v.Args[0], localSymtab, localDyn)
+							if baseRaw != "" && !baseDyn {
+								// treat as dynamic but keep baseRaw to analyze objects later
+								return baseRaw, true, baseDefPath, baseDefLine
+							}
+						}
+					}
+				}
+				// handle fmt.Sprintf: return base format if literal, mark dynamic
+				if pkgIdent, ok2 := sel.X.(*ast.Ident); ok2 && pkgIdent.Name == "fmt" && sel.Sel.Name == "Sprintf" {
+					if len(v.Args) > 0 {
+						baseRaw, baseDyn, baseDefPath, baseDefLine := evalArg(v.Args[0], localSymtab, localDyn)
+						if baseRaw != "" && !baseDyn {
+							return baseRaw, true, baseDefPath, baseDefLine
+						}
+					}
+				}
+			}
+			// fallback: treat any other call expression as dynamic
+			return "", true, relPath, 0
+		default:
+			val, dyn := evalStringExpr(expr, pkgSymtab)
+			if dyn || val == "" {
+				return "", true, relPath, 0
+			}
+			return val, false, relPath, 0
+		}
+		return "", true, relPath, 0
+	}
+
+	// Promote package-level SQL constants to candidates
+	for _, decl := range fileAst.Decls {
+		gen, ok := decl.(*ast.GenDecl)
+		if !ok || gen.Tok != token.CONST {
+			continue
+		}
+		for _, spec := range gen.Specs {
+			vs, ok := spec.(*ast.ValueSpec)
+			if !ok {
+				continue
+			}
+			for i, name := range vs.Names {
+				if name == nil || name.Name == "_" {
+					continue
+				}
+				if len(vs.Values) <= i {
+					continue
+				}
+				valExpr := vs.Values[i]
+				val, dyn := evalStringExpr(valExpr, pkgSymtab)
+				if dyn || val == "" {
+					continue
+				}
+				// Heuristic: consider package-level const that looks like SQL or whose name starts with "Query"/"SQL".
+				// Also include sqlc-generated *.sql.go constants that often begin with a "-- name:" comment block.
+				sqlLike := looksLikeSQL(val)
+				if !sqlLike {
+					lowerVal := strings.ToLower(val)
+					if strings.Contains(lowerVal, "-- name:") || strings.HasSuffix(strings.ToLower(path), ".sql.go") {
+						sqlLike = true
+					}
+				}
+				if !sqlLike && !(strings.HasPrefix(name.Name, "Query") || strings.HasPrefix(name.Name, "SQL") || strings.HasPrefix(name.Name, "Sql")) {
+					continue
+				}
+				pos := fset.Position(name.Pos())
+				cand := SqlCandidate{
+					AppName:     cfg.AppName,
+					RelPath:     relPath,
+					File:        filepath.Base(path),
+					SourceCat:   "code",
+					SourceKind:  "go",
+					LineStart:   pos.Line,
+					LineEnd:     pos.Line,
+					Func:        "",
+					RawSql:      val,
+					IsDynamic:   false,
+					IsExecStub:  isProcNameSpec(val),
+					ConnName:    "",
+					ConnDb:      "",
+					DefinedPath: relPath,
+					DefinedLine: pos.Line,
+				}
+				cands = append(cands, cand)
+			}
+		}
+	}
+
+	// Process each function separately
+	for _, decl := range fileAst.Decls {
+		fd, ok := decl.(*ast.FuncDecl)
+		if !ok || fd.Body == nil {
+			continue
+		}
+		currentFunc := fd.Name.Name
+		localSymtab := make(map[string]SqlSymbol)
+		localDyn := make(map[string]bool)
+		staticAssignments := make(map[string]*staticSet)
+
+		addStaticValue := func(name string, sym SqlSymbol) {
+			set := staticAssignments[name]
+			if set == nil {
+				set = &staticSet{}
+				staticAssignments[name] = set
+			}
+			for _, v := range set.Values {
+				if v.Value == sym.Value && v.RelPath == sym.RelPath && v.Line == sym.Line {
+					return
+				}
+			}
+			set.Values = append(set.Values, sym)
+			combined := combineStaticValues(set.Values)
+			base := set.Values[0]
+			localSymtab[name] = SqlSymbol{
+				Name:       name,
+				Value:      combined,
+				RelPath:    base.RelPath,
+				Line:       base.Line,
+				IsComplete: true,
+				IsProcSpec: isProcNameSpec(combined),
+			}
+			delete(localDyn, name)
+		}
+
+		markDynamic := func(name string) {
+			localDyn[name] = true
+			delete(localSymtab, name)
+			delete(staticAssignments, name)
+		}
+
+		ast.Inspect(fd.Body, func(n ast.Node) bool {
+			switch v := n.(type) {
+			case *ast.AssignStmt:
+				// handle simple assignments (var := expr or var = expr)
+				if len(v.Lhs) == 1 && len(v.Rhs) == 1 {
+					if lhsIdent, ok := v.Lhs[0].(*ast.Ident); ok && lhsIdent.Name != "_" {
+						name := lhsIdent.Name
+						if _, dyn := localDyn[name]; dyn {
+							return true
+						}
+						// evaluate using local and global symtab
+						rawVal, dyn, defPath, defLine := evalArg(v.Rhs[0], localSymtab, localDyn)
+						defPath = ensureRelPath(cfg.Root, defPath)
+						if dyn || rawVal == "" {
+							markDynamic(name)
+						} else {
+							pos := fset.Position(lhsIdent.Pos())
+							line := defLine
+							if line == 0 {
+								line = pos.Line
+							}
+							if defPath == "" {
+								defPath = relPath
+							}
+							sym := SqlSymbol{
+								Name:       name,
+								Value:      rawVal,
+								RelPath:    defPath,
+								Line:       line,
+								IsComplete: true,
+								IsProcSpec: isProcNameSpec(rawVal),
+							}
+							addStaticValue(name, sym)
+						}
+					}
+				}
+			case *ast.DeclStmt:
+				// handle var declarations inside function
+				if gen, ok := v.Decl.(*ast.GenDecl); ok && gen.Tok == token.VAR {
+					for _, spec := range gen.Specs {
+						vs, ok := spec.(*ast.ValueSpec)
+						if !ok {
+							continue
+						}
+						for i, name := range vs.Names {
+							if name.Name == "_" {
+								continue
+							}
+							if _, dyn := localDyn[name.Name]; dyn {
+								continue
+							}
+							if len(vs.Values) <= i {
+								delete(localSymtab, name.Name)
+								delete(staticAssignments, name.Name)
+								continue
+							}
+							valExpr := vs.Values[i]
+							// evaluate using local and global symtab
+							rawVal, dyn, defPath, defLine := evalArg(valExpr, localSymtab, localDyn)
+							defPath = ensureRelPath(cfg.Root, defPath)
+							if dyn || rawVal == "" {
+								markDynamic(name.Name)
+							} else {
+								pos := fset.Position(name.Pos())
+								line := defLine
+								if line == 0 {
+									line = pos.Line
+								}
+								if defPath == "" {
+									defPath = relPath
+								}
+								sym := SqlSymbol{
+									Name:       name.Name,
+									Value:      rawVal,
+									RelPath:    defPath,
+									Line:       line,
+									IsComplete: true,
+									IsProcSpec: isProcNameSpec(rawVal),
+								}
+								addStaticValue(name.Name, sym)
+							}
+						}
+					}
+				}
+			case *ast.CallExpr:
+				fname, initialConn := getFuncAndReceiver(v)
+				if fname == "" || !goDbCalls[fname] {
+					return true
+				}
+				idx, ok := goDbCallArgIndex[fname]
+				if !ok || len(v.Args) <= idx {
+					return true
+				}
+				// Special handling for stored procedure helpers to ensure EXEC classification
+				if fname == "ExecStoredProcedure" || fname == "ExecStoredProcedureWithReturn" {
+					// Determine connection name: for custom calls, use argument before SQL parameter if available
+					connName := initialConn
+					if idx > 0 && len(v.Args) > idx-1 {
+						if cn := getReceiverName(v.Args[idx-1]); cn != "" {
+							connName = cn
+						}
+					}
+
+					expr := v.Args[idx]
+					rawProc, dynamicProc, defPath, defLine := evalArg(expr, localSymtab, localDyn)
+					defPath = ensureRelPath(cfg.Root, defPath)
+					rawSql := rawProc
+					isDynamic := dynamicProc
+					if rawSql == "" {
+						rawSql = "[[dynamic-proc]]"
+						isDynamic = true
+					}
+
+					pos := fset.Position(v.Pos())
+					endPos := fset.Position(v.End())
+
+					if !isDynamic {
+						if split := splitProcSpecs(rawSql); len(split) > 1 {
+							for _, proc := range split {
+								cand := SqlCandidate{
+									AppName:     cfg.AppName,
+									RelPath:     relPath,
+									File:        filepath.Base(path),
+									SourceCat:   "code",
+									SourceKind:  "go",
+									LineStart:   pos.Line,
+									LineEnd:     endPos.Line,
+									Func:        currentFunc,
+									RawSql:      proc,
+									IsDynamic:   false,
+									IsExecStub:  true,
+									ConnName:    connName,
+									ConnDb:      "",
+									DefinedPath: defPath,
+									DefinedLine: defLine,
+								}
+								cands = append(cands, cand)
+							}
+							return true
+						}
+					}
+
+					cand := SqlCandidate{
+						AppName:     cfg.AppName,
+						RelPath:     relPath,
+						File:        filepath.Base(path),
+						SourceCat:   "code",
+						SourceKind:  "go",
+						LineStart:   pos.Line,
+						LineEnd:     endPos.Line,
+						Func:        currentFunc,
+						RawSql:      rawSql,
+						IsDynamic:   isDynamic,
+						IsExecStub:  true,
+						ConnName:    connName,
+						ConnDb:      "",
+						DefinedPath: defPath,
+						DefinedLine: defLine,
+					}
+					cands = append(cands, cand)
+					return true
+				}
+
+				// Determine connection name: for custom calls, use argument before SQL parameter if available
+				connName := initialConn
+				if idx > 0 && len(v.Args) > idx-1 {
+					if cn := getReceiverName(v.Args[idx-1]); cn != "" {
+						connName = cn
+					}
+				}
+				expr := v.Args[idx]
+				raw, dynamic, defPath, defLine := evalArg(expr, localSymtab, localDyn)
+				defPath = ensureRelPath(cfg.Root, defPath)
+				if raw == "" && dynamic {
+					raw = "<dynamic-sql>"
+				}
+				isExecStub := false
+				if !dynamic && isProcNameSpec(raw) {
+					isExecStub = true
+				}
+				pos := fset.Position(v.Pos())
+				endPos := fset.Position(v.End())
+
+				if isExecStub && !dynamic {
+					if split := splitProcSpecs(raw); len(split) > 1 {
+						for _, proc := range split {
+							cand := SqlCandidate{
+								AppName:     cfg.AppName,
+								RelPath:     relPath,
+								File:        filepath.Base(path),
+								SourceCat:   "code",
+								SourceKind:  "go",
+								LineStart:   pos.Line,
+								LineEnd:     endPos.Line,
+								Func:        currentFunc,
+								RawSql:      proc,
+								IsDynamic:   false,
+								IsExecStub:  true,
+								ConnName:    connName,
+								ConnDb:      "",
+								DefinedPath: defPath,
+								DefinedLine: defLine,
+							}
+							cands = append(cands, cand)
+						}
+						return true
+					}
+				}
+
+				cand := SqlCandidate{
+					AppName:     cfg.AppName,
+					RelPath:     relPath,
+					File:        filepath.Base(path),
+					SourceCat:   "code",
+					SourceKind:  "go",
+					LineStart:   pos.Line,
+					LineEnd:     endPos.Line,
+					Func:        currentFunc,
+					RawSql:      raw,
+					IsDynamic:   dynamic,
+					IsExecStub:  isExecStub,
+					ConnName:    connName,
+					ConnDb:      "",
+					DefinedPath: defPath,
+					DefinedLine: defLine,
+				}
+				cands = append(cands, cand)
+			}
+			return true
+		})
+	}
+	return cands, nil
+}
+
+// getFuncAndReceiver extracts the function name and the receiver/selector name from a call expression.
+func getFuncAndReceiver(call *ast.CallExpr) (funcName, connName string) {
+	var unwrap func(ast.Expr) (string, string)
+	unwrap = func(expr ast.Expr) (string, string) {
+		switch v := expr.(type) {
+		case *ast.IndexExpr:
+			return unwrap(v.X)
+		case *ast.IndexListExpr:
+			return unwrap(v.X)
+		case *ast.SelectorExpr:
+			return v.Sel.Name, getReceiverName(v.X)
+		case *ast.Ident:
+			return v.Name, ""
+		}
+		return "", ""
+	}
+	return unwrap(call.Fun)
+}
+
+func getReceiverName(expr ast.Expr) string {
+	switch v := expr.(type) {
+	case *ast.Ident:
+		return v.Name
+	case *ast.SelectorExpr:
+		prefix := getReceiverName(v.X)
+		if prefix == "" {
+			return v.Sel.Name
+		}
+		return prefix + "." + v.Sel.Name
+	case *ast.IndexExpr:
+		return getReceiverName(v.X)
+	case *ast.StarExpr:
+		return getReceiverName(v.X)
+	case *ast.CallExpr:
+		return getReceiverName(v.Fun)
+	}
+	return ""
+}
+
+// evalStringExpr evaluates simple string expressions (literal or concatenation) for constants.
+func evalStringExpr(expr ast.Expr, symtab map[string]SqlSymbol) (string, bool) {
+	if expr == nil {
+		return "", true
+	}
+	switch v := expr.(type) {
+	case *ast.BasicLit:
+		if v.Kind == token.STRING {
+			s, err := strconvUnquoteSafe(v.Value)
+			if err != nil {
+				return v.Value, true
+			}
+			return s, false
+		}
+	case *ast.BinaryExpr:
+		if v.Op == token.ADD {
+			left, ld := evalStringExpr(v.X, symtab)
+			right, rd := evalStringExpr(v.Y, symtab)
+			if !ld && !rd {
+				return left + right, false
+			}
+		}
+	case *ast.Ident:
+		if symtab != nil {
+			if sym, ok := symtab[v.Name]; ok && sym.IsComplete {
+				return sym.Value, false
+			}
+		}
+		return "", true
+	case *ast.CallExpr:
+		// dynamic call like fmt.Sprintf
+		return "", true
+	}
+	return "", true
+}
+
+func combineStaticValues(vals []SqlSymbol) string {
+	if len(vals) == 0 {
+		return ""
+	}
+	var parts []string
+	for _, v := range vals {
+		parts = append(parts, v.Value)
+	}
+	return strings.Join(parts, ";\n")
+}
+
+// splitProcSpecs separates a combined stored procedure literal (often joined by
+// semicolons/newlines when multiple static assignments exist) into individual
+// proc specs. Only entries that look like a proc spec are returned.
+func splitProcSpecs(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(raw, func(r rune) bool {
+		return r == ';' || r == '\n'
+	})
+	var out []string
+	for _, p := range parts {
+		val := strings.TrimSpace(p)
+		if val == "" || !isProcNameSpec(val) {
+			continue
+		}
+		out = append(out, val)
+	}
+	return out
+}
+
+func strconvUnquoteSafe(s string) (string, error) {
+	return strconv.Unquote(s)
+}
+
+// ------------------------------------------------------------
+// C# extractor (regex-based)
+// ------------------------------------------------------------
+
+func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("stage=read-cs lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
+	}
+	src := string(data)
+	clean := StripCodeCommentsCStyle(src, true)
+
+	lines := strings.Split(src, "\n")
+	methodAtLine := detectCsMethods(lines)
+
+	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
+	literalInMethod := make(map[string]map[string]string)
+	recordLiteral := func(method, name, val string) {
+		if method == "" || name == "" {
+			return
+		}
+		if _, ok := literalInMethod[method]; !ok {
+			literalInMethod[method] = make(map[string]string)
+		}
+		literalInMethod[method][name] = val
+	}
+	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
+		line := countLinesUpTo(clean, m[0])
+		funcName := ""
+		if line-1 >= 0 && line-1 < len(methodAtLine) {
+			funcName = methodAtLine[line-1]
+		}
+		if funcName == "" {
+			continue
+		}
+		name := cleanedGroup(clean, m, 1)
+		val := cleanedGroup(clean, m, 2)
+		recordLiteral(funcName, name, val)
+	}
+	for i, line := range lines {
+		method := ""
+		if i < len(methodAtLine) {
+			method = methodAtLine[i]
+		}
+		if method == "" {
+			continue
+		}
+		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
+			recordLiteral(method, m[1], m[2])
+			continue
+		}
+		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
+			continue
+		}
+		if m := regexes.bareAssign.FindStringSubmatch(line); len(m) == 3 {
+			recordLiteral(method, m[1], m[2])
+		}
+	}
+
+	var cands []SqlCandidate
+
+	type pat struct {
+		re       *regexp.Regexp
+		execStub bool
+		dynamic  bool
+	}
+	patterns := []pat{
+		{regexes.execProcLit, true, false},
+		{regexes.execProcDyn, true, true},
+		{regexes.newCmd, false, false},
+		{regexes.newCmdIdent, false, false},
+		{regexes.dapperQuery, false, false},
+		{regexes.dapperExec, false, false},
+		{regexes.efFromSql, false, false},
+		{regexes.efExecRaw, false, false},
+		{regexes.execQuery, false, false},      // ExecuteQuery(conn, "SQL")
+		{regexes.execQueryIdent, false, false}, // ExecuteQuery(conn, variable)
+		{regexes.callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
+		{regexes.callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
+		{regexes.commandTextLit, false, false}, // CommandText = "ProcName"
+		{regexes.commandTextIdent, false, false},
+	}
+
+	unquoteIfQuoted := func(s string) (string, bool) {
+		trimmed := strings.TrimSpace(s)
+		if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+			if unq, err := strconvUnquoteSafe(trimmed); err == nil {
+				return unq, true
+			}
+		}
+		return s, false
+	}
+
+	for _, p := range patterns {
+		matches := p.re.FindAllStringSubmatchIndex(clean, -1)
+		for _, m := range matches {
+			start := m[0]
+			line := countLinesUpTo(clean, start)
+			if line <= 0 {
+				line = 1
+			}
+			var (
+				connName string
+				raw      string
+			)
+
+			funcName := ""
+			if line-1 >= 0 && line-1 < len(methodAtLine) {
+				funcName = methodAtLine[line-1]
+			}
+
+			isDyn := p.dynamic
+			isExecStub := p.execStub
+			rawLiteral := false
+
+			switch p.re {
+			case regexes.newCmd:
+				// group1 = SQL, group2 = conn
+				raw = cleanedGroup(clean, m, 1)
+				rawLiteral = true
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+			case regexes.newCmdIdent:
+				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+				if funcName != "" && regexes.identRe.MatchString(raw) {
+					if lit, ok := literalInMethod[funcName][raw]; ok {
+						raw = lit
+						rawLiteral = true
+					} else {
+						isDyn = true
+						raw = "<dynamic-sql>"
+					}
+				}
+			case regexes.execProcLit, regexes.execProcDyn:
+				// group1 = conn, group2 = arg (SP literal or expr)
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
+				raw = rawArg
+				if p.re == regexes.execProcLit {
+					rawLiteral = true
+				}
+				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
+					if lit, ok := literalInMethod[funcName][rawArg]; ok {
+						raw = lit
+						isDyn = false
+						isExecStub = true
+						rawLiteral = true
+					}
+				}
+			case regexes.execQueryIdent:
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
+				raw = expr
+				rawLiteral = false
+				if funcName != "" && regexes.identRe.MatchString(expr) {
+					if lit, ok := literalInMethod[funcName][expr]; ok {
+						raw = lit
+						rawLiteral = true
+					} else {
+						assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
+						if prefix := clean[:start]; prefix != "" {
+							if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
+								last := matches[len(matches)-1]
+								if len(last) >= 2 {
+									raw = last[1]
+									rawLiteral = true
+									isDyn = false
+								}
+							}
+						}
+						if !rawLiteral {
+							isDyn = true
+							raw = "<dynamic-sql>"
+						}
+					}
+				}
+			case regexes.callQueryWsLit, regexes.callQueryWsDyn:
+				// group1 = SQL or expression
+				raw = cleanedGroup(clean, m, 1)
+				if p.re == regexes.callQueryWsLit {
+					rawLiteral = true
+				}
+			default:
+				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
+				raw = cleanedGroup(clean, m, 1)
+				rawLiteral = true
+				if p.re == regexes.commandTextIdent {
+					expr := strings.TrimSpace(raw)
+					rawLiteral = false
+					raw = expr
+					if funcName != "" && regexes.identRe.MatchString(expr) {
+						if lit, ok := literalInMethod[funcName][expr]; ok {
+							raw = lit
+							rawLiteral = true
+						} else {
+							isDyn = true
+							raw = "<dynamic-sql>"
+						}
+					}
+				}
+			}
+
+			if !rawLiteral {
+				if unq, ok := unquoteIfQuoted(raw); ok {
+					raw = unq
+					rawLiteral = true
+				}
+			}
+
+			rawTrim := strings.TrimSpace(raw)
+			if !rawLiteral && (p.re == regexes.execProcDyn || p.re == regexes.callQueryWsDyn || regexes.identRe.MatchString(rawTrim)) {
+				isDyn = true
+				raw = "<dynamic-sql>"
+			}
+
+			if raw == "" {
+				if isDyn {
+					raw = "<dynamic-sql>"
+				} else {
+					continue
+				}
+			}
+			// mark dynamic if raw contains interpolations or variables
+			if !p.dynamic {
+				if strings.Contains(raw, "$") || (strings.Contains(raw, "{") && strings.Contains(raw, "}")) {
+					isDyn = true
+				}
+			}
+			// Determine exec stub: if pattern flagged or the raw string looks like a proc name spec
+			if !isDyn && !isExecStub {
+				if isProcNameSpec(raw) {
+					isExecStub = true
+				}
+			}
+			if isDyn && raw == "" {
+				raw = "<dynamic-sql>"
+			}
+
+			cand := SqlCandidate{
+				AppName:     cfg.AppName,
+				RelPath:     relPath,
+				File:        filepath.Base(path),
+				SourceCat:   "code",
+				SourceKind:  "csharp",
+				LineStart:   line,
+				LineEnd:     line,
+				Func:        funcName,
+				RawSql:      raw,
+				IsDynamic:   isDyn,
+				IsExecStub:  isExecStub,
+				ConnName:    connName,
+				ConnDb:      "",
+				DefinedPath: relPath,
+				DefinedLine: line,
+			}
+			cands = append(cands, cand)
+		}
+	}
+
+	return cands, nil
+}
+
+// groupNumber di sini adalah nomor group capture (1-based), bukan index byte.
+func cleanedGroup(s string, idxs []int, groupNumber int) string {
+	i := groupNumber * 2
+	if i+1 >= len(idxs) {
+		return ""
+	}
+	start, end := idxs[i], idxs[i+1]
+	if start < 0 || end < 0 || start >= len(s) || end > len(s) || start >= end {
+		return ""
+	}
+	return s[start:end]
+}
+
+func detectCsMethods(lines []string) []string {
+	methodAtLine := make([]string, len(lines))
+	current := ""
+	for i, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			methodAtLine[i] = current
+			continue
+		}
+		if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
+			current = m[2]
+		} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+			kw := strings.ToLower(m[1])
+			if kw != "if" && kw != "for" && kw != "while" && kw != "switch" && kw != "catch" {
+				current = m[1]
+			}
+		}
+		methodAtLine[i] = current
+	}
+	return methodAtLine
+}
+
+// ------------------------------------------------------------
+// Config / JSON / YAML / XML / .sql
+// ------------------------------------------------------------
+
+func scanConfigFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("stage=read-config lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
+	}
+	ext := strings.ToLower(filepath.Ext(path))
+	fileName := filepath.Base(path)
+
+	var cands []SqlCandidate
+	switch ext {
+	case ".json":
+		clean := StripJsonLineComments(string(data))
+		var obj interface{}
+		if err := json.Unmarshal([]byte(clean), &obj); err != nil {
+			log.Printf("[WARN] stage=parse-json lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
+			return nil, nil
+		}
+		walkJSONForSQL(cfg, obj, "", relPath, fileName, &cands)
+	case ".yaml", ".yml":
+		scanYamlForSQL(cfg, string(data), relPath, fileName, &cands)
+	case ".xml", ".config":
+		content := StripXmlComments(string(data))
+		scanXmlForSQL(cfg, content, relPath, fileName, &cands)
+		// Additionally, attempt to extract connectionStrings mapping from .config/.xml
+		extractConnectionStrings(content)
+	}
+	return cands, nil
+}
+
+func walkJSONForSQL(cfg *Config, node interface{}, parentKey, relPath, fileName string, cands *[]SqlCandidate) {
+	switch v := node.(type) {
+	case map[string]interface{}:
+		for k, val := range v {
+			kl := strings.ToLower(k)
+			matchedKey := false
+			if strings.Contains(kl, "sql") ||
+				strings.Contains(kl, "query") ||
+				strings.Contains(kl, "command") ||
+				strings.Contains(kl, "storedprocedure") {
+				matchedKey = true
+			}
+			if s, ok := val.(string); ok {
+				// create candidate if key suggests SQL or if the string heuristically looks like SQL
+				if matchedKey || looksLikeSQL(s) {
+					cand := SqlCandidate{
+						AppName:     cfg.AppName,
+						RelPath:     relPath,
+						File:        fileName,
+						SourceCat:   "config",
+						SourceKind:  "json",
+						LineStart:   0,
+						LineEnd:     0,
+						Func:        "",
+						RawSql:      s,
+						IsDynamic:   false,
+						IsExecStub:  isProcNameSpec(s),
+						ConnName:    "",
+						ConnDb:      "",
+						DefinedPath: relPath,
+						DefinedLine: 0,
+					}
+					*cands = append(*cands, cand)
+				}
+			}
+			walkJSONForSQL(cfg, val, k, relPath, fileName, cands)
+		}
+	case []interface{}:
+		for _, it := range v {
+			walkJSONForSQL(cfg, it, parentKey, relPath, fileName, cands)
+		}
+	}
+}
+
+func scanYamlForSQL(cfg *Config, content, relPath, fileName string, cands *[]SqlCandidate) {
+	lines := strings.Split(content, "\n")
+	for i := 0; i < len(lines); i++ {
+		rawLine := lines[i]
+		line := stripYamlLineComment(rawLine)
+		trimmed := strings.TrimSpace(line)
+		if trimmed == "" {
+			continue
+		}
+		if idx := strings.Index(trimmed, ":"); idx >= 0 {
+			key := strings.TrimSpace(trimmed[:idx])
+			val := strings.TrimSpace(trimmed[idx+1:])
+			kl := strings.ToLower(key)
+			matchedKey := false
+			if strings.Contains(kl, "sql") ||
+				strings.Contains(kl, "query") ||
+				strings.Contains(kl, "command") ||
+				strings.Contains(kl, "storedprocedure") {
+				matchedKey = true
+			}
+			if matchedKey {
+				if strings.HasPrefix(val, "|") || strings.HasPrefix(val, ">") {
+					indent := indentation(rawLine)
+					var buf bytes.Buffer
+					for j := i + 1; j < len(lines); j++ {
+						if indentation(lines[j]) > indent {
+							buf.WriteString(strings.TrimRight(lines[j], "\r"))
+							buf.WriteString("\n")
+						} else {
+							break
+						}
+					}
+					sql := strings.TrimSpace(buf.String())
+					if sql == "" {
+						continue
+					}
+					if looksLikeSQL(sql) || matchedKey {
+						cand := SqlCandidate{
+							AppName:     cfg.AppName,
+							RelPath:     relPath,
+							File:        fileName,
+							SourceCat:   "config",
+							SourceKind:  "yaml",
+							LineStart:   i + 1,
+							LineEnd:     i + 1,
+							Func:        "",
+							RawSql:      sql,
+							IsDynamic:   false,
+							IsExecStub:  isProcNameSpec(sql),
+							ConnName:    "",
+							ConnDb:      "",
+							DefinedPath: relPath,
+							DefinedLine: i + 1,
+						}
+						*cands = append(*cands, cand)
+					}
+				} else if strings.HasPrefix(val, "\"") || strings.HasPrefix(val, "'") {
+					un, err := strconvUnquoteSafe(val)
+					if err == nil && strings.TrimSpace(un) != "" {
+						if looksLikeSQL(un) || matchedKey {
+							cand := SqlCandidate{
+								AppName:     cfg.AppName,
+								RelPath:     relPath,
+								File:        fileName,
+								SourceCat:   "config",
+								SourceKind:  "yaml",
+								LineStart:   i + 1,
+								LineEnd:     i + 1,
+								Func:        "",
+								RawSql:      un,
+								IsDynamic:   false,
+								IsExecStub:  isProcNameSpec(un),
+								ConnName:    "",
+								ConnDb:      "",
+								DefinedPath: relPath,
+								DefinedLine: i + 1,
+							}
+							*cands = append(*cands, cand)
+						}
+					}
+				}
+			}
+		}
+	}
+}
+
+func stripYamlLineComment(s string) string {
+	var out bytes.Buffer
+	inSingle, inDouble := false, false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '\'' && !inDouble {
+			inSingle = !inSingle
+			out.WriteByte(c)
+			continue
+		}
+		if c == '"' && !inSingle {
+			inDouble = !inDouble
+			out.WriteByte(c)
+			continue
+		}
+		if c == '#' && !inSingle && !inDouble {
+			break
+		}
+		out.WriteByte(c)
+	}
+	return out.String()
+}
+
+func indentation(s string) int {
+	count := 0
+	for _, r := range s {
+		if r == ' ' || r == '\t' {
+			count++
+		} else {
+			break
+		}
+	}
+	return count
+}
+
+func scanXmlForSQL(cfg *Config, content, relPath, fileName string, cands *[]SqlCandidate) {
+	for _, m := range regexes.xmlAttr.FindAllStringSubmatch(content, -1) {
+		if len(m) >= 3 {
+			raw := strings.TrimSpace(m[2])
+			if raw == "" {
+				continue
+			}
+			cand := SqlCandidate{
+				AppName:     cfg.AppName,
+				RelPath:     relPath,
+				File:        fileName,
+				SourceCat:   "config",
+				SourceKind:  "xml",
+				LineStart:   0,
+				LineEnd:     0,
+				Func:        "",
+				RawSql:      raw,
+				IsDynamic:   false,
+				IsExecStub:  isProcNameSpec(raw),
+				ConnName:    "",
+				ConnDb:      "",
+				DefinedPath: relPath,
+				DefinedLine: 0,
+			}
+			*cands = append(*cands, cand)
+		}
+	}
+	matches := regexes.xmlElem.FindAllStringSubmatch(content, -1)
+	for _, m := range matches {
+		if len(m) >= 3 {
+			raw := strings.TrimSpace(m[2])
+			if raw == "" {
+				continue
+			}
+			cand := SqlCandidate{
+				AppName:     cfg.AppName,
+				RelPath:     relPath,
+				File:        fileName,
+				SourceCat:   "config",
+				SourceKind:  "xml",
+				LineStart:   0,
+				LineEnd:     0,
+				Func:        "",
+				RawSql:      raw,
+				IsDynamic:   false,
+				IsExecStub:  isProcNameSpec(raw),
+				ConnName:    "",
+				ConnDb:      "",
+				DefinedPath: relPath,
+				DefinedLine: 0,
+			}
+			*cands = append(*cands, cand)
+		}
+		// handle pipe-delimited config entries like "sql: SELECT ... | conn"
+		for _, m := range regexes.pipeField.FindAllStringSubmatch(content, -1) {
+			if len(m) < 3 {
+				continue
+			}
+			raw := strings.TrimSpace(m[2])
+			if raw == "" {
+				continue
+			}
+			cand := SqlCandidate{
+				AppName:     cfg.AppName,
+				RelPath:     relPath,
+				File:        fileName,
+				SourceCat:   "config",
+				SourceKind:  "xml",
+				LineStart:   0,
+				LineEnd:     0,
+				Func:        "",
+				RawSql:      raw,
+				IsDynamic:   false,
+				IsExecStub:  isProcNameSpec(raw),
+				ConnName:    "",
+				ConnDb:      "",
+				DefinedPath: relPath,
+				DefinedLine: 0,
+			}
+			*cands = append(*cands, cand)
+		}
+	}
+}
+
+// extractConnectionStrings scans XML/config content for <connectionStrings> entries and updates
+// the global connNameToDb map with ConnName->Database mapping. This function is intended to be
+// invoked during scanning of .config/.xml files. It uses regex to find <add name="..."
+func extractConnectionStrings(content string) {
+	// regex to find <add name="ConnName" connectionString="...">
+	matches := regexes.connStringAttr.FindAllStringSubmatch(content, -1)
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		name := strings.TrimSpace(m[1])
+		connStr := m[2]
+		if name == "" || connStr == "" {
+			continue
+		}
+		// parse connection string for Database or Initial Catalog
+		dbName := ""
+		parts := strings.Split(connStr, ";")
+		for _, part := range parts {
+			p := strings.TrimSpace(part)
+			lower := strings.ToLower(p)
+			// allow optional spaces around '='
+			if strings.HasPrefix(lower, "database") {
+				// find position of '='
+				if idx := strings.Index(lower, "="); idx >= 0 {
+					dbName = strings.TrimSpace(p[idx+1:])
+				}
+			} else if strings.HasPrefix(lower, "initial catalog") {
+				if idx := strings.Index(lower, "="); idx >= 0 {
+					dbName = strings.TrimSpace(p[idx+1:])
+				}
+			}
+			if dbName != "" {
+				break
+			}
+		}
+		if dbName == "" {
+			continue
+		}
+		connStore.set(name, dbName)
+	}
+}
+
+func scanSqlFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, fmt.Errorf("stage=read-sql lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
+	}
+	lines := strings.Split(string(data), "\n")
+	var cands []SqlCandidate
+	var buf bytes.Buffer
+	startLine := 1
+
+	flush := func(endLine int) {
+		raw := strings.TrimSpace(buf.String())
+		if raw == "" {
+			return
+		}
+		cand := SqlCandidate{
+			AppName:     cfg.AppName,
+			RelPath:     relPath,
+			File:        filepath.Base(path),
+			SourceCat:   "script",
+			SourceKind:  "sql",
+			LineStart:   startLine,
+			LineEnd:     endLine,
+			Func:        "",
+			RawSql:      raw,
+			IsDynamic:   false,
+			IsExecStub:  false,
+			ConnName:    "",
+			ConnDb:      "",
+			DefinedPath: relPath,
+			DefinedLine: startLine,
+		}
+		cands = append(cands, cand)
+	}
+
+	for i, line := range lines {
+		if strings.EqualFold(strings.TrimSpace(line), "GO") {
+			flush(i)
+			buf.Reset()
+			startLine = i + 2
+		} else {
+			buf.WriteString(line)
+			buf.WriteString("\n")
+		}
+	}
+	flush(len(lines))
+	return cands, nil
+}
+
+// ------------------------------------------------------------
+// Comment strippers
+// ------------------------------------------------------------
+
+func StripCodeCommentsCStyle(src string, isCSharp bool) string {
+	var out bytes.Buffer
+	const (
+		stateNormal = iota
+		stateLineComment
+		stateBlockComment
+		stateStringDouble
+		stateStringBacktick
+		stateStringVerbatim
+	)
+	state := stateNormal
+	blockDepth := 0
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		var next byte
+		if i+1 < len(src) {
+			next = src[i+1]
+		}
+		switch state {
+		case stateNormal:
+			if c == '/' && next == '/' {
+				state = stateLineComment
+				i++
+				continue
+			}
+			if c == '/' && next == '*' {
+				state = stateBlockComment
+				blockDepth = 1
+				i++
+				continue
+			}
+			if c == '"' {
+				if isCSharp && i > 0 && src[i-1] == '@' {
+					state = stateStringVerbatim
+				} else {
+					state = stateStringDouble
+				}
+				out.WriteByte(c)
+				continue
+			}
+			if !isCSharp && c == '`' {
+				state = stateStringBacktick
+				out.WriteByte(c)
+				continue
+			}
+			out.WriteByte(c)
+		case stateLineComment:
+			if c == '\n' {
+				state = stateNormal
+				out.WriteByte(c)
+			}
+		case stateBlockComment:
+			if c == '\n' {
+				out.WriteByte(c)
+			}
+			if c == '/' && next == '*' {
+				blockDepth++
+				i++
+				continue
+			}
+			if c == '*' && next == '/' {
+				if blockDepth > 0 {
+					blockDepth--
+				}
+				i++
+				if blockDepth == 0 {
+					state = stateNormal
+				}
+				continue
+			}
+		case stateStringDouble:
+			out.WriteByte(c)
+			if c == '\\' && i+1 < len(src) {
+				out.WriteByte(src[i+1])
+				i++
+			} else if c == '"' {
+				state = stateNormal
+			}
+		case stateStringBacktick:
+			out.WriteByte(c)
+			if c == '`' {
+				state = stateNormal
+			}
+		case stateStringVerbatim:
+			out.WriteByte(c)
+			if c == '"' {
+				if i+1 < len(src) && src[i+1] == '"' {
+					out.WriteByte(src[i+1])
+					i++
+				} else {
+					state = stateNormal
+				}
+			}
+		}
+	}
+	return out.String()
+}
+
+func StripJsonLineComments(src string) string {
+	var out bytes.Buffer
+	inString := false
+	escaped := false
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		if c == '"' && !escaped {
+			inString = !inString
+		}
+		if !inString && c == '/' && i+1 < len(src) && src[i+1] == '/' {
+			i += 2
+			for i < len(src) && src[i] != '\n' {
+				i++
+			}
+			if i < len(src) {
+				out.WriteByte('\n')
+			}
+			continue
+		}
+		out.WriteByte(c)
+		if c == '\\' && !escaped {
+			escaped = true
+		} else {
+			escaped = false
+		}
+	}
+	return out.String()
+}
+
+func StripSqlComments(sql string) string {
+	var out bytes.Buffer
+	inLine := false
+	inBlock := false
+	inString := false
+	inBracket := false
+
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+		var next byte
+		if i+1 < len(sql) {
+			next = sql[i+1]
+		}
+		if inLine {
+			if c == '\n' {
+				inLine = false
+				out.WriteByte(c)
+			}
+			continue
+		}
+		if inBlock {
+			if c == '*' && next == '/' {
+				inBlock = false
+				i++
+			}
+			continue
+		}
+		if !inString && !inBracket {
+			if c == '-' && next == '-' {
+				inLine = true
+				i++
+				continue
+			}
+			if c == '/' && next == '*' {
+				inBlock = true
+				i++
+				continue
+			}
+			if c == '[' {
+				inBracket = true
+				out.WriteByte(c)
+				continue
+			}
+			if c == '\'' {
+				inString = true
+				out.WriteByte(c)
+				continue
+			}
+		} else if inBracket {
+			out.WriteByte(c)
+			if c == ']' {
+				inBracket = false
+			}
+			continue
+		} else if inString {
+			out.WriteByte(c)
+			if c == '\'' {
+				if i+1 < len(sql) && sql[i+1] == '\'' {
+					out.WriteByte(sql[i+1])
+					i++
+				} else {
+					inString = false
+				}
+			}
+			continue
+		}
+		out.WriteByte(c)
+	}
+	return out.String()
+}
+
+// StripXmlComments menghapus <!-- ... --> tanpa mengganggu konten lain.
+func StripXmlComments(src string) string {
+	var out bytes.Buffer
+	i := 0
+	for i < len(src) {
+		if i+3 < len(src) && src[i] == '<' && src[i+1] == '!' && src[i+2] == '-' && src[i+3] == '-' {
+			i += 4
+			for i+2 < len(src) {
+				if src[i] == '-' && src[i+1] == '-' && src[i+2] == '>' {
+					i += 3
+					break
+				}
+				i++
+			}
+			continue
+		}
+		out.WriteByte(src[i])
+		i++
+	}
+	return out.String()
+}
+
+func countLinesUpTo(s string, pos int) int {
+	if pos <= 0 {
+		return 1
+	}
+	line := 1
+	for i := 0; i < pos && i < len(s); i++ {
+		if s[i] == '\n' {
+			line++
+		}
+	}
+	return line
+}
+
+// ------------------------------------------------------------
+// SQL usage analysis (DML, objek, cross-DB)
+// ------------------------------------------------------------
+
+func isProcNameSpec(s string) bool {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return false
+	}
+
+	firstTok := strings.ToLower(leadingAlphaNumToken(trimmed))
+	switch firstTok {
+	case "select", "insert", "update", "delete", "truncate", "exec", "execute", "with":
+		return false
+	}
+
+	// Allow trailing parameter markers (e.g., "?,?" or "(@p1, @p2)") after the proc name.
+	base := trimmed
+	if idx := strings.IndexAny(trimmed, " \t\r\n("); idx >= 0 {
+		base = strings.TrimSpace(trimmed[:idx])
+		tail := strings.TrimSpace(trimmed[idx:])
+		if tail != "" && !paramsOnly(tail) {
+			return false
+		}
+	}
+
+	if base == "" || strings.ContainsAny(base, " \t\r\n") {
+		return false
+	}
+	if strings.Contains(base, "[[") || strings.Contains(base, "]]") || strings.ContainsAny(base, "?:") {
+		return true
+	}
+	return true
+}
+
+func leadingAlphaNumToken(s string) string {
+	var b strings.Builder
+	started := false
+	for _, r := range s {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+			b.WriteRune(unicode.ToLower(r))
+			started = true
+			continue
+		}
+		if started {
+			break
+		}
+	}
+	return b.String()
+}
+
+func paramsOnly(s string) bool {
+	if s == "" {
+		return true
+	}
+	for _, r := range s {
+		switch r {
+		case '?', '@', ':', ',', '(', ')', '[', ']', '.', '-', '+', '\'', '"':
+		case ' ', '\t', '\r', '\n':
+		default:
+			if unicode.IsLetter(r) || unicode.IsDigit(r) || r == '_' {
+				continue
+			}
+			return false
+		}
+	}
+	return true
+}
+
+func analyzeCandidate(c *SqlCandidate) {
+	if !c.IsDynamic {
+		raw := c.RawSql
+		if strings.Contains(raw, "[[") || strings.Contains(raw, "]]") || strings.Contains(raw, "${") {
+			c.IsDynamic = true
+		}
+	}
+	sqlClean := StripSqlComments(c.RawSql)
+	sqlClean = strings.TrimSpace(sqlClean)
+	c.SqlClean = sqlClean
+
+	// Attempt to map ConnName to default database via shared connection registry.
+	if c.ConnDb == "" && c.ConnName != "" {
+		if db, ok := connStore.get(c.ConnName); ok {
+			c.ConnDb = db
+		}
+	}
+
+	usage := detectUsageKind(c.IsExecStub, sqlClean)
+	c.UsageKind = usage
+	c.IsWrite = isWriteKind(usage)
+
+	tokens := findObjectTokens(sqlClean)
+	classifyObjects(c, usage, tokens)
+
+	// If Exec stub and no tokens, interpret RawSql as proc spec
+	if c.IsExecStub && len(c.Objects) == 0 && strings.TrimSpace(c.RawSql) != "" {
+		tok := parseProcNameSpec(c.RawSql)
+		if c.ConnDb != "" {
+			tok.IsCrossDb = tok.DbName != "" && !strings.EqualFold(tok.DbName, c.ConnDb)
+		} else {
+			tok.IsCrossDb = tok.DbName != ""
+		}
+		tok.Role = "exec"
+		tok.DmlKind = "EXEC"
+		tok.IsWrite = true
+		tok.RepresentativeLine = c.LineStart
+		if tok.SchemaName == "" && tok.BaseName != "" && tok.DbName != "" {
+			tok.SchemaName = "dbo"
+		}
+		c.Objects = []ObjectToken{tok}
+	}
+
+	dbSet := make(map[string]struct{})
+	hasCross := false
+	for i := range c.Objects {
+		obj := &c.Objects[i]
+		if obj.DbName != "" {
+			dbSet[obj.DbName] = struct{}{}
+		}
+		if obj.IsCrossDb {
+			hasCross = true
+		}
+	}
+	var dbList []string
+	for db := range dbSet {
+		dbList = append(dbList, db)
+	}
+	sort.Strings(dbList)
+	c.DbList = dbList
+	c.HasCrossDb = hasCross
+
+	hashInput := c.SqlClean
+	if hashInput == "" {
+		hashInput = c.RawSql
+	}
+	h := sha1.Sum([]byte(hashInput))
+	c.QueryHash = fmt.Sprintf("%x", h[:])
+
+	c.RiskLevel = classifyRisk(c)
+}
+
+func detectUsageKind(isExecStub bool, sql string) string {
+	if isExecStub {
+		return "EXEC"
+	}
+	if sql == "" {
+		return "UNKNOWN"
+	}
+
+	trimmed := strings.ToLower(strings.TrimSpace(sql))
+	if trimmed == "" {
+		return "UNKNOWN"
+	}
+
+	targets := map[string]string{
+		"select":   "SELECT",
+		"insert":   "INSERT",
+		"update":   "UPDATE",
+		"delete":   "DELETE",
+		"truncate": "TRUNCATE",
+		"exec":     "EXEC",
+		"execute":  "EXEC",
+	}
+
+	skipTokens := map[string]struct{}{
+		"declare": {},
+		"set":     {},
+		"if":      {},
+		"begin":   {},
+		"end":     {},
+		"drop":    {},
+		"create":  {},
+		"alter":   {},
+		"use":     {},
+		"go":      {},
+	}
+
+	var tokenBuf strings.Builder
+	flushToken := func() string {
+		tok := strings.Trim(tokenBuf.String(), "[]")
+		tokenBuf.Reset()
+		return tok
+	}
+
+	processToken := func(tok string) (string, bool) {
+		if tok == "" {
+			return "", false
+		}
+		if _, skip := skipTokens[tok]; skip {
+			return "", false
+		}
+		if val, ok := targets[tok]; ok {
+			return val, true
+		}
+		return "", false
+	}
+
+	for _, r := range trimmed {
+		if unicode.IsSpace(r) || strings.ContainsRune("();,", r) {
+			tok := flushToken()
+			if kind, ok := processToken(tok); ok {
+				return kind
+			}
+			continue
+		}
+		tokenBuf.WriteRune(r)
+	}
+
+	if kind, ok := processToken(flushToken()); ok {
+		return kind
+	}
+
+	return "UNKNOWN"
+}
+
+// normalizeProcSpecForHash removes optional EXEC/EXECUTE prefixes and trailing semicolons
+// to produce a stable hash for stored procedure calls regardless of textual prefixes.
+func normalizeProcSpecForHash(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if trimmed == "" {
+		return ""
+	}
+
+	lower := strings.ToLower(trimmed)
+	if strings.HasPrefix(lower, "exec") {
+		fields := strings.Fields(trimmed)
+		if len(fields) >= 2 {
+			trimmed = strings.Join(fields[1:], " ")
+		} else {
+			trimmed = ""
+		}
+	} else if strings.HasPrefix(lower, "execute") {
+		fields := strings.Fields(trimmed)
+		if len(fields) >= 2 {
+			trimmed = strings.Join(fields[1:], " ")
+		} else {
+			trimmed = ""
+		}
+	}
+
+	trimmed = strings.TrimSpace(trimmed)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	trimmed = strings.TrimSpace(trimmed)
+	return trimmed
+}
+
+func isWriteKind(kind string) bool {
+	switch kind {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+		return true
+	default:
+		return false
+	}
+}
+
+func findObjectTokens(sql string) []ObjectToken {
+	lower := strings.ToLower(sql)
+	var tokens []ObjectToken
+	seen := make(map[string]bool)
+
+	keywords := []string{
+		"from", "join", "update", "into",
+		"truncate",
+		"delete from", "delete",
+		"exec", "execute",
+	}
+
+	for _, kw := range keywords {
+		k := kw
+		start := 0
+		for {
+			idx := strings.Index(lower[start:], k)
+			if idx < 0 {
+				break
+			}
+			pos := start + idx
+			end := pos + len(k)
+
+			// Ensure the keyword is not in the middle of an identifier (e.g., object name containing "update").
+			if pos > 0 && isIdentChar(lower[pos-1]) {
+				start = end
+				continue
+			}
+			if end < len(lower) && isIdentChar(lower[end]) {
+				start = end
+				continue
+			}
+
+			if k == "delete" && strings.HasPrefix(lower[end:], " from") {
+				start = end
+				continue
+			}
+
+			p := skipWS(lower, end)
+
+			if k == "truncate" {
+				if strings.HasPrefix(lower[p:], "table") {
+					p = skipWS(lower, p+len("table"))
+				}
+			}
+
+			if p >= len(lower) {
+				break
+			}
+			objText, _ := scanObjectName(sql, lower, p)
+			key := strings.ToLower(strings.TrimSpace(objText))
+			if objText == "" || seen[key] {
+				start = end
+				continue
+			}
+			seen[key] = true
+			dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
+			tokens = append(tokens, ObjectToken{
+				DbName:          dbName,
+				SchemaName:      schemaName,
+				BaseName:        baseName,
+				FullName:        objText,
+				IsLinkedServer:  isLinked,
+				IsObjectNameDyn: hasDynamicPlaceholder(objText),
+			})
+			start = end
+		}
+	}
+
+	return tokens
+}
+
+func skipWS(s string, i int) int {
+	for i < len(s) && (s[i] == ' ' || s[i] == '\t' || s[i] == '\n' || s[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+func scanObjectName(sql, lower string, i int) (string, int) {
+	start := i
+	if i >= len(sql) {
+		return "", i
+	}
+	if sql[i] == '[' {
+		end := i + 1
+		for end < len(sql) {
+			if sql[end] == ']' {
+				end++
+				break
+			}
+			end++
+		}
+		for end < len(sql) && sql[end] == '.' {
+			end++
+			if end < len(sql) && sql[end] == '[' {
+				end2 := end + 1
+				for end2 < len(sql) {
+					if sql[end2] == ']' {
+						end2++
+						break
+					}
+					end2++
+				}
+				end = end2
+			} else {
+				for end < len(sql) && isIdentChar(sql[end]) {
+					end++
+				}
+			}
+		}
+		return strings.TrimSpace(sql[start:end]), end
+	}
+	if sql[i] == '"' {
+		end := i + 1
+		for end < len(sql) {
+			if sql[end] == '"' {
+				if end+1 < len(sql) && sql[end+1] == '"' {
+					end += 2
+					continue
+				}
+				end++
+				break
+			}
+			end++
+		}
+		for end < len(sql) && sql[end] == '.' {
+			end++
+			if end < len(sql) && sql[end] == '"' {
+				end2 := end + 1
+				for end2 < len(sql) {
+					if sql[end2] == '"' {
+						if end2+1 < len(sql) && sql[end2+1] == '"' {
+							end2 += 2
+							continue
+						}
+						end2++
+						break
+					}
+					end2++
+				}
+				end = end2
+			} else {
+				for end < len(sql) && isIdentChar(sql[end]) {
+					end++
+				}
+			}
+		}
+		return strings.TrimSpace(sql[start:end]), end
+	}
+	end := i
+	for end < len(sql) && isIdentChar(sql[end]) {
+		end++
+	}
+	return strings.TrimSpace(sql[start:end]), end
+}
+
+func isIdentChar(b byte) bool {
+	return (b >= '0' && b <= '9') ||
+		(b >= 'a' && b <= 'z') ||
+		(b >= 'A' && b <= 'Z') ||
+		b == '_' || b == '.' || b == '$' || b == '-'
+}
+
+func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) {
+	full = strings.TrimSpace(full)
+	if full == "" {
+		return "", "", "", false
+	}
+	unbracket := func(s string) string {
+		s = strings.TrimSpace(s)
+		if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
+			return s[1 : len(s)-1]
+		}
+		if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+			return s[1 : len(s)-1]
+		}
+		return s
+	}
+
+	parts := strings.Split(full, ".")
+	for i := range parts {
+		parts[i] = unbracket(parts[i])
+	}
+
+	if len(parts) == 4 {
+		isLinked = true
+		db = parts[1]
+		schema = parts[2]
+		base = parts[3]
+		return
+	}
+	if len(parts) == 3 {
+		db = parts[0]
+		if parts[1] == "" {
+			schema = "dbo"
+		} else {
+			schema = parts[1]
+		}
+		base = parts[2]
+		return
+	}
+	if len(parts) == 2 {
+		schema = parts[0]
+		base = parts[1]
+		return
+	}
+	base = parts[0]
+	return
+}
+
+func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
+	// Determine cross-DB for each token first
+	for i := range tokens {
+		tokens[i].IsCrossDb = tokens[i].DbName != "" && c.ConnDb != "" && !strings.EqualFold(tokens[i].DbName, c.ConnDb)
+		if c.ConnDb == "" && tokens[i].DbName != "" {
+			tokens[i].IsCrossDb = true
+		}
+	}
+	// Normalize SQL to lower case for position lookup
+	sqlLower := strings.ToLower(c.SqlClean)
+	// Compute first occurrence index for each token in the SQL
+	positions := make([]int, len(tokens))
+	for i := range tokens {
+		// search using the token's full name in lower case
+		nameLower := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+		idx := strings.Index(sqlLower, nameLower)
+		if idx < 0 {
+			idx = len(sqlLower) + i // if not found, push to end
+		}
+		positions[i] = idx
+	}
+	// Initialize defaults: assume all tokens are sources with UNKNOWN
+	for i := range tokens {
+		tokens[i].Role = "source"
+		tokens[i].DmlKind = "UNKNOWN"
+		tokens[i].IsWrite = false
+		tokens[i].RepresentativeLine = c.LineStart
+	}
+	// Determine target based on DML keyword position
+	// Choose the first token appearing after the keyword; if none, fall back to the earliest token
+	var targetIdx int = -1
+	keywordPos := findKeywordPosition(sqlLower, usageKind)
+	if keywordPos >= 0 {
+		minPos := len(sqlLower) + len(sqlLower)
+		for i, p := range positions {
+			if p >= keywordPos && p < minPos && p < len(sqlLower) {
+				targetIdx = i
+				minPos = p
+			}
+		}
+	}
+	if targetIdx == -1 && len(tokens) > 0 {
+		minPos := len(sqlLower) + len(sqlLower)
+		for i, p := range positions {
+			if p < minPos && p < len(sqlLower) {
+				targetIdx = i
+				minPos = p
+			}
+		}
+		if targetIdx == -1 {
+			targetIdx = 0
+		}
+	}
+	multiDeleteTargets := usageKind == "DELETE" && strings.Count(sqlLower, "delete") >= len(tokens) && len(tokens) > 1
+
+	// Assign role and DmlKind based on usageKind
+	switch usageKind {
+	case "SELECT":
+		for i := range tokens {
+			tokens[i].Role = "source"
+			tokens[i].DmlKind = "SELECT"
+			tokens[i].IsWrite = false
+		}
+	case "INSERT":
+		for i := range tokens {
+			if i == targetIdx {
+				tokens[i].Role = "target"
+				tokens[i].DmlKind = "INSERT"
+				tokens[i].IsWrite = true
+			} else {
+				tokens[i].Role = "source"
+				tokens[i].DmlKind = "SELECT"
+				tokens[i].IsWrite = false
+			}
+		}
+	case "UPDATE":
+		for i := range tokens {
+			if i == targetIdx {
+				tokens[i].Role = "target"
+				tokens[i].DmlKind = "UPDATE"
+				tokens[i].IsWrite = true
+			} else {
+				tokens[i].Role = "source"
+				tokens[i].DmlKind = "SELECT"
+				tokens[i].IsWrite = false
+			}
+		}
+	case "DELETE":
+		for i := range tokens {
+			if multiDeleteTargets || i == targetIdx {
+				tokens[i].Role = "target"
+				tokens[i].DmlKind = "DELETE"
+				tokens[i].IsWrite = true
+			} else {
+				tokens[i].Role = "source"
+				tokens[i].DmlKind = "SELECT"
+				tokens[i].IsWrite = false
+			}
+		}
+	case "TRUNCATE":
+		for i := range tokens {
+			if i == targetIdx || targetIdx == -1 {
+				// in truncate, typically one token; if not found choose all
+				tokens[i].Role = "target"
+				tokens[i].DmlKind = "TRUNCATE"
+				tokens[i].IsWrite = true
+			} else {
+				tokens[i].Role = "source"
+				tokens[i].DmlKind = "SELECT"
+				tokens[i].IsWrite = false
+			}
+		}
+	case "EXEC":
+		for i := range tokens {
+			tokens[i].Role = "exec"
+			tokens[i].DmlKind = "EXEC"
+			tokens[i].IsWrite = true
+		}
+	default:
+		// unknown, treat as select sources
+		for i := range tokens {
+			tokens[i].Role = "source"
+			tokens[i].DmlKind = "UNKNOWN"
+			tokens[i].IsWrite = false
+		}
+	}
+	// Mark dynamic object names
+	for i := range tokens {
+		full := tokens[i].FullName
+		tokens[i].IsObjectNameDyn = tokens[i].IsObjectNameDyn || hasDynamicPlaceholder(full)
+		tokens[i].RepresentativeLine = c.LineStart
+	}
+	c.Objects = tokens
+}
+
+func findKeywordPosition(sqlLower, usageKind string) int {
+	switch usageKind {
+	case "INSERT":
+		if pos := strings.Index(sqlLower, "insert into"); pos >= 0 {
+			return pos + len("insert into")
+		}
+		if pos := strings.Index(sqlLower, "insert"); pos >= 0 {
+			return pos + len("insert")
+		}
+		return strings.Index(sqlLower, "into")
+	case "UPDATE":
+		return strings.Index(sqlLower, "update")
+	case "DELETE":
+		if pos := strings.Index(sqlLower, "delete from"); pos >= 0 {
+			return pos + len("delete from")
+		}
+		return strings.Index(sqlLower, "delete")
+	case "TRUNCATE":
+		return strings.Index(sqlLower, "truncate")
+	case "EXEC":
+		if pos := strings.Index(sqlLower, "exec"); pos >= 0 {
+			return pos + len("exec")
+		}
+		if pos := strings.Index(sqlLower, "execute"); pos >= 0 {
+			return pos + len("execute")
+		}
+		return -1
+	default:
+		return -1
+	}
+}
+
+func hasDynamicPlaceholder(name string) bool {
+	if strings.Contains(name, "[[") || strings.Contains(name, "]]") {
+		return true
+	}
+	return regexes.dynamicPlaceholder.MatchString(name)
+}
+
+// parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
+
+func parseProcNameSpec(s string) ObjectToken {
+	trimmed := strings.TrimSpace(s)
+	if strings.HasSuffix(trimmed, ";") {
+		trimmed = strings.TrimSuffix(trimmed, ";")
+		trimmed = strings.TrimSpace(trimmed)
+	}
+	if idx := strings.Index(trimmed, "("); idx >= 0 {
+		trimmed = strings.TrimSpace(trimmed[:idx])
+	}
+
+	origTrimmed := trimmed
+	trimmed = regexes.procParamPlaceholder.ReplaceAllString(trimmed, "")
+	trimmed = strings.TrimSpace(trimmed)
+
+	db, schema, base, isLinked := splitObjectNameParts(trimmed)
+	dyn := false
+	if strings.Contains(origTrimmed, "[[") || strings.Contains(origTrimmed, "]]") || strings.ContainsAny(origTrimmed, "?:@") {
+		dyn = true
+	}
+	return ObjectToken{
+		DbName:          db,
+		SchemaName:      schema,
+		BaseName:        base,
+		FullName:        trimmed,
+		IsLinkedServer:  isLinked,
+		IsObjectNameDyn: dyn,
+	}
+}
+
+func classifyRisk(c *SqlCandidate) string {
+	if !c.IsWrite {
+		return "LOW"
+	}
+	if c.HasCrossDb && c.IsDynamic {
+		return "CRITICAL"
+	}
+	if c.HasCrossDb || c.IsDynamic {
+		return "HIGH"
+	}
+	return "MEDIUM"
+}
+
+func dedupeObjectTokens(c *SqlCandidate) {
+	if len(c.Objects) <= 1 {
+		return
+	}
+
+	seen := make(map[string]bool)
+	var uniq []ObjectToken
+	for _, o := range c.Objects {
+		full := o.FullName
+		if full == "" {
+			full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
+		}
+		key := fmt.Sprintf("%s|%s|%d|%s|%s|%s", c.QueryHash, c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniq = append(uniq, o)
+	}
+	c.Objects = uniq
+}
+
+func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
+	if len(cands) <= 1 {
+		return cands
+	}
+
+	seen := make(map[string]bool)
+	var uniq []SqlCandidate
+	for _, c := range cands {
+		key := fmt.Sprintf("%s|%s|%d|%d|%s|%s|%s", c.AppName, c.RelPath, c.LineStart, c.LineEnd, c.Func, c.SqlClean, c.UsageKind)
+		if seen[key] {
+			continue
+		}
+		seen[key] = true
+		uniq = append(uniq, c)
+	}
+	return uniq
+}
+
+// ------------------------------------------------------------
+// CSV output
+// ------------------------------------------------------------
+
+func writeCSVs(cfg *Config, cands []SqlCandidate) error {
+	qf, err := os.Create(cfg.OutQuery)
+	if err != nil {
+		return err
+	}
+	defer qf.Close()
+	of, err := os.Create(cfg.OutObject)
+	if err != nil {
+		return err
+	}
+	defer of.Close()
+
+	qw := csv.NewWriter(qf)
+	ow := csv.NewWriter(of)
+
+	qHeader := []string{
+		"AppName", "RelPath", "File", "SourceCategory", "SourceKind",
+		"LineStart", "LineEnd", "Func", "RawSql", "SqlClean",
+		"UsageKind", "IsWrite", "HasCrossDb", "DbList", "ObjectCount",
+		"IsDynamic", "ConnName", "ConnDb", "QueryHash", "RiskLevel",
+		"DefinedInRelPath", "DefinedInLine",
+	}
+	if err := qw.Write(qHeader); err != nil {
+		return err
+	}
+
+	oHeader := []string{
+		"AppName", "RelPath", "File", "SourceCategory", "SourceKind",
+		"Line", "Func", "QueryHash", "ObjectName",
+		"DbName", "SchemaName", "BaseName",
+		"IsCrossDb", "IsLinkedServer", "Role", "DmlKind",
+		"IsWrite", "IsObjectNameDynamic",
+	}
+	if err := ow.Write(oHeader); err != nil {
+		return err
+	}
+
+	for _, c := range cands {
+		dbList := strings.Join(c.DbList, ",")
+
+		qRow := []string{
+			c.AppName,
+			c.RelPath,
+			c.File,
+			c.SourceCat,
+			c.SourceKind,
+			fmt.Sprintf("%d", c.LineStart),
+			fmt.Sprintf("%d", c.LineEnd),
+			c.Func,
+			c.RawSql,
+			c.SqlClean,
+			c.UsageKind,
+			boolToStr(c.IsWrite),
+			boolToStr(c.HasCrossDb),
+			dbList,
+			fmt.Sprintf("%d", len(c.Objects)),
+			boolToStr(c.IsDynamic),
+			c.ConnName,
+			c.ConnDb,
+			c.QueryHash,
+			c.RiskLevel,
+			c.DefinedPath,
+			fmt.Sprintf("%d", c.DefinedLine),
+		}
+		if err := qw.Write(qRow); err != nil {
+			return err
+		}
+
+		for _, o := range c.Objects {
+			full := o.FullName
+			if full == "" {
+				full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
+			}
+			oRow := []string{
+				c.AppName,
+				c.RelPath,
+				c.File,
+				c.SourceCat,
+				c.SourceKind,
+				fmt.Sprintf("%d", o.RepresentativeLine),
+				c.Func,
+				c.QueryHash,
+				full,
+				o.DbName,
+				o.SchemaName,
+				o.BaseName,
+				boolToStr(o.IsCrossDb),
+				boolToStr(o.IsLinkedServer),
+				o.Role,
+				o.DmlKind,
+				boolToStr(o.IsWrite),
+				boolToStr(o.IsObjectNameDyn),
+			}
+			if err := ow.Write(oRow); err != nil {
+				return err
+			}
+		}
+	}
+
+	qw.Flush()
+	ow.Flush()
+	if err := qw.Error(); err != nil {
+		return err
+	}
+	if err := ow.Error(); err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func buildFullName(db, schema, base string) string {
+	var parts []string
+	if db != "" {
+		parts = append(parts, db)
+	}
+	if schema != "" {
+		parts = append(parts, schema)
+	}
+	if base != "" {
+		parts = append(parts, base)
+	}
+	return strings.Join(parts, ".")
+}
+
+func boolToStr(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}
+
+func generateSummaries(cfg *Config) error {
+	if cfg.OutSummaryFunc == "" && cfg.OutSummaryObject == "" && cfg.OutSummaryForm == "" {
+		return nil
+	}
+
+	queries, err := summary.LoadQueryUsage(cfg.OutQuery)
+	if err != nil {
+		return fmt.Errorf("load query usage: %w", err)
+	}
+	objects, err := summary.LoadObjectUsage(cfg.OutObject)
+	if err != nil {
+		return fmt.Errorf("load object usage: %w", err)
+	}
+
+	if cfg.OutSummaryFunc != "" {
+		rows, err := summary.BuildFunctionSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build function summary: %w", err)
+		}
+		if err := summary.WriteFunctionSummary(cfg.OutSummaryFunc, rows); err != nil {
+			return fmt.Errorf("write function summary: %w", err)
+		}
+	}
+
+	if cfg.OutSummaryObject != "" {
+		rows, err := summary.BuildObjectSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build object summary: %w", err)
+		}
+		if err := summary.WriteObjectSummary(cfg.OutSummaryObject, rows); err != nil {
+			return fmt.Errorf("write object summary: %w", err)
+		}
+	}
+
+	if cfg.OutSummaryForm != "" {
+		rows, err := summary.BuildFormSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build form summary: %w", err)
+		}
+		if err := summary.WriteFormSummary(cfg.OutSummaryForm, rows); err != nil {
+			return fmt.Errorf("write form summary: %w", err)
+		}
+	}
+
+	return nil
+}
+
+// looksLikeSQL heuristically checks if a string resembles an SQL statement.
+// It searches for common DML keywords like select, insert, update, delete, truncate, or exec.
+// A simple lower-case search is performed and only returns true if at least one keyword is found.
+func looksLikeSQL(s string) bool {
+	norm := strings.ToLower(StripSqlComments(strings.TrimSpace(s)))
+	norm = strings.Join(strings.Fields(norm), " ")
+	if norm == "" {
+		return false
+	}
+	keywords := []string{"select", "insert", "update", "delete", "truncate", "exec", "execute"}
+	for _, kw := range keywords {
+		if strings.HasPrefix(norm, kw) || strings.Contains(norm, kw+" ") {
+			return true
+		}
+	}
+	return false
+}
