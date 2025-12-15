@@ -28,7 +28,7 @@ dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,GetTreasuryParameter,1,0,0
 dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,NewToInvestmentLogging,1,0,0,0,0,0,0,1,0,false,,3189,3189
 dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,SetupSecAccNo,1,0,0,0,0,0,0,1,0,false,,1468,1468
 dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,UpdateStatusTreasuryCustomer,1,0,0,0,0,0,0,1,0,false,,3010,3010
-dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,<unknown-func>,3,2,0,0,0,1,0,3,3,false,;VLSResultFinalToday_TT;VLSSummaryToday_TM;VLSTransactionsToday_TR;eq;openxml;sp_xml_preparedocument;tr,301,566
+dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,<unknown-func>,3,2,0,0,0,1,0,3,3,false,VLSResultFinalToday_TT;VLSSummaryToday_TM;VLSTransactionsToday_TR;eq;openxml;sp_xml_preparedocument;tr,301,566
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,ExecQuery,1,1,0,0,0,0,0,0,1,false,TRSExecQuery,463,463
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,GetGeneralParam,1,1,0,0,0,0,0,0,1,false,SBNSchedGetGeneralParam,24,24
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,InsertLiveLog,1,1,0,0,0,0,0,0,1,false,SBNSchedCreateLiveLog,49,49
@@ -287,7 +287,7 @@ dotnet-sample,clsDatabase.cs,clsDatabase.cs,subtrs_ListSecurityMaster_TM,1,1,0,0
 dotnet-sample,clsDatabase.cs,clsDatabase.cs,subtrs_ListTreasuryCustomer_TM_Original,1,1,0,0,0,0,0,0,1,false,trs_ListTreasuryCustomer_TM_Original,676,676
 dotnet-sample,clsDatabase.cs,clsDatabase.cs,subtrs_SearchSecId,1,1,0,0,0,0,0,0,1,false,trs_SearchSecId,172,172
 dotnet-sample,clsDatabase.cs,clsDatabase.cs,subtrs_UpdateSecurityMaster_TM,1,1,0,0,0,0,0,0,1,false,trs_UpdateSecurityMaster_TM,149,149
-dotnet-sample,clsValasService.cs,clsValasService.cs,<unknown-func>,62,34,2,8,0,0,6,29,48,false,;TAgent;TDeal;TDealDocument;TRN_HDR_FX;VLSResultFinal_TH;VLSSummaryFXOption_TM;VLSSummary_TM;VLSTransactions_TR_BackupONFX276;openxml;sp_xml_preparedocument,167,9462
+dotnet-sample,clsValasService.cs,clsValasService.cs,<unknown-func>,62,34,2,8,0,0,6,29,48,false,TAgent;TDeal;TDealDocument;TRN_HDR_FX;VLSResultFinal_TH;VLSSummaryFXOption_TM;VLSSummary_TM;VLSTransactions_TR_BackupONFX276;openxml;sp_xml_preparedocument,167,9462
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataSummaryValas,3,0,0,0,0,0,3,0,3,false,<dynamic-sql>,9313,9347
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasResult,3,0,0,0,0,0,3,0,3,false,<dynamic-sql>,3957,3999
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasResultV2,3,0,0,0,0,0,3,0,3,false,<dynamic-sql>,8696,8730
