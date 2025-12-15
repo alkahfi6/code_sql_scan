@@ -14,6 +14,7 @@ package main
 
 import (
 	"bytes"
+	summary "code_sql_scan/summary"
 	"crypto/sha1"
 	"encoding/csv"
 	"encoding/json"
@@ -201,7 +202,7 @@ func initRegexes() {
 		methodRe:             mustCompileRegex("methodWithMods", `(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
 		methodReNoMod:        mustCompileRegex("methodNoMods", `(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`),
 		xmlAttr:              mustCompileRegex("xmlAttr", `(?i)(sql|query|command|commandtext|storedprocedure)\s*=\s*"([^"]+)"`),
-xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
+		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
 		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
 		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
 		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
@@ -214,14 +215,17 @@ xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|co
 // ------------------------------------------------------------
 
 type Config struct {
-	Root        string
-	AppName     string
-	Lang        string
-	OutQuery    string
-	OutObject   string
-	MaxFileSize int64
-	Workers     int
-	IncludeExt  map[string]struct{}
+	Root             string
+	AppName          string
+	Lang             string
+	OutQuery         string
+	OutObject        string
+	OutSummaryFunc   string
+	OutSummaryObject string
+	OutSummaryForm   string
+	MaxFileSize      int64
+	Workers          int
+	IncludeExt       map[string]struct{}
 }
 
 type SqlSymbol struct {
@@ -390,6 +394,9 @@ func main() {
 	if err := writeCSVs(cfg, cands); err != nil {
 		log.Fatalf("[FATAL] write CSV failed: %v", err)
 	}
+	if err := generateSummaries(cfg); err != nil {
+		log.Fatalf("[FATAL] write summary failed: %v", err)
+	}
 
 	log.Printf("[INFO] done in %s", time.Since(start))
 }
@@ -400,6 +407,9 @@ func parseFlags() *Config {
 	lang := flag.String("lang", "", "language mode: go | dotnet")
 	outQ := flag.String("out-query", "", "output CSV for QueryUsage")
 	outO := flag.String("out-object", "", "output CSV for ObjectUsage")
+	outSummaryFunc := flag.String("out-summary-func", "", "output CSV for function-level summary")
+	outSummaryObject := flag.String("out-summary-object", "", "output CSV for object-level summary")
+	outSummaryForm := flag.String("out-summary-form", "", "output CSV for form/file-level summary")
 	maxSize := flag.Int64("max-size", 10*1024*1024, "max file size in bytes")
 	workers := flag.Int("workers", 4, "number of workers")
 	includeExt := flag.String("include-ext", "", "additional extensions, comma-separated, e.g. .cshtml,.razor")
@@ -455,14 +465,17 @@ func parseFlags() *Config {
 		w = 32
 	}
 	return &Config{
-		Root:        *root,
-		AppName:     *app,
-		Lang:        l,
-		OutQuery:    *outQ,
-		OutObject:   *outO,
-		MaxFileSize: *maxSize,
-		Workers:     w,
-		IncludeExt:  inc,
+		Root:             *root,
+		AppName:          *app,
+		Lang:             l,
+		OutQuery:         *outQ,
+		OutObject:        *outO,
+		OutSummaryFunc:   *outSummaryFunc,
+		OutSummaryObject: *outSummaryObject,
+		OutSummaryForm:   *outSummaryForm,
+		MaxFileSize:      *maxSize,
+		Workers:          w,
+		IncludeExt:       inc,
 	}
 }
 
@@ -1483,14 +1496,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			rawLiteral := false
 
 			switch p.re {
-case regexes.newCmd:
-// group1 = SQL, group2 = conn
-raw = cleanedGroup(clean, m, 1)
-rawLiteral = true
-connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
-case regexes.newCmdIdent:
-raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
-connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+			case regexes.newCmd:
+				// group1 = SQL, group2 = conn
+				raw = cleanedGroup(clean, m, 1)
+				rawLiteral = true
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+			case regexes.newCmdIdent:
+				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 				if funcName != "" && regexes.identRe.MatchString(raw) {
 					if lit, ok := literalInMethod[funcName][raw]; ok {
 						raw = lit
@@ -1500,15 +1513,15 @@ connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 						raw = "<dynamic-sql>"
 					}
 				}
-case regexes.execProcLit, regexes.execProcDyn:
-// group1 = conn, group2 = arg (SP literal or expr)
-connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
-rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
+			case regexes.execProcLit, regexes.execProcDyn:
+				// group1 = conn, group2 = arg (SP literal or expr)
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
-if p.re == regexes.execProcLit {
-rawLiteral = true
-}
-if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
+				if p.re == regexes.execProcLit {
+					rawLiteral = true
+				}
+				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
 						raw = lit
 						isDyn = false
@@ -1516,7 +1529,7 @@ if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(
 						rawLiteral = true
 					}
 				}
-case regexes.execQueryIdent:
+			case regexes.execQueryIdent:
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = expr
@@ -1543,17 +1556,17 @@ case regexes.execQueryIdent:
 						}
 					}
 				}
-case regexes.callQueryWsLit, regexes.callQueryWsDyn:
+			case regexes.callQueryWsLit, regexes.callQueryWsDyn:
 				// group1 = SQL or expression
 				raw = cleanedGroup(clean, m, 1)
-if p.re == regexes.callQueryWsLit {
+				if p.re == regexes.callQueryWsLit {
 					rawLiteral = true
 				}
 			default:
 				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
 				raw = cleanedGroup(clean, m, 1)
 				rawLiteral = true
-if p.re == regexes.commandTextIdent {
+				if p.re == regexes.commandTextIdent {
 					expr := strings.TrimSpace(raw)
 					rawLiteral = false
 					raw = expr
@@ -3123,6 +3136,53 @@ func boolToStr(b bool) string {
 		return "true"
 	}
 	return "false"
+}
+
+func generateSummaries(cfg *Config) error {
+	if cfg.OutSummaryFunc == "" && cfg.OutSummaryObject == "" && cfg.OutSummaryForm == "" {
+		return nil
+	}
+
+	queries, err := summary.LoadQueryUsage(cfg.OutQuery)
+	if err != nil {
+		return fmt.Errorf("load query usage: %w", err)
+	}
+	objects, err := summary.LoadObjectUsage(cfg.OutObject)
+	if err != nil {
+		return fmt.Errorf("load object usage: %w", err)
+	}
+
+	if cfg.OutSummaryFunc != "" {
+		rows, err := summary.BuildFunctionSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build function summary: %w", err)
+		}
+		if err := summary.WriteFunctionSummary(cfg.OutSummaryFunc, rows); err != nil {
+			return fmt.Errorf("write function summary: %w", err)
+		}
+	}
+
+	if cfg.OutSummaryObject != "" {
+		rows, err := summary.BuildObjectSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build object summary: %w", err)
+		}
+		if err := summary.WriteObjectSummary(cfg.OutSummaryObject, rows); err != nil {
+			return fmt.Errorf("write object summary: %w", err)
+		}
+	}
+
+	if cfg.OutSummaryForm != "" {
+		rows, err := summary.BuildFormSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build form summary: %w", err)
+		}
+		if err := summary.WriteFormSummary(cfg.OutSummaryForm, rows); err != nil {
+			return fmt.Errorf("write form summary: %w", err)
+		}
+	}
+
+	return nil
 }
 
 // looksLikeSQL heuristically checks if a string resembles an SQL statement.

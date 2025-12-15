@@ -1,0 +1,10 @@
+AppName,RelPath,File,TotalFunctionsWithDB,TotalQueries,TotalObjects,TotalExec,TotalWrite,TotalDynamic,DistinctObjectsUsed,HasCrossDb
+golang-sample,go1/destination.go,destination.go,12,24,26,18,21,0,22,false
+golang-sample,go1/query.go,query.go,1,17,17,0,10,5,7,true
+golang-sample,go1/source.go,source.go,8,8,1,1,1,7,1,false
+golang-sample,go2/impl.go,impl.go,6,7,7,0,0,0,7,false
+golang-sample,go2/query.go,query.go,1,5,5,0,0,0,5,false
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,18,34,46,4,8,0,5,true
+golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,3,4,6,0,4,0,3,false
+golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,2,2,32,0,1,0,30,true
+golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,2,2,2,2,2,0,1,false

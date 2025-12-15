@@ -1,0 +1,12 @@
+AppName,RelPath,File,TotalFunctionsWithDB,TotalQueries,TotalObjects,TotalExec,TotalWrite,TotalDynamic,DistinctObjectsUsed,HasCrossDb
+dotnet-sample,ANTSNAModel.cs,ANTSNAModel.cs,11,11,11,11,11,0,11,false
+dotnet-sample,ApprovalParamGLModel.cs,ApprovalParamGLModel.cs,2,2,2,2,2,0,2,false
+dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,4,4,4,4,4,0,4,false
+dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,3,3,0,0,0,3,0,false
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,16,16,0,0,0,16,0,false
+dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,2,3,13,2,3,3,8,false
+dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,13,14,14,14,14,0,14,false
+dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,45,46,44,44,44,2,41,false
+dotnet-sample,clsDatabase.cs,clsDatabase.cs,200,204,204,204,204,0,194,false
+dotnet-sample,clsValasService.cs,clsValasService.cs,16,90,132,34,72,32,13,false
+dotnet-sample,frmObligasiUpdateStatusTRX.cs,frmObligasiUpdateStatusTRX.cs,11,26,26,26,26,4,9,false
