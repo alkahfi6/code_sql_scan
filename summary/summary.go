@@ -6,7 +6,9 @@ import (
 	"io"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
+	"unicode"
 )
 
 // QueryRow represents a row from QueryUsage.csv used for summaries.
@@ -20,6 +22,8 @@ type QueryRow struct {
 	IsWrite    bool
 	IsDynamic  bool
 	HasCrossDb bool
+	LineStart  int
+	LineEnd    int
 }
 
 // ObjectRow represents a row from ObjectUsage.csv used for summaries.
@@ -54,6 +58,8 @@ type FunctionSummaryRow struct {
 	TotalWrite    int
 	HasCrossDb    bool
 	ObjectsUsed   string
+	LineStart     int
+	LineEnd       int
 }
 
 // ObjectSummaryRow represents aggregated information per database object.
@@ -73,6 +79,8 @@ type ObjectSummaryRow struct {
 	IsCrossDb       bool
 	IsDynamicObject bool
 	DynamicKind     string
+	IsPseudoObject  bool
+	PseudoKind      string
 }
 
 // FormSummaryRow represents aggregated information per file/form.
@@ -88,6 +96,7 @@ type FormSummaryRow struct {
 	TotalDynamic         int
 	DistinctObjectsUsed  int
 	HasCrossDb           bool
+	TopObjects           string
 }
 
 func LoadQueryUsage(path string) ([]QueryRow, error) {
@@ -134,6 +143,12 @@ func LoadQueryUsage(path string) ([]QueryRow, error) {
 		}
 		if col, ok := idx["HasCrossDb"]; ok {
 			row.HasCrossDb = parseBool(rec[col])
+		}
+		if col, ok := idx["LineStart"]; ok {
+			row.LineStart = parseInt(rec[col])
+		}
+		if col, ok := idx["LineEnd"]; ok {
+			row.LineEnd = parseInt(rec[col])
 		}
 		rows = append(rows, row)
 	}
@@ -216,6 +231,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		hasCross := false
 		var hasRealObject bool
 		var hasDynamicObject bool
+		minLine := 0
+		maxLine := 0
 		for _, q := range qRows {
 			switch strings.ToUpper(q.UsageKind) {
 			case "EXEC":
@@ -236,6 +253,16 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 			if q.IsWrite {
 				totalWrite++
+			}
+			if q.LineStart > 0 {
+				if minLine == 0 || q.LineStart < minLine {
+					minLine = q.LineStart
+				}
+			}
+			if q.LineEnd > 0 {
+				if maxLine == 0 || q.LineEnd > maxLine {
+					maxLine = q.LineEnd
+				}
 			}
 		}
 
@@ -269,9 +296,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		dynamicOnly := (hasDynamicObject && !hasRealObject) || (len(objNames) == 0 && totalDynamic > 0)
 		if (totalWrite > 0 || totalExec > 0) && objectsUsed == "" {
 			if dynamicOnly {
-				objectsUsed = "<dynamic-only>"
+				objectsUsed = "<dynamic-sql>"
 			} else {
-				objectsUsed = "<unknown-object>"
+				objectsUsed = "<dynamic-sql>"
 			}
 		}
 
@@ -291,6 +318,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalWrite:    totalWrite,
 			HasCrossDb:    hasCross,
 			ObjectsUsed:   objectsUsed,
+			LineStart:     minLine,
+			LineEnd:       maxLine,
 		})
 	}
 
@@ -337,6 +366,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if isDynamicObj {
 			dynamicKind = "unknown-target"
 		}
+		isPseudo, pseudoKind := pseudoObjectInfo(base)
 
 		for _, o := range objs {
 			dmlSet[strings.ToUpper(o.DmlKind)] = struct{}{}
@@ -371,6 +401,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			IsCrossDb:       hasCross,
 			IsDynamicObject: isDynamicObj,
 			DynamicKind:     dynamicKind,
+			IsPseudoObject:  isPseudo,
+			PseudoKind:      pseudoKind,
 		})
 	}
 
@@ -406,6 +438,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 
 	objectSetByForm := make(map[string]map[string]struct{})
 	hasCrossByForm := make(map[string]bool)
+	topObjectStats := make(map[string]map[string]*objectRoleCounter)
 	for _, o := range objects {
 		key := formKey(o.AppName, o.RelPath, o.File)
 		if _, ok := objectSetByForm[key]; !ok {
@@ -415,6 +448,25 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 		if o.IsCrossDb {
 			hasCrossByForm[key] = true
 		}
+
+		baseName := strings.TrimSpace(o.BaseName)
+		isPseudo, _ := pseudoObjectInfo(baseName)
+		if isPseudo {
+			continue
+		}
+		if baseName == "" {
+			continue
+		}
+		if _, ok := topObjectStats[key]; !ok {
+			topObjectStats[key] = make(map[string]*objectRoleCounter)
+		}
+		counter := topObjectStats[key][baseName]
+		if counter == nil {
+			counter = &objectRoleCounter{}
+			topObjectStats[key][baseName] = counter
+		}
+		counter.Count++
+		counter.Register(o)
 	}
 
 	var result []FormSummaryRow
@@ -446,6 +498,8 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			}
 		}
 
+		topObjects := buildTopObjects(topObjectStats[key])
+
 		result = append(result, FormSummaryRow{
 			AppName:              app,
 			RelPath:              rel,
@@ -458,6 +512,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			TotalDynamic:         totalDynamic,
 			DistinctObjectsUsed:  distinctObjects,
 			HasCrossDb:           hasCross,
+			TopObjects:           topObjects,
 		})
 	}
 
@@ -474,6 +529,80 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 	return result, nil
 }
 
+type objectRoleCounter struct {
+	Count    int
+	HasRead  bool
+	HasWrite bool
+	HasExec  bool
+}
+
+func (c *objectRoleCounter) Register(o ObjectRow) {
+	if o.IsWrite {
+		c.HasWrite = true
+	}
+	if strings.EqualFold(o.Role, "exec") || strings.EqualFold(o.DmlKind, "exec") {
+		c.HasExec = true
+	}
+	if !o.IsWrite && !strings.EqualFold(o.Role, "exec") {
+		c.HasRead = true
+	}
+}
+
+func buildTopObjects(stats map[string]*objectRoleCounter) string {
+	if len(stats) == 0 {
+		return ""
+	}
+	type top struct {
+		name  string
+		count int
+		label string
+	}
+	var tops []top
+	for name, counter := range stats {
+		tops = append(tops, top{
+			name:  name,
+			count: counter.Count,
+			label: classifyObjectUsage(counter),
+		})
+	}
+	sort.Slice(tops, func(i, j int) bool {
+		if tops[i].count != tops[j].count {
+			return tops[i].count > tops[j].count
+		}
+		return tops[i].name < tops[j].name
+	})
+	if len(tops) > 3 {
+		tops = tops[:3]
+	}
+	parts := make([]string, 0, len(tops))
+	for _, t := range tops {
+		parts = append(parts, fmt.Sprintf("%s %s", t.name, t.label))
+	}
+	return strings.Join(parts, ", ")
+}
+
+func classifyObjectUsage(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "(mixed)"
+	}
+	if counter.HasWrite {
+		if counter.HasExec || counter.HasRead {
+			return "(mixed)"
+		}
+		return "(write)"
+	}
+	if counter.HasExec {
+		if counter.HasRead {
+			return "(mixed)"
+		}
+		return "(exec)"
+	}
+	if counter.HasRead {
+		return "(read)"
+	}
+	return "(mixed)"
+}
+
 func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	f, err := os.Create(path)
 	if err != nil {
@@ -482,7 +611,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "Func", "TotalQueries", "TotalExec", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalDynamic", "TotalWrite", "HasCrossDb", "ObjectsUsed"}
+	header := []string{"AppName", "RelPath", "File", "Func", "TotalQueries", "TotalExec", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalDynamic", "TotalWrite", "HasCrossDb", "ObjectsUsed", "LineStart", "LineEnd"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -503,6 +632,8 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalWrite),
 			boolToStr(r.HasCrossDb),
 			r.ObjectsUsed,
+			fmt.Sprintf("%d", r.LineStart),
+			fmt.Sprintf("%d", r.LineEnd),
 		}
 		if err := w.Write(rec); err != nil {
 			return err
@@ -520,7 +651,7 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "DbName", "SchemaName", "BaseName", "FullObjectName", "UsedInFuncs", "DmlKinds", "Roles", "TotalReads", "TotalWrites", "IsCrossDb", "IsDynamicObject", "DynamicKind"}
+	header := []string{"AppName", "RelPath", "File", "DbName", "SchemaName", "BaseName", "FullObjectName", "UsedInFuncs", "DmlKinds", "Roles", "TotalReads", "TotalWrites", "IsCrossDb", "IsDynamicObject", "DynamicKind", "IsPseudoObject", "PseudoKind"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -541,6 +672,8 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 			boolToStr(r.IsCrossDb),
 			boolToStr(r.IsDynamicObject),
 			r.DynamicKind,
+			boolToStr(r.IsPseudoObject),
+			r.PseudoKind,
 		}
 		if err := w.Write(rec); err != nil {
 			return err
@@ -558,7 +691,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasCrossDb"}
+	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasCrossDb", "TopObjects"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -575,6 +708,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalDynamic),
 			fmt.Sprintf("%d", r.DistinctObjectsUsed),
 			boolToStr(r.HasCrossDb),
+			r.TopObjects,
 		}
 		if err := w.Write(rec); err != nil {
 			return err
@@ -586,6 +720,11 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 
 func parseBool(s string) bool {
 	return strings.EqualFold(strings.TrimSpace(s), "true")
+}
+
+func parseInt(s string) int {
+	v, _ := strconv.Atoi(strings.TrimSpace(s))
+	return v
 }
 
 func setToSortedSlice(m map[string]struct{}) []string {
@@ -670,6 +809,9 @@ func normalizeFuncName(raw string) string {
 	if _, banned := forbiddenFuncNames()[lower]; banned {
 		return "<unknown-func>"
 	}
+	if isAllUpperShort(name) {
+		return "<unknown-func>"
+	}
 	if isLikelyFuncName(name) {
 		return name
 	}
@@ -686,6 +828,28 @@ func forbiddenFuncNames() map[string]struct{} {
 		"len":       {},
 		"openxml":   {},
 		"varchar":   {},
+		"select":    {},
+		"from":      {},
+		"where":     {},
+		"group":     {},
+		"order":     {},
+		"join":      {},
+		"left":      {},
+		"right":     {},
+		"inner":     {},
+		"outer":     {},
+		"insert":    {},
+		"update":    {},
+		"delete":    {},
+		"truncate":  {},
+		"exec":      {},
+		"coalesce":  {},
+		"substring": {},
+		"case":      {},
+		"when":      {},
+		"then":      {},
+		"else":      {},
+		"end":       {},
 	}
 }
 
@@ -709,6 +873,30 @@ func isLikelyFuncName(name string) bool {
 	return true
 }
 
+func isAllUpperShort(name string) bool {
+	if len(name) == 0 || len(name) > 3 {
+		return false
+	}
+	hasLetter := false
+	for _, r := range name {
+		if unicode.IsLetter(r) {
+			hasLetter = true
+			if !unicode.IsUpper(r) {
+				return false
+			}
+		}
+	}
+	return hasLetter
+}
+
 func isDynamicBaseName(base string) bool {
 	return strings.EqualFold(strings.TrimSpace(base), "<dynamic-sql>")
+}
+
+func pseudoObjectInfo(base string) (bool, string) {
+	trimmed := strings.TrimSpace(base)
+	if isDynamicBaseName(trimmed) {
+		return true, "dynamic-sql"
+	}
+	return false, ""
 }
