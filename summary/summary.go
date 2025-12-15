@@ -95,6 +95,7 @@ type FormSummaryRow struct {
 	TotalWrite           int
 	TotalDynamic         int
 	DistinctObjectsUsed  int
+	HasDbAccess          bool
 	HasCrossDb           bool
 	TopObjects           string
 }
@@ -207,6 +208,7 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSummaryRow, error) {
 	grouped := make(map[string][]QueryRow)
 	hashByFunc := make(map[string]map[string]struct{})
+	queryByKey := make(map[string]QueryRow)
 
 	for _, q := range queries {
 		normFunc := normalizeFuncName(q.Func)
@@ -216,12 +218,22 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			hashByFunc[key] = make(map[string]struct{})
 		}
 		hashByFunc[key][q.QueryHash] = struct{}{}
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
 	}
 
 	objectsByQuery := map[string][]ObjectRow{}
 	for _, o := range objects {
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 		objectsByQuery[qKey] = append(objectsByQuery[qKey], o)
+	}
+
+	objectsByFunc := map[string][]ObjectRow{}
+	for _, o := range objects {
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		if q, ok := queryByKey[qKey]; ok {
+			funcKey := functionKey(o.AppName, o.RelPath, o.File, normalizeFuncName(q.Func))
+			objectsByFunc[funcKey] = append(objectsByFunc[funcKey], o)
+		}
 	}
 
 	var result []FunctionSummaryRow
@@ -267,21 +279,32 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		}
 
 		objSet := make(map[string]struct{})
+		consumeObj := func(o ObjectRow) {
+			name := strings.TrimSpace(o.BaseName)
+			if name == "" {
+				return
+			}
+			objSet[name] = struct{}{}
+			isPseudo, _ := pseudoObjectInfo(name)
+			if isPseudo {
+				hasDynamicObject = true
+			} else {
+				hasRealObject = true
+			}
+			if o.IsCrossDb {
+				hasCross = true
+			}
+		}
 		if hashes, ok := hashByFunc[key]; ok {
 			for h := range hashes {
 				qKey := queryObjectKey(app, rel, file, h)
 				for _, o := range objectsByQuery[qKey] {
-					objSet[o.BaseName] = struct{}{}
-					if isDynamicBaseName(o.BaseName) {
-						hasDynamicObject = true
-					} else {
-						hasRealObject = true
-					}
-					if o.IsCrossDb {
-						hasCross = true
-					}
+					consumeObj(o)
 				}
 			}
+		}
+		for _, o := range objectsByFunc[key] {
+			consumeObj(o)
 		}
 		if !hasCross {
 			for _, q := range qRows {
@@ -465,7 +488,6 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			counter = &objectRoleCounter{}
 			topObjectStats[key][baseName] = counter
 		}
-		counter.Count++
 		counter.Register(o)
 	}
 
@@ -499,6 +521,10 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 		}
 
 		topObjects := buildTopObjects(topObjectStats[key])
+		hasDbAccess := distinctObjects > 0
+		if !hasDbAccess {
+			topObjects = ""
+		}
 
 		result = append(result, FormSummaryRow{
 			AppName:              app,
@@ -511,6 +537,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			TotalWrite:           totalWrite,
 			TotalDynamic:         totalDynamic,
 			DistinctObjectsUsed:  distinctObjects,
+			HasDbAccess:          hasDbAccess,
 			HasCrossDb:           hasCross,
 			TopObjects:           topObjects,
 		})
@@ -530,21 +557,26 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 }
 
 type objectRoleCounter struct {
-	Count    int
-	HasRead  bool
-	HasWrite bool
-	HasExec  bool
+	ReadCount  int
+	WriteCount int
+	ExecCount  int
+	HasRead    bool
+	HasWrite   bool
+	HasExec    bool
 }
 
 func (c *objectRoleCounter) Register(o ObjectRow) {
-	if o.IsWrite {
+	if o.IsWrite || isWriteDml(o.DmlKind) {
 		c.HasWrite = true
+		c.WriteCount++
 	}
 	if strings.EqualFold(o.Role, "exec") || strings.EqualFold(o.DmlKind, "exec") {
 		c.HasExec = true
+		c.ExecCount++
 	}
 	if !o.IsWrite && !strings.EqualFold(o.Role, "exec") {
 		c.HasRead = true
+		c.ReadCount++
 	}
 }
 
@@ -553,21 +585,26 @@ func buildTopObjects(stats map[string]*objectRoleCounter) string {
 		return ""
 	}
 	type top struct {
-		name  string
-		count int
-		label string
+		name       string
+		writeScore int
+		readScore  int
+		label      string
 	}
 	var tops []top
 	for name, counter := range stats {
 		tops = append(tops, top{
-			name:  name,
-			count: counter.Count,
-			label: classifyObjectUsage(counter),
+			name:       name,
+			writeScore: counter.WriteCount + counter.ExecCount,
+			readScore:  counter.ReadCount,
+			label:      classifyObjectUsage(counter),
 		})
 	}
 	sort.Slice(tops, func(i, j int) bool {
-		if tops[i].count != tops[j].count {
-			return tops[i].count > tops[j].count
+		if tops[i].writeScore != tops[j].writeScore {
+			return tops[i].writeScore > tops[j].writeScore
+		}
+		if tops[i].readScore != tops[j].readScore {
+			return tops[i].readScore > tops[j].readScore
 		}
 		return tops[i].name < tops[j].name
 	})
@@ -691,7 +728,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasCrossDb", "TopObjects"}
+	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasDbAccess", "HasCrossDb", "TopObjects"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -707,6 +744,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalWrite),
 			fmt.Sprintf("%d", r.TotalDynamic),
 			fmt.Sprintf("%d", r.DistinctObjectsUsed),
+			boolToStr(r.HasDbAccess),
 			boolToStr(r.HasCrossDb),
 			r.TopObjects,
 		}
@@ -825,9 +863,12 @@ func forbiddenFuncNames() map[string]struct{} {
 		"cast":      {},
 		"in":        {},
 		"isnull":    {},
+		"nvarchar":  {},
+		"varchar":   {},
+		"bigint":    {},
 		"len":       {},
 		"openxml":   {},
-		"varchar":   {},
+		"count":     {},
 		"select":    {},
 		"from":      {},
 		"where":     {},
@@ -898,5 +939,18 @@ func pseudoObjectInfo(base string) (bool, string) {
 	if isDynamicBaseName(trimmed) {
 		return true, "dynamic-sql"
 	}
+	if strings.HasPrefix(trimmed, "<") && strings.HasSuffix(trimmed, ">") {
+		kind := strings.TrimSuffix(strings.TrimPrefix(trimmed, "<"), ">")
+		return true, strings.ToLower(kind)
+	}
 	return false, ""
+}
+
+func isWriteDml(dml string) bool {
+	switch strings.ToUpper(strings.TrimSpace(dml)) {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+		return true
+	default:
+		return false
+	}
 }
