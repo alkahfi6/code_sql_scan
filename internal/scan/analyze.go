@@ -100,6 +100,11 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.IsWrite = isWriteKind(usage)
 
 	tokens := findObjectTokens(sqlClean)
+	if usage == "INSERT" {
+		if tok, ok := parseLeadingInsertTarget(sqlClean, c.ConnDb, c.LineStart); ok {
+			tokens = append([]ObjectToken{tok}, tokens...)
+		}
+	}
 	classifyObjects(c, usage, tokens)
 
 	// If Exec stub and no tokens, interpret RawSql as proc spec
@@ -628,6 +633,31 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			tokens[i].IsWrite = false
 		}
 	}
+	if usageKind == "INSERT" {
+		targetKeys := make(map[string]struct{})
+		for i := range tokens {
+			if strings.EqualFold(tokens[i].Role, "target") {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				targetKeys[key] = struct{}{}
+			}
+		}
+		if len(targetKeys) > 0 {
+			for i := range tokens {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				if _, ok := targetKeys[key]; ok {
+					tokens[i].Role = "target"
+					tokens[i].DmlKind = "INSERT"
+					tokens[i].IsWrite = true
+				}
+			}
+		}
+	}
 	// Mark dynamic object names
 	for i := range tokens {
 		full := tokens[i].FullName
@@ -776,6 +806,59 @@ func hasDynamicPlaceholder(name string) bool {
 		return true
 	}
 	return regexes.dynamicPlaceholder.MatchString(name)
+}
+
+func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken, bool) {
+	trimmed := strings.TrimSpace(StripSqlComments(sql))
+	lower := strings.ToLower(trimmed)
+	lower = strings.TrimSpace(lower)
+	if !strings.HasPrefix(lower, "insert") {
+		return ObjectToken{}, false
+	}
+
+	p := len("insert")
+	p = skipWS(lower, p)
+	if !strings.HasPrefix(lower[p:], "into") {
+		return ObjectToken{}, false
+	}
+	p = skipWS(lower, p+len("into"))
+	if p >= len(lower) {
+		return ObjectToken{}, false
+	}
+
+	objText, _ := scanObjectName(trimmed, lower, p)
+	objText = strings.TrimSpace(objText)
+	if objText == "" {
+		return ObjectToken{}, false
+	}
+
+	dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
+	if baseName == "" {
+		return ObjectToken{}, false
+	}
+	if schemaName == "" {
+		schemaName = "dbo"
+	}
+	tok := ObjectToken{
+		DbName:             dbName,
+		SchemaName:         schemaName,
+		BaseName:           baseName,
+		FullName:           buildFullName(dbName, schemaName, baseName),
+		FoundAt:            p,
+		IsLinkedServer:     isLinked,
+		IsObjectNameDyn:    hasDynamicPlaceholder(objText),
+		RepresentativeLine: line,
+	}
+	if tok.DbName != "" && connDb != "" {
+		tok.IsCrossDb = !strings.EqualFold(tok.DbName, connDb)
+	} else if tok.DbName != "" {
+		tok.IsCrossDb = true
+	}
+	tok.Role = "target"
+	tok.DmlKind = "INSERT"
+	tok.IsWrite = true
+
+	return tok, true
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.

@@ -21,7 +21,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	clean := StripCodeCommentsCStyle(src, true)
 
 	lines := strings.Split(src, "\n")
-	methodAtLine := detectCsMethods(lines)
+	methodRanges := detectCsMethods(lines)
+	methodAtLine := indexCsMethodLines(methodRanges, len(lines))
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]string)
@@ -38,7 +39,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		line := countLinesUpTo(clean, m[0])
 		funcName := ""
 		if line-1 >= 0 && line-1 < len(methodAtLine) {
-			funcName = methodAtLine[line-1]
+			if methodAtLine[line-1] != nil {
+				funcName = methodAtLine[line-1].Name
+			}
 		}
 		if funcName == "" {
 			continue
@@ -49,8 +52,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	}
 	for i, line := range lines {
 		method := ""
-		if i < len(methodAtLine) {
-			method = methodAtLine[i]
+		if i < len(methodAtLine) && methodAtLine[i] != nil {
+			method = methodAtLine[i].Name
 		}
 		if method == "" {
 			continue
@@ -114,9 +117,21 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw      string
 			)
 
-			funcName := ""
+			var (
+				funcName  string
+				funcRange *methodRange
+				lineStart = line
+				lineEnd   = line
+			)
 			if line-1 >= 0 && line-1 < len(methodAtLine) {
-				funcName = methodAtLine[line-1]
+				funcRange = methodAtLine[line-1]
+			}
+			if funcRange != nil {
+				funcName = funcRange.Name
+				lineStart = funcRange.Start
+				lineEnd = funcRange.End
+			} else {
+				funcName = fmt.Sprintf("<file-scope>@L%d", line)
 			}
 
 			isDyn := p.dynamic
@@ -252,8 +267,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				File:        filepath.Base(path),
 				SourceCat:   "code",
 				SourceKind:  "csharp",
-				LineStart:   line,
-				LineEnd:     line,
+				LineStart:   lineStart,
+				LineEnd:     lineEnd,
 				Func:        funcName,
 				RawSql:      raw,
 				IsDynamic:   isDyn,
@@ -283,24 +298,85 @@ func cleanedGroup(s string, idxs []int, groupNumber int) string {
 	return s[start:end]
 }
 
-func detectCsMethods(lines []string) []string {
-	methodAtLine := make([]string, len(lines))
-	current := ""
+type methodRange struct {
+	Name       string
+	Start, End int
+}
+
+func detectCsMethods(lines []string) []methodRange {
+	var methods []methodRange
+	var current *methodRange
+	braceDepth := 0
+	methodStarted := false
+
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if trimmed == "" {
-			methodAtLine[i] = current
-			continue
-		}
-		if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
-			current = m[2]
-		} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
-			kw := strings.ToLower(m[1])
-			if kw != "if" && kw != "for" && kw != "while" && kw != "switch" && kw != "catch" {
-				current = m[1]
+		if current == nil && trimmed != "" {
+			name := ""
+			if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
+				name = m[2]
+			} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+				candidate := m[1]
+				kw := strings.ToLower(candidate)
+				if kw != "if" && kw != "for" && kw != "foreach" && kw != "while" && kw != "switch" && kw != "catch" && kw != "using" && kw != "lock" {
+					name = candidate
+				}
+			}
+			if name != "" {
+				current = &methodRange{Name: name, Start: i + 1, End: i + 1}
+				braceDepth = 0
+				methodStarted = false
 			}
 		}
-		methodAtLine[i] = current
+
+		if current != nil {
+			open := strings.Count(line, "{")
+			close := strings.Count(line, "}")
+			if open > 0 {
+				methodStarted = true
+			}
+			braceDepth += open
+			if methodStarted && i+1 > current.End {
+				current.End = i + 1
+			}
+			braceDepth -= close
+			if methodStarted && braceDepth <= 0 {
+				if current.End < current.Start {
+					current.End = current.Start
+				}
+				methods = append(methods, *current)
+				current = nil
+				braceDepth = 0
+				methodStarted = false
+			}
+		}
+	}
+
+	if current != nil {
+		if !methodStarted {
+			current.End = current.Start
+		}
+		methods = append(methods, *current)
+	}
+
+	return methods
+}
+
+func indexCsMethodLines(methods []methodRange, totalLines int) []*methodRange {
+	methodAtLine := make([]*methodRange, totalLines)
+	for i := range methods {
+		m := &methods[i]
+		start := m.Start
+		if start < 1 {
+			start = 1
+		}
+		end := m.End
+		if end > totalLines {
+			end = totalLines
+		}
+		for line := start; line <= end; line++ {
+			methodAtLine[line-1] = m
+		}
 	}
 	return methodAtLine
 }
