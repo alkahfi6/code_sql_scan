@@ -406,6 +406,9 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			dynamicKind = "unknown-target"
 		}
 		isPseudo, pseudoKind := pseudoObjectInfo(base)
+		if isPseudo && pseudoKind == "" {
+			pseudoKind = "unknown"
+		}
 
 		for _, o := range objs {
 			dmlSet[strings.ToUpper(o.DmlKind)] = struct{}{}
@@ -423,17 +426,22 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 				if o.PseudoKind != "" {
 					dynamicKind = o.PseudoKind
 				}
+				if dynamicKind == "" {
+					dynamicKind = "unknown-target"
+				}
 			}
 			if o.IsPseudoObject {
 				isPseudo = true
-				if o.PseudoKind != "" {
-					pseudoKind = o.PseudoKind
-				}
+				pseudoKind = choosePseudoKind(pseudoKind, defaultPseudoKind(o.PseudoKind))
 			}
 			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 			if q, ok := queryByKey[qKey]; ok {
 				funcSet[q.Func] = struct{}{}
 			}
+		}
+
+		if isPseudo && pseudoKind == "" {
+			pseudoKind = "unknown"
 		}
 
 		result = append(result, ObjectSummaryRow{
@@ -959,19 +967,56 @@ func isAllUpperShort(name string) bool {
 }
 
 func isDynamicBaseName(base string) bool {
-	return strings.EqualFold(strings.TrimSpace(base), "<dynamic-sql>")
+	trimmed := strings.ToLower(strings.TrimSpace(base))
+	if trimmed == "<dynamic-sql>" {
+		return true
+	}
+	return strings.HasPrefix(trimmed, "<dynamic-object")
 }
 
 func pseudoObjectInfo(base string) (bool, string) {
 	trimmed := strings.TrimSpace(base)
+	lower := strings.ToLower(trimmed)
 	if isDynamicBaseName(trimmed) {
 		return true, "dynamic-sql"
 	}
-	if strings.HasPrefix(trimmed, "<") && strings.HasSuffix(trimmed, ">") {
-		kind := strings.TrimSuffix(strings.TrimPrefix(trimmed, "<"), ">")
-		return true, strings.ToLower(kind)
+	if strings.HasPrefix(lower, "<") && strings.HasSuffix(lower, ">") {
+		kind := strings.TrimSuffix(strings.TrimPrefix(lower, "<"), ">")
+		kind = strings.TrimSpace(kind)
+		if kind == "" {
+			kind = "unknown"
+		}
+		return true, kind
 	}
 	return false, ""
+}
+
+func choosePseudoKind(current, candidate string) string {
+	pri := func(kind string) int {
+		switch strings.ToLower(strings.TrimSpace(kind)) {
+		case "dynamic-sql":
+			return 3
+		case "dynamic-object":
+			return 2
+		case "unknown":
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	if pri(candidate) > pri(current) {
+		return strings.ToLower(strings.TrimSpace(candidate))
+	}
+	return strings.ToLower(strings.TrimSpace(current))
+}
+
+func defaultPseudoKind(kind string) string {
+	k := strings.ToLower(strings.TrimSpace(kind))
+	if k == "" {
+		return "unknown"
+	}
+	return k
 }
 
 func isWriteDml(dml string) bool {

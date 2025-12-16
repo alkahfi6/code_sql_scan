@@ -2,11 +2,11 @@ AppName,RelPath,File,TotalFunctionsWithDB,TotalQueries,TotalObjects,TotalExec,To
 dotnet-sample,ANTSNAModel.cs,ANTSNAModel.cs,11,11,11,11,11,0,11,true,false,"ANTSNAGenerateFile (mixed), ANTSNAGetColumnParam (mixed), ANTSNAGetGeneralParam (mixed)"
 dotnet-sample,ApprovalParamGLModel.cs,ApprovalParamGLModel.cs,2,2,2,2,2,0,2,true,false,"TRSApprovalParamGL (mixed), TRSPopulateApprovalParameterGL (mixed)"
 dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,4,4,4,4,4,0,4,true,false,"TRSApproveSID (mixed), TRSInsertLogOneNotifNTI (mixed), TRSNTIUpdateStatusNotif (mixed)"
-dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,2,3,3,0,0,3,1,true,false,
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,10,16,16,0,0,16,1,true,false,
-dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,1,3,16,2,3,3,9,true,false,"openxml (mixed), sp_xml_preparedocument (mixed), eq (mixed)"
+dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,3,3,3,0,0,3,1,true,false,
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,16,16,16,0,0,16,1,true,false,
+dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,2,3,17,1,3,3,9,true,false,"eq (write), openxml (mixed), sp_xml_preparedocument (mixed)"
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,13,14,14,14,14,0,14,true,false,"SBNSchedCreateLiveLog (mixed), SBNSchedGetDataStatusPemesanan (mixed), SBNSchedGetGeneralParam (mixed)"
-dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,45,46,46,44,44,2,42,true,false,"TRSObliGetNotifAPIParam (mixed), TRSRetailCalculateFee (mixed), MXINTFCPYInLog (mixed)"
+dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,44,46,46,44,44,2,42,true,false,"TRSObliGetNotifAPIParam (mixed), TRSRetailCalculateFee (mixed), MXINTFCPYInLog (mixed)"
 dotnet-sample,clsDatabase.cs,clsDatabase.cs,200,204,204,204,204,0,196,true,false,"trs_ListColumnsTable (mixed), TRSProcessInsertSecurityTransactionCommit (mixed), TRSPopulateBlokirSwitchingTransaction (mixed)"
-dotnet-sample,clsValasService.cs,clsValasService.cs,11,90,164,34,72,32,14,true,false,"openxml (mixed), sp_xml_preparedocument (mixed), VLSResultFinal_TH (write)"
-dotnet-sample,frmObligasiUpdateStatusTRX.cs,frmObligasiUpdateStatusTRX.cs,11,26,26,26,26,4,9,true,false,"trs_UpdateStatusSecurityTransactionAfterMurex (mixed), TRSGetEmailForPushBack (mixed), TRSGetEmailLookUp (mixed)"
+dotnet-sample,clsValasService.cs,clsValasService.cs,37,38,81,18,30,11,20,true,false,"openxml (mixed), sp_xml_preparedocument (mixed), VLSSummaryFXOption_TM (mixed)"
+dotnet-sample,frmObligasiUpdateStatusTRX.cs,frmObligasiUpdateStatusTRX.cs,1,8,8,8,8,0,8,true,false,"TRSGetEmailForPushBack (mixed), TRSGetEmailLookUp (mixed), UserGetToolbarTree (mixed)"

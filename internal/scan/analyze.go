@@ -504,6 +504,20 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			})
 		}
 	}
+	for i := range tokens {
+		if tokens[i].IsObjectNameDyn && !tokens[i].IsPseudoObject {
+			tokens[i].IsPseudoObject = true
+		}
+		if tokens[i].IsPseudoObject {
+			if tokens[i].PseudoKind == "" {
+				if tokens[i].IsObjectNameDyn {
+					tokens[i].PseudoKind = "dynamic-object"
+				} else {
+					tokens[i].PseudoKind = "unknown"
+				}
+			}
+		}
+	}
 	// Determine cross-DB for each token first
 	for i := range tokens {
 		tokens[i].IsCrossDb = tokens[i].DbName != "" && c.ConnDb != "" && !strings.EqualFold(tokens[i].DbName, c.ConnDb)
@@ -723,9 +737,9 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 		if tok.RepresentativeLine > 0 && (g.minLine == 0 || tok.RepresentativeLine < g.minLine) {
 			g.minLine = tok.RepresentativeLine
 		}
-		g.first.IsPseudoObject = g.first.IsPseudoObject || tok.IsPseudoObject
-		if g.first.PseudoKind == "" {
-			g.first.PseudoKind = tok.PseudoKind
+		if tok.IsPseudoObject {
+			g.first.IsPseudoObject = true
+			g.first.PseudoKind = choosePseudoKindLocal(g.first.PseudoKind, defaultPseudoKind(tok.PseudoKind))
 		}
 		g.first.IsObjectNameDyn = g.first.IsObjectNameDyn || tok.IsObjectNameDyn
 	}
@@ -762,6 +776,9 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 			tok.DmlKind = strings.Join(kinds, ";")
 		} else {
 			tok.DmlKind = "UNKNOWN"
+		}
+		if tok.IsPseudoObject && tok.PseudoKind == "" {
+			tok.PseudoKind = "unknown"
 		}
 		merged = append(merged, tok)
 	}
@@ -925,6 +942,34 @@ func dedupeObjectTokens(c *SqlCandidate) {
 		uniq = append(uniq, o)
 	}
 	c.Objects = uniq
+}
+
+func choosePseudoKindLocal(current, candidate string) string {
+	pri := func(kind string) int {
+		switch strings.ToLower(strings.TrimSpace(kind)) {
+		case "dynamic-sql":
+			return 3
+		case "dynamic-object":
+			return 2
+		case "unknown":
+			return 1
+		default:
+			return 0
+		}
+	}
+
+	if pri(candidate) > pri(current) {
+		return strings.ToLower(strings.TrimSpace(candidate))
+	}
+	return strings.ToLower(strings.TrimSpace(current))
+}
+
+func defaultPseudoKind(kind string) string {
+	k := strings.ToLower(strings.TrimSpace(kind))
+	if k == "" {
+		return "unknown"
+	}
+	return k
 }
 
 func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
