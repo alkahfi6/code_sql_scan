@@ -195,6 +195,17 @@ func generateSummaries(cfg *Config) error {
 		}
 	}
 
+	if cfg.OutSummaryFunc != "" && cfg.OutSummaryObject != "" {
+		report, err := summary.VerifyConsistency(cfg.OutQuery, cfg.OutObject, cfg.OutSummaryFunc, cfg.OutSummaryObject)
+		if err != nil {
+			return fmt.Errorf("summary consistency: %w", err)
+		}
+		if report != nil && report.TotalMismatches() > 0 {
+			examples := report.Examples(3)
+			return fmt.Errorf("SUMMARY CONSISTENCY FAIL (%d mismatches). Examples: %s", report.TotalMismatches(), strings.Join(examples, "; "))
+		}
+	}
+
 	return nil
 }
 
