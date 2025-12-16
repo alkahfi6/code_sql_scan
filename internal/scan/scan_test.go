@@ -327,7 +327,7 @@ func TestFindAndClassifyObjectsHandlesTruncateAndCrossDb(t *testing.T) {
 		t.Fatalf("truncate token should be target, got %+v", *truncateTok)
 	}
 	if !truncateTok.IsCrossDb {
-		t.Fatalf("expected cross-db target due to different ConnDb")
+		t.Fatalf("expected cross-db target due to explicit database prefix")
 	}
 
 	if selectTok == nil {
@@ -335,6 +335,39 @@ func TestFindAndClassifyObjectsHandlesTruncateAndCrossDb(t *testing.T) {
 	}
 	if selectTok.Role != "source" || selectTok.DmlKind != "SELECT" || selectTok.IsWrite {
 		t.Fatalf("select token should remain read-only source, got %+v", *selectTok)
+	}
+}
+
+func TestCrossDbParsingEvidence(t *testing.T) {
+	cases := []string{
+		"select * from dbA..TableX",
+		"select * from dbA.dbo.TableX",
+	}
+
+	for _, sql := range cases {
+		cand := &SqlCandidate{RawSql: sql, LineStart: 10}
+		analyzeCandidate(cand)
+
+		if len(cand.Objects) != 1 {
+			t.Fatalf("expected single object, got %d", len(cand.Objects))
+		}
+
+		obj := cand.Objects[0]
+		if obj.DbName != "dbA" || obj.SchemaName != "dbo" || obj.BaseName != "TableX" {
+			t.Fatalf("unexpected parse: db=%s schema=%s base=%s", obj.DbName, obj.SchemaName, obj.BaseName)
+		}
+		if !obj.IsCrossDb {
+			t.Fatalf("expected cross-db flag for %q", sql)
+		}
+
+		if !cand.HasCrossDb {
+			t.Fatalf("candidate should mark HasCrossDb for %q", sql)
+		}
+		if len(cand.DbList) != 1 || cand.DbList[0] != "dbA" {
+			t.Fatalf("unexpected DbList: %+v", cand.DbList)
+		}
+
+		t.Logf("parsed %q => Db=%s Schema=%s Base=%s IsCrossDb=%v DbList=%s", sql, obj.DbName, obj.SchemaName, obj.BaseName, obj.IsCrossDb, strings.Join(cand.DbList, ";"))
 	}
 }
 

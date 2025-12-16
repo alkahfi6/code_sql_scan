@@ -51,7 +51,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	}
 
 	for _, c := range cands {
-		dbList := strings.Join(c.DbList, ",")
+		dbList := strings.Join(c.DbList, ";")
 
 		qRow := []string{
 			c.AppName,
