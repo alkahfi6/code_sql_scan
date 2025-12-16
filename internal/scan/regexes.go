@@ -77,7 +77,7 @@ func initRegexes() {
 		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
 		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
 		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
-		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
+		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+|\$\{[^}]+\}|\<expr\>`),
 		procParamPlaceholder: mustCompileRegex("procParamPlaceholder", `\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`),
 	}
 }
