@@ -16,25 +16,25 @@ dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,code,csharp,29,29,Populate
 dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,code,csharp,57,57,ApproveSID,TRSApproveSID,TRSApproveSID,EXEC,true,false,,1,false,_cQuery,,64854a3c5d92df3c24c6da0a94b7493197ed3c54,MEDIUM,ApprovalSIDModel.cs,57
 dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,code,csharp,81,81,UpdateStatusNotifNTI,TRSNTIUpdateStatusNotif,TRSNTIUpdateStatusNotif,EXEC,true,false,,1,false,_cQuery,,c4dc62d82d953519b50b94a5ee6ab874cc7271c7,MEDIUM,ApprovalSIDModel.cs,81
 dotnet-sample,ApprovalSIDModel.cs,ApprovalSIDModel.cs,code,csharp,99,99,InsertLogOneNotif,TRSInsertLogOneNotifNTI,TRSInsertLogOneNotifNTI,EXEC,true,false,,1,false,_cQuery,,8b87f2942302052096ea9cb79a487ca45470115c,MEDIUM,ApprovalSIDModel.cs,99
-dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,321,321,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,321
-dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,397,397,InquiryCustomerDetail,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,397
-dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,427,427,CONVERT,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,427
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,142,142,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,142
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1398,1398,IN,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1398
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1468,1468,SetupSecAccNo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1468
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1529,1529,GetOnlineGeneralParam,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1529
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2215,2215,isnull,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2215
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2295,2295,GetChannelBonds,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2295
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2503,2503,LEN,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2503
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2557,2557,GetTreasuryParameter,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2557
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2739,2739,GetParamEmail,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2739
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3010,3010,UpdateStatusTreasuryCustomer,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3010
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3053,3053,AddLogInterfaceMx,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3053
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3112,3112,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3112
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3189,3189,NewToInvestmentLogging,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3189
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3317,3317,GetMappingPekerjaan,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3317
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3414,3414,CAST,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3414
-dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3546,3546,OPENXML,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3546
+dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,321,321,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,321
+dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,397,397,InquiryCustomerDetail,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,397
+dotnet-sample,clsAPIServiceInvestmentObligasi.cs,clsAPIServiceInvestmentObligasi.cs,code,csharp,427,427,CONVERT,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceInvestmentObligasi.cs,427
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,142,142,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,142
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1398,1398,IN,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1398
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1468,1468,SetupSecAccNo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1468
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,1529,1529,GetOnlineGeneralParam,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,1529
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2215,2215,isnull,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2215
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2295,2295,GetChannelBonds,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2295
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2503,2503,LEN,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2503
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2557,2557,GetTreasuryParameter,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2557
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,2739,2739,GetParamEmail,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,2739
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3010,3010,UpdateStatusTreasuryCustomer,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3010
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3053,3053,AddLogInterfaceMx,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3053
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3112,3112,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3112
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3189,3189,NewToInvestmentLogging,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3189
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3317,3317,GetMappingPekerjaan,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3317
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3414,3414,CAST,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3414
+dotnet-sample,clsAPIServiceNTI.cs,clsAPIServiceNTI.cs,code,csharp,3546,3546,OPENXML,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsAPIServiceNTI.cs,3546
 dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,301,301,ISNULL,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -490,7 +490,7 @@ dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,301,301,IS
 						
 						, tr.lcs_flag				
 						, tr.buy_sell_code			
-						, tr.product",EXEC,true,false,,4,true,this._connObl,,06d36de93028eb64a8fcae153cbc731ada883049,HIGH,clsAntasenaService.cs,301
+						, tr.product",EXEC,true,false,,5,true,this._connObl,,06d36de93028eb64a8fcae153cbc731ada883049,HIGH,clsAntasenaService.cs,301
 dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,426,426,ISNULL,"
                     DELETE eq
                     FROM dbo.[[paramTableName]] eq
@@ -680,7 +680,7 @@ dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,426,426,IS
 	                    , tr.ketUnderlying
 	                    , tr.InUSDJISDOR
 	                    , tr.isHitJISDOR
-	                    , tr.JISDORRate",DELETE,true,false,,5,true,this._connObl,,527ad1a91cdcc3ac344256a385491a197afa6ba1,HIGH,clsAntasenaService.cs,426
+	                    , tr.JISDORRate",DELETE,true,false,,6,true,this._connObl,,527ad1a91cdcc3ac344256a385491a197afa6ba1,HIGH,clsAntasenaService.cs,426
 dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,566,566,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummaries') IS NOT NULL
 	                    DROP TABLE #tmpSummaries
@@ -877,7 +877,7 @@ dotnet-sample,clsAntasenaService.cs,clsAntasenaService.cs,code,csharp,566,566,VA
 	                    , identity_1
 	                    , MAX(ISNULL(InUSDJISDOR,0))
                     FROM #tmpSummaries
-                    GROUP BY PeriodeData, CIFN, customer_id,branch,name,office_name,npwp,identity_1",EXEC,true,false,,4,true,this._connObl,,37336257502dc47a7e3f32e5bf8449f9c077780d,HIGH,clsAntasenaService.cs,566
+                    GROUP BY PeriodeData, CIFN, customer_id,branch,name,office_name,npwp,identity_1",EXEC,true,false,,5,true,this._connObl,,37336257502dc47a7e3f32e5bf8449f9c077780d,HIGH,clsAntasenaService.cs,566
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,24,24,GetGeneralParam,dbo.SBNSchedGetGeneralParam,dbo.SBNSchedGetGeneralParam,EXEC,true,false,,1,false,_cQuery,,75b719ef2434bcdd982b6db5ac8eb58c22570719,MEDIUM,clsDataAccess1.cs,24
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,49,49,InsertLiveLog,dbo.SBNSchedCreateLiveLog,dbo.SBNSchedCreateLiveLog,EXEC,true,false,,1,false,_cQuery,,220945f9849cb6e9033a0301fd0cab72f729e4a4,MEDIUM,clsDataAccess1.cs,49
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,91,91,InvestorUpdateResponse,dbo.SBNSchedUpdateResponseInvestor,dbo.SBNSchedUpdateResponseInvestor,EXEC,true,false,,1,false,_cQuery,,6b113e76ba2fbcd113568d771872b97288d0e015,MEDIUM,clsDataAccess1.cs,91
@@ -892,8 +892,8 @@ dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,425,425,NotifPopul
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,463,463,ExecQuery,dbo.TRSExecQuery,dbo.TRSExecQuery,EXEC,true,false,,1,false,_cQuery,,2dadba2a19525dab48053a77737c5a69c852185c,MEDIUM,clsDataAccess1.cs,463
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,543,543,LogPaymentDirect,dbo.SBNSchedLogORIPaymentDirect,dbo.SBNSchedLogORIPaymentDirect,EXEC,true,false,,1,false,_cQuery,,055cdf2f6482e622ba61acb2b9cc643a98330bc3,MEDIUM,clsDataAccess1.cs,543
 dotnet-sample,clsDataAccess1.cs,clsDataAccess1.cs,code,csharp,583,583,LogUnblokirAPI,dbo.sp_sbn_log_unblokir_api,dbo.sp_sbn_log_unblokir_api,EXEC,true,false,,1,false,_cQuery,,c8940190c7437aa3bd1041029c037117f9aa5462,MEDIUM,clsDataAccess1.cs,583
-dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,44,44,ExecStoredProcedure,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsDataAccess2.cs,44
-dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,83,83,ExecStoredProcedureODBC,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsDataAccess2.cs,83
+dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,44,44,ExecStoredProcedure,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsDataAccess2.cs,44
+dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,83,83,ExecStoredProcedureODBC,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsDataAccess2.cs,83
 dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,110,110,NTIUpdateReviewedCustomerID,dbo.OMUpdateReviewedCustomerID,dbo.OMUpdateReviewedCustomerID,EXEC,true,false,,1,false,cQuery,,a43a58f43b2d016c8982bcfd1030bcdaace9d5ad,MEDIUM,clsDataAccess2.cs,110
 dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,145,145,ValidateCustomer,dbo.OMValidateCustomer,dbo.OMValidateCustomer,EXEC,true,false,,1,false,cQuery,,d1e866092270fc7ec4ed36cb3e8660181d038046,MEDIUM,clsDataAccess2.cs,145
 dotnet-sample,clsDataAccess2.cs,clsDataAccess2.cs,code,csharp,228,228,NTIInsertNew,dbo.OMBranchingNTI,dbo.OMBranchingNTI,EXEC,true,false,,1,false,cQuery,,17a4762dcca58a5db7ec23ad66322a093a9b1587,MEDIUM,clsDataAccess2.cs,228
@@ -1748,7 +1748,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1054,1054,VARCHA
 	                    , SourceKey
 	                    , JISDORRate
 	                    , InUSDJISDOR	
-                    FROM #tmpTrans",EXEC,true,false,,3,true,this._connSFX,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1054
+                    FROM #tmpTrans",EXEC,true,false,,4,true,this._connSFX,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1054
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1060,1060,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -1977,7 +1977,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1060,1060,VARCHA
 	                    , SourceKey
 	                    , JISDORRate
 	                    , InUSDJISDOR	
-                    FROM #tmpTrans",EXEC,true,false,,3,true,this._connObli,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1060
+                    FROM #tmpTrans",EXEC,true,false,,4,true,this._connObli,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1060
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1066,1066,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2206,7 +2206,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1066,1066,VARCHA
 	                    , SourceKey
 	                    , JISDORRate
 	                    , InUSDJISDOR	
-                    FROM #tmpTrans",EXEC,true,false,,3,true,this._connSibs,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1066
+                    FROM #tmpTrans",EXEC,true,false,,4,true,this._connSibs,,65065dc6722432190c0b36716fbd7bc8ddca1460,HIGH,clsValasService.cs,1066
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1214,1214,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -2377,7 +2377,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1214,1214,VARCHA
 	                    , identity_1
 	                    , ProcessTime
 	                    , InUSDJISDOR
-                    FROM #tmpSummary",EXEC,true,false,,3,true,this._connSFX,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1214
+                    FROM #tmpSummary",EXEC,true,false,,4,true,this._connSFX,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1214
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1220,1220,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -2548,7 +2548,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1220,1220,VARCHA
 	                    , identity_1
 	                    , ProcessTime
 	                    , InUSDJISDOR
-                    FROM #tmpSummary",EXEC,true,false,,3,true,this._connObli,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1220
+                    FROM #tmpSummary",EXEC,true,false,,4,true,this._connObli,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1220
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1226,1226,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -2719,7 +2719,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1226,1226,VARCHA
 	                    , identity_1
 	                    , ProcessTime
 	                    , InUSDJISDOR
-                    FROM #tmpSummary",EXEC,true,false,,3,true,this._connSibs,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1226
+                    FROM #tmpSummary",EXEC,true,false,,4,true,this._connSibs,,420bc7edd8096409f1cf2ed4e386c14b6f36ec38,HIGH,clsValasService.cs,1226
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1439,1439,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
 	                    DROP TABLE #tmpResult
@@ -3020,7 +3020,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1439,1439,VARCHA
 	                    , JISDORRate
 	                    , InUSDJISDOR
 	                    , isHitJISDOR 
-                    FROM #tmpResult",EXEC,true,false,,3,true,this._connSFX,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1439
+                    FROM #tmpResult",EXEC,true,false,,4,true,this._connSFX,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1439
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1445,1445,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
 	                    DROP TABLE #tmpResult
@@ -3321,7 +3321,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1445,1445,VARCHA
 	                    , JISDORRate
 	                    , InUSDJISDOR
 	                    , isHitJISDOR 
-                    FROM #tmpResult",EXEC,true,false,,3,true,this._connObli,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1445
+                    FROM #tmpResult",EXEC,true,false,,4,true,this._connObli,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1445
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1451,1451,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
 	                    DROP TABLE #tmpResult
@@ -3622,7 +3622,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1451,1451,VARCHA
 	                    , JISDORRate
 	                    , InUSDJISDOR
 	                    , isHitJISDOR 
-                    FROM #tmpResult",EXEC,true,false,,3,true,this._connSibs,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1451
+                    FROM #tmpResult",EXEC,true,false,,4,true,this._connSibs,,4e6a08037055c9fa70c0f92786462ccf4eb5b524,HIGH,clsValasService.cs,1451
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1511,1511,Exception,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -4991,9 +4991,9 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1665,1665,Except
                         , strProcessTime	VARCHAR(50)	                    
                         , InUSDJISDOR	    MONEY   
                     )",EXEC,true,false,,2,false,this._connSibs,,767ca721cca8ececd23f0cee473c30ed4fa6b47a,MEDIUM,clsValasService.cs,1665
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2452,2452,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2452
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2565,2565,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2565
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2678,2678,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2678
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2452,2452,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2452
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2565,2565,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2565
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2678,2678,EmptyDataValasToday,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,2678
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2821,2821,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5219,7 +5219,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2821,2821,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2821
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2821
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2827,2827,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5445,7 +5445,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2827,2827,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2827
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2827
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2833,2833,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5671,7 +5671,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,2833,2833,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2833
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,2833
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3086,3086,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -5897,7 +5897,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3086,3086,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3086
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSFX,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3086
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3092,3092,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -6123,7 +6123,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3092,3092,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3092
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connObli,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3092
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3098,3098,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -6349,10 +6349,10 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3098,3098,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3098
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3418,3418,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3418
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3468,3468,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3468
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3518,3518,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3518
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,this._connSibs,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,3098
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3418,3418,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3418
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3468,3468,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3468
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3518,3518,ISNULL,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,3518
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,3621,3621,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -7746,7 +7746,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6008,6008,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6008
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6008
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6097,6097,ISNULL,"
                     INSERT INTO dbo.VLSResultFinal_TH
                     (
@@ -7972,7 +7972,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6097,6097,ISNULL
                     
                         AND tt.trx_date = th.trx_date
                     
-                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,2,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6097
+                    WHERE ISNULL(th.dealno, '') = ''",INSERT,true,false,,3,true,connProps,,0c3c97d71958c84f9a5f62674a1b83c5ec380bb3,HIGH,clsValasService.cs,6097
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6371,6371,VARCHAR,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
@@ -8504,15 +8504,15 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,6754,6754,Except
                         , strProcessTime	VARCHAR(50)	                    
                         , InUSDJISDOR	    MONEY   
                     )",EXEC,true,false,,2,false,this._connSibs,,767ca721cca8ececd23f0cee473c30ed4fa6b47a,MEDIUM,clsValasService.cs,6754
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7232,7232,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7232
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7313,7313,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7313
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7394,7394,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7394
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7693,7693,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7693
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7774,7774,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7774
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7855,7855,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7855
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8286,8286,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8286
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8368,8368,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8368
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8449,8449,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8449
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7232,7232,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7232
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7313,7313,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7313
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7394,7394,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7394
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7693,7693,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7693
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7774,7774,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7774
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,7855,7855,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,7855
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8286,8286,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSFX,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8286
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8368,8368,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connObli,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8368
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8449,8449,Exception,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,this._connSibs,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,clsValasService.cs,8449
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8526,8526,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,,1,false,this._connSFX,,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,MEDIUM,clsValasService.cs,8526
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8543,8543,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,,1,false,this._connObli,,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,MEDIUM,clsValasService.cs,8543
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,8560,8560,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,,1,false,this._connSibs,,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,MEDIUM,clsValasService.cs,8560
