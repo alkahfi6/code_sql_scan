@@ -100,12 +100,36 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.IsWrite = isWriteKind(usage)
 
 	tokens := findObjectTokens(sqlClean)
+	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
+		insertTargets := collectInsertTargets(sqlClean, c.ConnDb, c.LineStart)
 		if tok, ok := parseLeadingInsertTarget(sqlClean, c.ConnDb, c.LineStart); ok {
-			tokens = append([]ObjectToken{tok}, tokens...)
+			insertTargets = append([]ObjectToken{tok}, insertTargets...)
 		}
+		for _, t := range insertTargets {
+			key := strings.ToLower(buildFullName(t.DbName, t.SchemaName, t.BaseName))
+			if key == "" {
+				key = strings.ToLower(strings.TrimSpace(t.FullName))
+			}
+			insertTargetKeys[key] = struct{}{}
+		}
+		tokens = append(insertTargets, tokens...)
 	}
 	classifyObjects(c, usage, tokens)
+
+	if usage == "INSERT" && len(insertTargetKeys) > 0 {
+		for i := range c.Objects {
+			key := strings.ToLower(buildFullName(c.Objects[i].DbName, c.Objects[i].SchemaName, c.Objects[i].BaseName))
+			if key == "" {
+				key = strings.ToLower(strings.TrimSpace(c.Objects[i].FullName))
+			}
+			if _, ok := insertTargetKeys[key]; ok {
+				c.Objects[i].Role = "target"
+				c.Objects[i].DmlKind = "INSERT"
+				c.Objects[i].IsWrite = true
+			}
+		}
+	}
 
 	// If Exec stub and no tokens, interpret RawSql as proc spec
 	if c.IsExecStub && len(c.Objects) == 0 && strings.TrimSpace(c.RawSql) != "" {
@@ -188,42 +212,59 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		"go":      {},
 	}
 
+	priority := map[string]int{
+		"INSERT":   1,
+		"UPDATE":   1,
+		"DELETE":   1,
+		"TRUNCATE": 1,
+		"SELECT":   2,
+		"EXEC":     3,
+	}
+
 	var tokenBuf strings.Builder
+	var found []string
+
 	flushToken := func() string {
 		tok := strings.Trim(tokenBuf.String(), "[]")
 		tokenBuf.Reset()
 		return tok
 	}
 
-	processToken := func(tok string) (string, bool) {
+	processToken := func(tok string) {
 		if tok == "" {
-			return "", false
+			return
 		}
 		if _, skip := skipTokens[tok]; skip {
-			return "", false
+			return
 		}
 		if val, ok := targets[tok]; ok {
-			return val, true
+			found = append(found, val)
 		}
-		return "", false
 	}
 
 	for _, r := range trimmed {
 		if unicode.IsSpace(r) || strings.ContainsRune("();,", r) {
-			tok := flushToken()
-			if kind, ok := processToken(tok); ok {
-				return kind
-			}
+			tok := strings.ToLower(flushToken())
+			processToken(tok)
 			continue
 		}
-		tokenBuf.WriteRune(r)
+		tokenBuf.WriteRune(unicode.ToLower(r))
 	}
 
-	if kind, ok := processToken(flushToken()); ok {
-		return kind
+	processToken(strings.ToLower(flushToken()))
+
+	bestKind := "UNKNOWN"
+	bestScore := 100
+	for _, kind := range found {
+		if score, ok := priority[kind]; ok {
+			if score < bestScore {
+				bestScore = score
+				bestKind = kind
+			}
+		}
 	}
 
-	return "UNKNOWN"
+	return bestKind
 }
 
 // normalizeProcSpecForHash removes optional EXEC/EXECUTE prefixes and trailing semicolons
@@ -869,6 +910,61 @@ func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken,
 	tok.IsWrite = true
 
 	return tok, true
+}
+
+func collectInsertTargets(sql string, connDb string, line int) []ObjectToken {
+	cleaned := StripSqlComments(sql)
+	lower := strings.ToLower(cleaned)
+	idx := 0
+	var tokens []ObjectToken
+
+	for idx < len(lower) {
+		pos := strings.Index(lower[idx:], "insert")
+		if pos < 0 {
+			break
+		}
+		start := idx + pos + len("insert")
+		p := skipWS(lower, start)
+		if !strings.HasPrefix(lower[p:], "into") {
+			idx = start
+			continue
+		}
+		p = skipWS(lower, p+len("into"))
+		objText, _ := scanObjectName(cleaned, lower, p)
+		objText = strings.TrimSpace(objText)
+		if objText == "" {
+			idx = p
+			continue
+		}
+		dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
+		if baseName == "" {
+			idx = p
+			continue
+		}
+		if schemaName == "" {
+			schemaName = "dbo"
+		}
+		tok := ObjectToken{
+			DbName:             dbName,
+			SchemaName:         schemaName,
+			BaseName:           baseName,
+			FullName:           buildFullName(dbName, schemaName, baseName),
+			FoundAt:            p,
+			IsLinkedServer:     isLinked,
+			IsObjectNameDyn:    hasDynamicPlaceholder(objText),
+			RepresentativeLine: line,
+			Role:               "target",
+			DmlKind:            "INSERT",
+			IsWrite:            true,
+		}
+		if tok.DbName != "" {
+			tok.IsCrossDb = true
+		}
+		tokens = append(tokens, tok)
+		idx = p
+	}
+
+	return tokens
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.
