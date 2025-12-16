@@ -160,10 +160,18 @@ func analyzeCandidate(c *SqlCandidate) {
 	hasCross := false
 	for i := range c.Objects {
 		obj := &c.Objects[i]
-		if obj.IsCrossDb && obj.DbName != "" {
-			dbSet[obj.DbName] = struct{}{}
-			hasCross = true
+		if obj.DbName == "" {
+			continue
 		}
+		dbSet[obj.DbName] = struct{}{}
+		if obj.IsCrossDb {
+			hasCross = true
+			continue
+		}
+		// Defensive: if the parser captured an explicit database prefix but
+		// did not mark IsCrossDb, treat it as cross-database access.
+		obj.IsCrossDb = true
+		hasCross = true
 	}
 	var dbList []string
 	for db := range dbSet {
