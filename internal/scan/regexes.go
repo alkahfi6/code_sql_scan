@@ -24,6 +24,7 @@ type regexRegistry struct {
 	execQueryIdent   *regexp.Regexp
 	commandTextLit   *regexp.Regexp
 	commandTextIdent *regexp.Regexp
+	byQueryCall      *regexp.Regexp
 	identRe          *regexp.Regexp
 	methodRe         *regexp.Regexp
 	methodReNoMod    *regexp.Regexp
@@ -68,6 +69,7 @@ func initRegexes() {
 		execQueryIdent:       mustCompileRegex("execQueryIdent", `(?i)\.\s*ExecuteQuery\s*\(\s*([^,]+),\s*([A-Za-z_][A-Za-z0-9_]*)`),
 		commandTextLit:       mustCompileRegex("commandTextLit", `(?i)\.\s*CommandText\s*=\s*"([^"]+)"`),
 		commandTextIdent:     mustCompileRegex("commandTextIdent", `(?i)\.\s*CommandText\s*=\s*([A-Za-z_][A-Za-z0-9_]*)\b`),
+		byQueryCall:          mustCompileRegex("byQueryCall", `(?is)Insert[A-Za-z0-9_]*ByQuery\s*\(\s*[^,]+,\s*([^,]+)`),
 		identRe:              mustCompileRegex("ident", `^[A-Za-z_][A-Za-z0-9_]*$`),
 		methodRe:             mustCompileRegex("methodWithMods", `(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`),
 		methodReNoMod:        mustCompileRegex("methodNoMods", `(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`),
@@ -75,7 +77,7 @@ func initRegexes() {
 		xmlElem:              mustCompileRegex("xmlElem", `(?i)<\s*(sql|query|command|commandtext|storedprocedure)[^>]*>(.*?)<\s*/\s*(?:sql|query|command|commandtext|storedprocedure)\s*>`),
 		pipeField:            mustCompileRegex("pipeField", `(?i)\s*(sql|query|command|commandtext|storedprocedure)[^>]*:\s*(.*?)(\s*[|]\s*|$)`),
 		connStringAttr:       mustCompileRegex("connStringAttr", `(?i)<\s*add\s+[^>]*name\s*=\s*"([^"]+)"[^>]*connectionString\s*=\s*"([^"]+)"[^>]*>`),
-		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+`),
+		dynamicPlaceholder:   mustCompileRegex("dynamicPlaceholder", `@\w+|\$\{[^}]+\}|\<expr\>`),
 		procParamPlaceholder: mustCompileRegex("procParamPlaceholder", `\s+[?@:][^\s,]*(\s*,\s*[?@:][^\s,]*)*\s*$`),
 	}
 }

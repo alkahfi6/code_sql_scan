@@ -3,6 +3,7 @@ package scan
 import (
 	"crypto/sha1"
 	"fmt"
+	"regexp"
 	"sort"
 	"strings"
 	"unicode"
@@ -100,12 +101,37 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.IsWrite = isWriteKind(usage)
 
 	tokens := findObjectTokens(sqlClean)
+	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
+	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
+		insertTargets := collectInsertTargets(sqlClean, c.ConnDb, c.LineStart)
 		if tok, ok := parseLeadingInsertTarget(sqlClean, c.ConnDb, c.LineStart); ok {
-			tokens = append([]ObjectToken{tok}, tokens...)
+			insertTargets = append([]ObjectToken{tok}, insertTargets...)
 		}
+		for _, t := range insertTargets {
+			key := strings.ToLower(buildFullName(t.DbName, t.SchemaName, t.BaseName))
+			if key == "" {
+				key = strings.ToLower(strings.TrimSpace(t.FullName))
+			}
+			insertTargetKeys[key] = struct{}{}
+		}
+		tokens = append(insertTargets, tokens...)
 	}
 	classifyObjects(c, usage, tokens)
+
+	if usage == "INSERT" && len(insertTargetKeys) > 0 {
+		for i := range c.Objects {
+			key := strings.ToLower(buildFullName(c.Objects[i].DbName, c.Objects[i].SchemaName, c.Objects[i].BaseName))
+			if key == "" {
+				key = strings.ToLower(strings.TrimSpace(c.Objects[i].FullName))
+			}
+			if _, ok := insertTargetKeys[key]; ok {
+				c.Objects[i].Role = "target"
+				c.Objects[i].DmlKind = "INSERT"
+				c.Objects[i].IsWrite = true
+			}
+		}
+	}
 
 	// If Exec stub and no tokens, interpret RawSql as proc spec
 	if c.IsExecStub && len(c.Objects) == 0 && strings.TrimSpace(c.RawSql) != "" {
@@ -188,42 +214,59 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		"go":      {},
 	}
 
+	priority := map[string]int{
+		"INSERT":   1,
+		"UPDATE":   1,
+		"DELETE":   1,
+		"TRUNCATE": 1,
+		"SELECT":   2,
+		"EXEC":     3,
+	}
+
 	var tokenBuf strings.Builder
+	var found []string
+
 	flushToken := func() string {
 		tok := strings.Trim(tokenBuf.String(), "[]")
 		tokenBuf.Reset()
 		return tok
 	}
 
-	processToken := func(tok string) (string, bool) {
+	processToken := func(tok string) {
 		if tok == "" {
-			return "", false
+			return
 		}
 		if _, skip := skipTokens[tok]; skip {
-			return "", false
+			return
 		}
 		if val, ok := targets[tok]; ok {
-			return val, true
+			found = append(found, val)
 		}
-		return "", false
 	}
 
 	for _, r := range trimmed {
 		if unicode.IsSpace(r) || strings.ContainsRune("();,", r) {
-			tok := flushToken()
-			if kind, ok := processToken(tok); ok {
-				return kind
-			}
+			tok := strings.ToLower(flushToken())
+			processToken(tok)
 			continue
 		}
-		tokenBuf.WriteRune(r)
+		tokenBuf.WriteRune(unicode.ToLower(r))
 	}
 
-	if kind, ok := processToken(flushToken()); ok {
-		return kind
+	processToken(strings.ToLower(flushToken()))
+
+	bestKind := "UNKNOWN"
+	bestScore := 100
+	for _, kind := range found {
+		if score, ok := priority[kind]; ok {
+			if score < bestScore {
+				bestScore = score
+				bestKind = kind
+			}
+		}
 	}
 
-	return "UNKNOWN"
+	return bestKind
 }
 
 // normalizeProcSpecForHash removes optional EXEC/EXECUTE prefixes and trailing semicolons
@@ -325,7 +368,7 @@ func findObjectTokens(sql string) []ObjectToken {
 				schemaName = "dbo"
 			}
 			fullName := buildFullName(dbName, schemaName, baseName)
-			tokens = append(tokens, ObjectToken{
+			tok := ObjectToken{
 				DbName:          dbName,
 				SchemaName:      schemaName,
 				BaseName:        baseName,
@@ -333,7 +376,9 @@ func findObjectTokens(sql string) []ObjectToken {
 				FoundAt:         p,
 				IsLinkedServer:  isLinked,
 				IsObjectNameDyn: hasDynamicPlaceholder(objText),
-			})
+			}
+			tok = normalizeObjectToken(tok)
+			tokens = append(tokens, tok)
 			start = end
 		}
 	}
@@ -480,11 +525,24 @@ func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) 
 	return
 }
 
+func normalizeObjectToken(tok ObjectToken) ObjectToken {
+	if tok.SchemaName == "" && tok.BaseName != "" {
+		tok.SchemaName = "dbo"
+	}
+	if tok.FullName == "" {
+		tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
+	}
+	if tok.DbName != "" {
+		tok.IsCrossDb = true
+	}
+	return tok
+}
+
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	if c.IsDynamic {
 		hasPseudo := false
 		for _, tok := range tokens {
-			if tok.IsPseudoObject {
+			if tok.IsPseudoObject || tok.IsObjectNameDyn {
 				hasPseudo = true
 				break
 			}
@@ -503,6 +561,10 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	}
 	for i := range tokens {
+		if tokens[i].IsObjectNameDyn {
+			tokens[i].BaseName = "<dynamic-object>"
+			tokens[i].FullName = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
+		}
 		if tokens[i].IsObjectNameDyn && !tokens[i].IsPseudoObject {
 			tokens[i].IsPseudoObject = true
 		}
@@ -516,9 +578,13 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			}
 		}
 	}
+	preserveRole := make([]bool, len(tokens))
 	// Determine cross-DB for each token first
 	for i := range tokens {
 		tokens[i].IsCrossDb = tokens[i].DbName != ""
+		if tokens[i].IsPseudoObject && strings.TrimSpace(tokens[i].Role) != "" {
+			preserveRole[i] = true
+		}
 	}
 	// Normalize SQL to lower case for position lookup
 	sqlLower := strings.ToLower(c.SqlClean)
@@ -537,8 +603,14 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 		positions[i] = idx
 	}
-	// Initialize defaults: assume all tokens are sources with UNKNOWN
+	// Initialize defaults: assume all tokens are sources with UNKNOWN unless we already have a preserved role
 	for i := range tokens {
+		if preserveRole[i] {
+			if tokens[i].RepresentativeLine == 0 {
+				tokens[i].RepresentativeLine = c.LineStart
+			}
+			continue
+		}
 		tokens[i].Role = "source"
 		tokens[i].DmlKind = "UNKNOWN"
 		tokens[i].IsWrite = false
@@ -575,12 +647,18 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	switch usageKind {
 	case "SELECT":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			tokens[i].Role = "source"
 			tokens[i].DmlKind = "SELECT"
 			tokens[i].IsWrite = false
 		}
 	case "INSERT":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			if i == targetIdx {
 				tokens[i].Role = "target"
 				tokens[i].DmlKind = "INSERT"
@@ -593,6 +671,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	case "UPDATE":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			if i == targetIdx {
 				tokens[i].Role = "target"
 				tokens[i].DmlKind = "UPDATE"
@@ -605,6 +686,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	case "DELETE":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			if multiDeleteTargets || i == targetIdx {
 				tokens[i].Role = "target"
 				tokens[i].DmlKind = "DELETE"
@@ -617,6 +701,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	case "TRUNCATE":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			if i == targetIdx || targetIdx == -1 {
 				// in truncate, typically one token; if not found choose all
 				tokens[i].Role = "target"
@@ -630,6 +717,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	case "EXEC":
 		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
 			tokens[i].Role = "exec"
 			tokens[i].DmlKind = "EXEC"
 			tokens[i].IsWrite = true
@@ -814,10 +904,100 @@ func findKeywordPosition(sqlLower, usageKind string) int {
 }
 
 func hasDynamicPlaceholder(name string) bool {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
 	if strings.Contains(name, "[[") || strings.Contains(name, "]]") {
 		return true
 	}
+	if strings.Contains(name, "${") || strings.Contains(name, "$\"") || strings.Contains(name, "<expr>") {
+		return true
+	}
+	if strings.Contains(name, "{") && strings.Contains(name, "}") && strings.Contains(name, "$") {
+		return true
+	}
+	if strings.Contains(name, "+") {
+		return true
+	}
 	return regexes.dynamicPlaceholder.MatchString(name)
+}
+
+func isDynamicObjectName(name string) bool {
+	if hasDynamicPlaceholder(name) {
+		return true
+	}
+	return strings.Contains(name, "+")
+}
+
+func detectDynamicObjectPlaceholders(sql string, usage string, line int) []ObjectToken {
+	cleaned := StripSqlComments(sql)
+	var tokens []ObjectToken
+	re := regexp.MustCompile(`(?is)(insert\s+into|update|delete\s+from|truncate\s+table|from|join)\s+([^\s;]+)`)
+
+	matches := re.FindAllStringSubmatch(cleaned, -1)
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		keyword := strings.ToLower(strings.TrimSpace(m[1]))
+		objText := strings.TrimSpace(m[2])
+		if objText == "" {
+			continue
+		}
+		if !isDynamicObjectName(objText) {
+			continue
+		}
+
+		dbName, schemaName, _, isLinked := splitObjectNameParts(objText)
+		baseName := "<dynamic-object>"
+		full := buildFullName(dbName, schemaName, baseName)
+
+		tok := ObjectToken{
+			DbName:             dbName,
+			SchemaName:         schemaName,
+			BaseName:           baseName,
+			FullName:           full,
+			IsObjectNameDyn:    true,
+			IsPseudoObject:     true,
+			PseudoKind:         "dynamic-object",
+			RepresentativeLine: line,
+			IsLinkedServer:     isLinked,
+		}
+
+		tok = normalizeObjectToken(tok)
+
+		switch keyword {
+		case "insert into":
+			tok.Role = "target"
+			tok.DmlKind = "INSERT"
+			tok.IsWrite = true
+		case "update":
+			tok.Role = "target"
+			tok.DmlKind = "UPDATE"
+			tok.IsWrite = true
+		case "delete from":
+			tok.Role = "target"
+			tok.DmlKind = "DELETE"
+			tok.IsWrite = true
+		case "truncate table":
+			tok.Role = "target"
+			tok.DmlKind = "TRUNCATE"
+			tok.IsWrite = true
+		default:
+			tok.Role = "source"
+			tok.DmlKind = "SELECT"
+			tok.IsWrite = false
+		}
+
+		if tok.DbName != "" {
+			tok.IsCrossDb = true
+		}
+
+		tokens = append(tokens, tok)
+	}
+
+	return tokens
 }
 
 func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken, bool) {
@@ -861,14 +1041,65 @@ func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken,
 		IsObjectNameDyn:    hasDynamicPlaceholder(objText),
 		RepresentativeLine: line,
 	}
-	if tok.DbName != "" {
-		tok.IsCrossDb = true
-	}
+	tok = normalizeObjectToken(tok)
 	tok.Role = "target"
 	tok.DmlKind = "INSERT"
 	tok.IsWrite = true
 
 	return tok, true
+}
+
+func collectInsertTargets(sql string, connDb string, line int) []ObjectToken {
+	cleaned := StripSqlComments(sql)
+	lower := strings.ToLower(cleaned)
+	idx := 0
+	var tokens []ObjectToken
+
+	for idx < len(lower) {
+		pos := strings.Index(lower[idx:], "insert")
+		if pos < 0 {
+			break
+		}
+		start := idx + pos + len("insert")
+		p := skipWS(lower, start)
+		if !strings.HasPrefix(lower[p:], "into") {
+			idx = start
+			continue
+		}
+		p = skipWS(lower, p+len("into"))
+		objText, _ := scanObjectName(cleaned, lower, p)
+		objText = strings.TrimSpace(objText)
+		if objText == "" {
+			idx = p
+			continue
+		}
+		dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
+		if baseName == "" {
+			idx = p
+			continue
+		}
+		if schemaName == "" {
+			schemaName = "dbo"
+		}
+		tok := ObjectToken{
+			DbName:             dbName,
+			SchemaName:         schemaName,
+			BaseName:           baseName,
+			FullName:           buildFullName(dbName, schemaName, baseName),
+			FoundAt:            p,
+			IsLinkedServer:     isLinked,
+			IsObjectNameDyn:    hasDynamicPlaceholder(objText),
+			RepresentativeLine: line,
+			Role:               "target",
+			DmlKind:            "INSERT",
+			IsWrite:            true,
+		}
+		tok = normalizeObjectToken(tok)
+		tokens = append(tokens, tok)
+		idx = p
+	}
+
+	return tokens
 }
 
 // parseProcNameSpec interprets a raw stored procedure specification and returns an ObjectToken.

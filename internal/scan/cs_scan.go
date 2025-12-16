@@ -5,7 +5,9 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"unicode"
 )
 
 // ------------------------------------------------------------
@@ -34,6 +36,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			literalInMethod[method] = make(map[string]string)
 		}
 		literalInMethod[method][name] = val
+	}
+
+	lookupLiteralAnyMethod := func(name string) (string, bool) {
+		for _, m := range literalInMethod {
+			if val, ok := m[name]; ok {
+				return val, true
+			}
+		}
+		return "", false
 	}
 	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
 		line := countLinesUpTo(clean, m[0])
@@ -73,25 +84,27 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	var cands []SqlCandidate
 
 	type pat struct {
-		re       *regexp.Regexp
-		execStub bool
-		dynamic  bool
+		re          *regexp.Regexp
+		execStub    bool
+		dynamic     bool
+		sqlArgIndex int
 	}
 	patterns := []pat{
-		{regexes.execProcLit, true, false},
-		{regexes.execProcDyn, true, true},
-		{regexes.newCmd, false, false},
-		{regexes.newCmdIdent, false, false},
-		{regexes.dapperQuery, false, false},
-		{regexes.dapperExec, false, false},
-		{regexes.efFromSql, false, false},
-		{regexes.efExecRaw, false, false},
-		{regexes.execQuery, false, false},      // ExecuteQuery(conn, "SQL")
-		{regexes.execQueryIdent, false, false}, // ExecuteQuery(conn, variable)
-		{regexes.callQueryWsLit, false, false}, // CallQueryFromWs with literal SQL
-		{regexes.callQueryWsDyn, false, true},  // CallQueryFromWs with dynamic SQL expression
-		{regexes.commandTextLit, false, false}, // CommandText = "ProcName"
-		{regexes.commandTextIdent, false, false},
+		{regexes.execProcLit, true, false, 0},
+		{regexes.execProcDyn, true, true, 0},
+		{regexes.newCmd, false, false, 0},
+		{regexes.newCmdIdent, false, false, 0},
+		{regexes.dapperQuery, false, false, 0},
+		{regexes.dapperExec, false, false, 0},
+		{regexes.efFromSql, false, false, 0},
+		{regexes.efExecRaw, false, false, 0},
+		{regexes.execQuery, false, false, 1},       // ExecuteQuery(conn, "SQL")
+		{regexes.execQueryIdent, false, false, 1},  // ExecuteQuery(conn, variable)
+		{regexes.byQueryCall, false, false, 1},     // InsertXByQuery(data, sql)
+		{regexes.callQueryWsLit, false, false, 2},  // CallQueryFromWs with literal SQL
+		{regexes.callQueryWsDyn, false, true, 2},   // CallQueryFromWs with dynamic SQL expression
+		{regexes.commandTextLit, false, false, -1}, // CommandText = "ProcName"
+		{regexes.commandTextIdent, false, false, -1},
 	}
 
 	unquoteIfQuoted := func(s string) (string, bool) {
@@ -133,6 +146,19 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				lineEnd = funcRange.End
 			} else {
 				funcName = fmt.Sprintf("<file-scope>@L%d", line)
+			}
+
+			methodText := ""
+			if funcRange != nil {
+				start := funcRange.Start - 1
+				if start < 0 {
+					start = 0
+				}
+				end := funcRange.End
+				if end > len(lines) {
+					end = len(lines)
+				}
+				methodText = strings.Join(lines[start:end], "\n")
 			}
 
 			isDyn := p.dynamic
@@ -182,22 +208,30 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						raw = lit
 						rawLiteral = true
 					} else {
-						assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
-						if prefix := clean[:start]; prefix != "" {
-							if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
-								last := matches[len(matches)-1]
-								if len(last) >= 2 {
-									raw = last[1]
-									rawLiteral = true
-									isDyn = false
+						if lit, ok := lookupLiteralAnyMethod(expr); ok {
+							raw = lit
+							rawLiteral = true
+						} else {
+							assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
+							if prefix := clean[:start]; prefix != "" {
+								if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
+									last := matches[len(matches)-1]
+									if len(last) >= 2 {
+										raw = last[1]
+										rawLiteral = true
+										isDyn = false
+									}
 								}
 							}
-						}
-						if !rawLiteral {
-							isDyn = true
+							if !rawLiteral {
+								isDyn = true
+							}
 						}
 					}
 				}
+			case regexes.byQueryCall:
+				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				rawLiteral = false
 			case regexes.callQueryWsLit, regexes.callQueryWsDyn:
 				// group1 = SQL or expression
 				raw = cleanedGroup(clean, m, 1)
@@ -217,13 +251,36 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 							raw = lit
 							rawLiteral = true
 						} else {
-							isDyn = true
+							if lit, ok := lookupLiteralAnyMethod(expr); ok {
+								raw = lit
+								rawLiteral = true
+							} else {
+								isDyn = true
+							}
 						}
 					}
 				}
 			}
 
 			rawExpr = raw
+			argExpr := ""
+			if p.sqlArgIndex >= 0 {
+				if args := extractCSharpArgs(clean, start); len(args) > p.sqlArgIndex {
+					argExpr = strings.TrimSpace(args[p.sqlArgIndex])
+				}
+			}
+
+			if norm, dyn, ok := normalizeCSharpSqlExpression(argExpr); ok {
+				raw = norm
+				rawLiteral = true
+				isDyn = dyn
+			} else if argExpr != "" && regexes.identRe.MatchString(argExpr) {
+				if rebuilt, dyn := rebuildCSharpVariableSql(methodText, argExpr); rebuilt != "" {
+					raw = rebuilt
+					rawLiteral = true
+					isDyn = dyn
+				}
+			}
 
 			if !rawLiteral {
 				if unq, ok := unquoteIfQuoted(raw); ok {
@@ -239,19 +296,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 
 			if !rawLiteral {
-				methodText := ""
-				if funcRange != nil {
-					start := funcRange.Start - 1
-					if start < 0 {
-						start = 0
-					}
-					end := funcRange.End
-					if end > len(lines) {
-						end = len(lines)
-					}
-					methodText = strings.Join(lines[start:end], "\n")
-				}
-
 				ctxText := ""
 				ctxStart := line - 5
 				if ctxStart < 0 {
@@ -420,4 +464,256 @@ func indexCsMethodLines(methods []methodRange, totalLines int) []*methodRange {
 		}
 	}
 	return methodAtLine
+}
+
+func extractCSharpArgs(src string, matchStart int) []string {
+	if matchStart < 0 || matchStart >= len(src) {
+		return nil
+	}
+	openRel := strings.Index(src[matchStart:], "(")
+	if openRel < 0 {
+		return nil
+	}
+	i := matchStart + openRel + 1
+	depth := 1
+	start := i
+	inString := false
+	verbatim := false
+	escaped := false
+	var args []string
+
+	for i < len(src) {
+		c := src[i]
+		if inString {
+			if verbatim {
+				if c == '"' {
+					if i+1 < len(src) && src[i+1] == '"' {
+						i++
+					} else {
+						inString = false
+						verbatim = false
+					}
+				}
+				i++
+				continue
+			}
+			if escaped {
+				escaped = false
+				i++
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				i++
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+
+		switch c {
+		case '"':
+			inString = true
+			verbatim = i > 0 && src[i-1] == '@'
+			escaped = false
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth == 0 {
+				arg := strings.TrimSpace(src[start:i])
+				if arg != "" {
+					args = append(args, arg)
+				}
+				return args
+			}
+		case ',':
+			if depth == 1 {
+				arg := strings.TrimSpace(src[start:i])
+				args = append(args, arg)
+				start = i + 1
+			}
+		}
+
+		i++
+	}
+
+	return args
+}
+
+func normalizeCSharpSqlExpression(expr string) (string, bool, bool) {
+	cleaned := strings.TrimSpace(expr)
+	if cleaned == "" {
+		return "", false, false
+	}
+
+	cleaned = StripCodeCommentsCStyle(cleaned, true)
+	cleaned = strings.TrimSpace(cleaned)
+	if cleaned == "" {
+		return "", false, false
+	}
+
+	sql, dyn, _ := BuildSqlSkeletonFromCSharpExpr(cleaned)
+	if sql == "" {
+		return "", false, false
+	}
+	return sql, dyn, true
+}
+
+func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
+	varName = strings.TrimSpace(varName)
+	if varName == "" {
+		return "", false
+	}
+
+	cleaned := StripCodeCommentsCStyle(methodText, true)
+	assignFinder := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(varName) + `\s*(\+=|=)`)
+
+	type sqlBuildMatch struct {
+		pos  int
+		expr string
+		kind string
+	}
+
+	matches := make([]sqlBuildMatch, 0)
+	for _, m := range assignFinder.FindAllStringSubmatchIndex(cleaned, -1) {
+		if len(m) < 4 {
+			continue
+		}
+		op := strings.TrimSpace(cleaned[m[2]:m[3]])
+		expr, _ := extractCSharpStatementExpr(cleaned, m[1])
+		kind := "assign"
+		if op == "+=" {
+			kind = "append"
+		}
+		lower := strings.ToLower(strings.TrimSpace(expr))
+		base := strings.ToLower(varName)
+		if kind == "assign" && strings.HasPrefix(lower, base+"+") {
+			kind = "append"
+		}
+		matches = append(matches, sqlBuildMatch{pos: m[0], expr: expr, kind: kind})
+	}
+
+	sort.Slice(matches, func(i, j int) bool {
+		return matches[i].pos < matches[j].pos
+	})
+
+	var fragments []string
+	dynamic := false
+
+	for _, m := range matches {
+		expr := strings.TrimSpace(m.expr)
+		lower := strings.ToLower(expr)
+		baseName := strings.ToLower(varName)
+		if m.kind == "assign" {
+			if strings.HasPrefix(lower, baseName+"+") {
+				m.kind = "append"
+			}
+		}
+
+		frag, dyn := extractSqlFragmentFromCSharpExpr(expr)
+		trimmedExpr := strings.TrimSpace(expr)
+		if frag == "" && trimmedExpr != "" && !strings.EqualFold(trimmedExpr, varName) {
+			if regexes.identRe.MatchString(trimmedExpr) {
+				if sql, innerDyn := rebuildCSharpVariableSql(methodText, trimmedExpr); sql != "" {
+					frag = sql
+					dyn = dyn || innerDyn
+				}
+			}
+		}
+		dynamic = dynamic || dyn
+
+		if m.kind == "assign" {
+			fragments = fragments[:0]
+			if frag != "" {
+				fragments = append(fragments, frag)
+			}
+			continue
+		}
+
+		if frag != "" {
+			fragments = append(fragments, frag)
+		}
+	}
+
+	if len(fragments) == 0 {
+		return "", dynamic
+	}
+
+	combined := normalizeSqlSkeleton(strings.Join(fragments, "\n"))
+	return combined, dynamic
+}
+
+func extractCSharpStatementExpr(src string, start int) (string, int) {
+	i := start
+	for i < len(src) {
+		if !unicode.IsSpace(rune(src[i])) {
+			break
+		}
+		i++
+	}
+	exprStart := i
+	inString := false
+	verbatim := false
+	escaped := false
+
+	for i < len(src) {
+		c := src[i]
+		if inString {
+			if verbatim {
+				if c == '"' {
+					if i+1 < len(src) && src[i+1] == '"' {
+						i++
+					} else {
+						inString = false
+						verbatim = false
+					}
+				}
+				i++
+				continue
+			}
+			if escaped {
+				escaped = false
+				i++
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				i++
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			i++
+			continue
+		}
+
+		switch c {
+		case '"':
+			inString = true
+			verbatim = i > 0 && src[i-1] == '@'
+		case ';':
+			expr := strings.TrimSpace(src[exprStart:i])
+			return expr, i
+		}
+		i++
+	}
+
+	return strings.TrimSpace(src[exprStart:]), len(src)
+}
+
+func extractSqlFragmentFromCSharpExpr(expr string) (string, bool) {
+	trimmed := strings.TrimSpace(expr)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	trimmed = strings.TrimSpace(trimmed)
+	if trimmed == "" {
+		return "", false
+	}
+
+	sql, dyn, _ := BuildSqlSkeletonFromCSharpExpr(trimmed)
+	return sql, dyn
 }

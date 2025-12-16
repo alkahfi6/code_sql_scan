@@ -516,6 +516,7 @@ func StripJsonLineComments(src string) string {
 }
 
 func StripSqlComments(sql string) string {
+	sql = injectLineBreakAfterDashComments(sql)
 	var out bytes.Buffer
 	inLine := false
 	inBlock := false
@@ -529,7 +530,7 @@ func StripSqlComments(sql string) string {
 			next = sql[i+1]
 		}
 		if inLine {
-			if c == '\n' {
+			if c == '\n' || c == '\r' {
 				inLine = false
 				out.WriteByte(c)
 			}
@@ -578,6 +579,23 @@ func StripSqlComments(sql string) string {
 				} else {
 					inString = false
 				}
+			}
+			continue
+		}
+		out.WriteByte(c)
+	}
+	return out.String()
+}
+
+func injectLineBreakAfterDashComments(sql string) string {
+	var out strings.Builder
+	for i := 0; i < len(sql); i++ {
+		c := sql[i]
+		if c == '-' && i+1 < len(sql) && sql[i+1] == '-' {
+			out.WriteString("--")
+			i++
+			if i+1 < len(sql) && sql[i+1] != '\n' && sql[i+1] != '\r' {
+				out.WriteByte('\n')
 			}
 			continue
 		}
