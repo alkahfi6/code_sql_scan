@@ -142,10 +142,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 			if funcRange != nil {
 				funcName = funcRange.Name
-				lineStart = funcRange.Start
-				lineEnd = funcRange.End
 			} else {
 				funcName = fmt.Sprintf("<file-scope>@L%d", line)
+			}
+
+			if endPos := m[1]; endPos > 0 {
+				if endLine := countLinesUpTo(clean, endPos); endLine > 0 {
+					lineEnd = endLine
+				}
 			}
 
 			methodText := ""
