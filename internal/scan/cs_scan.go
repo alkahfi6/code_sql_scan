@@ -115,6 +115,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			var (
 				connName string
 				raw      string
+				rawExpr  string
 			)
 
 			var (
@@ -153,7 +154,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						rawLiteral = true
 					} else {
 						isDyn = true
-						raw = "<dynamic-sql>"
 					}
 				}
 			case regexes.execProcLit, regexes.execProcDyn:
@@ -195,7 +195,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						}
 						if !rawLiteral {
 							isDyn = true
-							raw = "<dynamic-sql>"
 						}
 					}
 				}
@@ -219,11 +218,12 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 							rawLiteral = true
 						} else {
 							isDyn = true
-							raw = "<dynamic-sql>"
 						}
 					}
 				}
 			}
+
+			rawExpr = raw
 
 			if !rawLiteral {
 				if unq, ok := unquoteIfQuoted(raw); ok {
@@ -236,6 +236,47 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			if !rawLiteral && (p.re == regexes.execProcDyn || p.re == regexes.callQueryWsDyn || regexes.identRe.MatchString(rawTrim)) {
 				isDyn = true
 				raw = "<dynamic-sql>"
+			}
+
+			if !rawLiteral {
+				methodText := ""
+				if funcRange != nil {
+					start := funcRange.Start - 1
+					if start < 0 {
+						start = 0
+					}
+					end := funcRange.End
+					if end > len(lines) {
+						end = len(lines)
+					}
+					methodText = strings.Join(lines[start:end], "\n")
+				}
+
+				ctxText := ""
+				ctxStart := line - 5
+				if ctxStart < 0 {
+					ctxStart = 0
+				}
+				ctxEnd := line + 5
+				if ctxEnd > len(lines) {
+					ctxEnd = len(lines)
+				}
+				ctxText = strings.Join(lines[ctxStart:ctxEnd], "\n")
+
+				skel, dyn, _ := BuildSqlSkeletonFromCSharpExpr(rawExpr)
+				if skel == "" && ctxText != "" {
+					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(ctxText)
+				}
+				if skel == "" && methodText != "" {
+					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(methodText)
+				}
+				if skel != "" && detectUsageKind(false, skel) != "UNKNOWN" {
+					raw = skel
+					rawLiteral = true
+					if dyn {
+						isDyn = true
+					}
+				}
 			}
 
 			if raw == "" {
