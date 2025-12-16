@@ -452,11 +452,16 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			exampleFuncs = exampleFuncs[:5]
 		}
 
+		roleSummary := fmt.Sprintf("read=%d; write=%d; exec=%d", totalReads, totalWrites, totalExec)
+		if len(roles) > 0 {
+			roleSummary = strings.Join([]string{roleSummary, strings.Join(roles, ";")}, "; ")
+		}
+
 		result = append(result, ObjectSummaryRow{
 			AppName:        objs[0].AppName,
 			BaseName:       baseName,
 			FullObjectName: strings.Join(fullNameList, ";"),
-			Roles:          strings.Join(roles, ";"),
+			Roles:          roleSummary,
 			TotalReads:     totalReads,
 			TotalWrites:    totalWrites,
 			TotalExec:      totalExec,
@@ -578,7 +583,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			dbListSet[db] = struct{}{}
 		}
 
-		topObjects := buildTopObjectSummary(topObjectStats[key])
+		topObjects := buildTopObjects(topObjectStats[key])
 		if distinctObjects == 0 {
 			topObjects = ""
 		}
@@ -628,44 +633,6 @@ func (c *objectRoleCounter) Register(o ObjectRow) {
 	}
 }
 
-func buildTopObjects(stats map[string]*objectRoleCounter) string {
-	if len(stats) == 0 {
-		return ""
-	}
-	type top struct {
-		name       string
-		writeScore int
-		readScore  int
-		label      string
-	}
-	var tops []top
-	for name, counter := range stats {
-		tops = append(tops, top{
-			name:       name,
-			writeScore: counter.WriteCount + counter.ExecCount,
-			readScore:  counter.ReadCount,
-			label:      classifyObjectUsage(counter),
-		})
-	}
-	sort.Slice(tops, func(i, j int) bool {
-		if tops[i].writeScore != tops[j].writeScore {
-			return tops[i].writeScore > tops[j].writeScore
-		}
-		if tops[i].readScore != tops[j].readScore {
-			return tops[i].readScore > tops[j].readScore
-		}
-		return tops[i].name < tops[j].name
-	})
-	if len(tops) > 3 {
-		tops = tops[:3]
-	}
-	parts := make([]string, 0, len(tops))
-	for _, t := range tops {
-		parts = append(parts, fmt.Sprintf("%s %s", t.name, t.label))
-	}
-	return strings.Join(parts, ", ")
-}
-
 func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	if len(stats) == 0 {
 		return ""
@@ -678,7 +645,7 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	tops := make([]top, 0, len(stats))
 	for name, counter := range stats {
 		count := counter.ReadCount + counter.WriteCount + counter.ExecCount
-		role := summarizeRole(counter)
+		role := describeRoles(counter)
 		tops = append(tops, top{name: name, count: count, role: role})
 	}
 	sort.Slice(tops, func(i, j int) bool {
@@ -692,9 +659,61 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	}
 	parts := make([]string, 0, len(tops))
 	for _, t := range tops {
-		parts = append(parts, fmt.Sprintf("%s:%s:%d", t.name, t.role, t.count))
+		parts = append(parts, fmt.Sprintf("%s(%s)", t.name, t.role))
 	}
 	return strings.Join(parts, ";")
+}
+
+func buildTopObjects(stats map[string]*objectRoleCounter) string {
+	if len(stats) == 0 {
+		return ""
+	}
+	type entry struct {
+		name  string
+		count int
+	}
+	buckets := map[string][]entry{
+		"exec":  {},
+		"write": {},
+		"read":  {},
+	}
+
+	for name, counter := range stats {
+		if counter.ExecCount > 0 || counter.HasExec {
+			buckets["exec"] = append(buckets["exec"], entry{name: name, count: counter.ExecCount})
+		}
+		if counter.WriteCount > 0 || counter.HasWrite {
+			buckets["write"] = append(buckets["write"], entry{name: name, count: counter.WriteCount})
+		}
+		if counter.ReadCount > 0 || counter.HasRead {
+			buckets["read"] = append(buckets["read"], entry{name: name, count: counter.ReadCount})
+		}
+	}
+
+	order := []string{"exec", "write", "read"}
+	sections := make([]string, 0, len(order))
+	for _, role := range order {
+		items := buckets[role]
+		if len(items) == 0 {
+			continue
+		}
+		sort.Slice(items, func(i, j int) bool {
+			if items[i].count != items[j].count {
+				return items[i].count > items[j].count
+			}
+			return items[i].name < items[j].name
+		})
+		if len(items) > 5 {
+			items = items[:5]
+		}
+		names := make([]string, 0, len(items))
+		for _, item := range items {
+			names = append(names, item.name)
+		}
+		sections = append(sections, fmt.Sprintf("%s: %s", role, strings.Join(names, ", ")))
+	}
+
+	return strings.Join(sections, "; ")
 }
 
 func classifyObjectUsage(counter *objectRoleCounter) string {
@@ -733,6 +752,26 @@ func summarizeRole(counter *objectRoleCounter) string {
 		return "read"
 	}
 	return "mixed"
+}
+
+func describeRoles(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "mixed"
+	}
+	roles := []string{}
+	if counter.HasWrite {
+		roles = append(roles, "write")
+	}
+	if counter.HasExec {
+		roles = append(roles, "exec")
+	}
+	if counter.HasRead {
+		roles = append(roles, "read")
+	}
+	if len(roles) == 0 {
+		return "mixed"
+	}
+	return strings.Join(roles, "+")
 }
 
 func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
