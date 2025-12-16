@@ -1,0 +1,85 @@
+name: Regress Scan
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  regress:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          check-latest: true
+
+      - name: Clean output directory
+        run: |
+          rm -rf ./out_regress
+          mkdir -p ./out_regress
+
+      - name: Run regression scans
+        run: |
+          go run main.go -root "./golang" -app "golang-sample" -lang "go" -out-dir "./out_regress"
+          go run main.go -root "./dotnet_check" -app "dotnet-sample" -lang "dotnet" -out-dir "./out_regress"
+
+      - name: Output CSV evidence
+        run: |
+          find ./out_regress -maxdepth 1 -type f -name "*.csv" -print
+          ls -lah ./out_regress
+          wc -l ./out_regress/*.csv
+          sha256sum ./out_regress/*.csv
+          for f in ./out_regress/*.csv; do
+            echo "--- head $f ---"
+            head -n 5 "$f"
+          done
+
+      - name: Grep invariants - dotnet
+        run: |
+          grep -n "INSERT INTO dbo.VLSResultFinal_TH" ./out_regress/dotnet-sample-query.csv | head -n 40
+          grep -n "dbo.VLSResultFinal_TH" ./out_regress/dotnet-sample-object.csv | head -n 80
+          grep -n "VLSResultFinal_TH" ./out_regress/dotnet-sample-summary-object.csv | head -n 20
+          grep -n "trs_UpdateStatusSecurityTransactionAfterMurex" ./out_regress/dotnet-sample-object.csv | head -n 30
+          grep -n "trs_PushBackStatusSecurityTransaction_TT" ./out_regress/dotnet-sample-object.csv | head -n 30
+          grep -n ",subAcceptReject," ./out_regress/dotnet-sample-summary-function.csv | head -n 5
+
+      - name: Grep invariants - golang
+        run: |
+          grep -n "BA_SelectRefundBilling" ./out_regress/golang-sample-query.csv | head -n 30
+          grep -n "BA_SelectRefundBilling" ./out_regress/golang-sample-object.csv | head -n 30
+          grep -n ",DeleteDuplicateConfo," ./out_regress/golang-sample-query.csv | head -n 30
+          grep -n "confomk005_a" ./out_regress/golang-sample-object.csv | head -n 20
+          grep -n "confomk006_a" ./out_regress/golang-sample-object.csv | head -n 20
+
+      - name: Verify summary consistency
+        run: |
+          python - <<'PY'
+          import pandas as pd
+          q = pd.read_csv('./out_regress/dotnet-sample-query.csv')
+          sf = pd.read_csv('./out_regress/dotnet-sample-summary-function.csv')
+          agg = q.groupby(['RelPath','Func']).size().reset_index(name='TotalQueries_calc')
+          m = sf[['RelPath','Func','TotalQueries']].merge(agg, on=['RelPath','Func'], how='left')
+          missing = m[m['TotalQueries_calc'].isna()]
+          diff = m[~m['TotalQueries_calc'].isna() & (m['TotalQueries'] != m['TotalQueries_calc'])]
+          print("missing_rows:", len(missing))
+          print("diff_rows:", len(diff))
+          if len(missing) or len(diff):
+              print("SAMPLE missing:")
+              print(missing.head(10).to_string(index=False))
+              print("SAMPLE diff:")
+              print(diff.head(10).to_string(index=False))
+              raise SystemExit(1)
+          print("OK: summary_function TotalQueries matches raw.")
+          PY
+
+      - name: Upload out_regress artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: out_regress_csv
+          path: ./out_regress
+          if-no-files-found: error
