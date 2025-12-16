@@ -426,14 +426,16 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			}
 			if o.IsPseudoObject {
 				isPseudo = true
-				if o.PseudoKind != "" {
-					pseudoKind = o.PseudoKind
-				}
+				pseudoKind = choosePseudoKind(pseudoKind, o.PseudoKind)
 			}
 			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 			if q, ok := queryByKey[qKey]; ok {
 				funcSet[q.Func] = struct{}{}
 			}
+		}
+
+		if isPseudo && pseudoKind == "" {
+			pseudoKind = "unknown"
 		}
 
 		result = append(result, ObjectSummaryRow{
@@ -972,6 +974,28 @@ func pseudoObjectInfo(base string) (bool, string) {
 		return true, strings.ToLower(kind)
 	}
 	return false, ""
+}
+
+func choosePseudoKind(current, candidate string) string {
+	normalize := func(k string) string { return strings.ToLower(strings.TrimSpace(k)) }
+	current = normalize(current)
+	candidate = normalize(candidate)
+	rank := func(k string) int {
+		switch k {
+		case "dynamic-sql":
+			return 3
+		case "dynamic-object":
+			return 2
+		case "unknown":
+			return 1
+		default:
+			return 0
+		}
+	}
+	if rank(candidate) > rank(current) {
+		return candidate
+	}
+	return current
 }
 
 func isWriteDml(dml string) bool {

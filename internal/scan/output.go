@@ -86,6 +86,10 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			if full == "" {
 				full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
 			}
+			pseudoKind := o.PseudoKind
+			if o.IsPseudoObject && strings.TrimSpace(pseudoKind) == "" {
+				pseudoKind = "unknown"
+			}
 			oRow := []string{
 				c.AppName,
 				c.RelPath,
@@ -106,7 +110,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				boolToStr(o.IsWrite),
 				boolToStr(o.IsObjectNameDyn),
 				boolToStr(o.IsPseudoObject),
-				o.PseudoKind,
+				pseudoKind,
 			}
 			if err := ow.Write(oRow); err != nil {
 				return err
