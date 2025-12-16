@@ -62,12 +62,15 @@ type ObjectToken struct {
 	SchemaName         string
 	BaseName           string
 	FullName           string
+	FoundAt            int
 	Role               string // target/source/exec
 	DmlKind            string // SELECT/INSERT/...
 	IsWrite            bool
 	IsCrossDb          bool
 	IsLinkedServer     bool
 	IsObjectNameDyn    bool
+	IsPseudoObject     bool
+	PseudoKind         string
 	RepresentativeLine int
 }
 
@@ -117,4 +120,6 @@ type ObjectUsageRow struct {
 	DmlKind         string
 	IsWrite         bool
 	IsObjectNameDyn bool
+	IsPseudoObject  bool
+	PseudoKind      string
 }
