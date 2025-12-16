@@ -16,6 +16,8 @@ type QueryRow struct {
 	AppName    string
 	RelPath    string
 	File       string
+	SourceCat  string
+	SourceKind string
 	Func       string
 	RawSql     string
 	SqlClean   string
@@ -61,6 +63,7 @@ type FunctionSummaryRow struct {
 	TotalDelete   int
 	TotalTruncate int
 	TotalDynamic  int
+	DynamicSig    string
 	TotalWrite    int
 	TotalObjects  int
 	TopObjects    string
@@ -134,16 +137,18 @@ func LoadQueryUsage(path string) ([]QueryRow, error) {
 			return nil, err
 		}
 		row := QueryRow{
-			AppName:   rec[idx["AppName"]],
-			RelPath:   rec[idx["RelPath"]],
-			File:      rec[idx["File"]],
-			RawSql:    pick(rec, idx, "RawSql"),
-			SqlClean:  pick(rec, idx, "SqlClean"),
-			Func:      rec[idx["Func"]],
-			QueryHash: rec[idx["QueryHash"]],
-			UsageKind: rec[idx["UsageKind"]],
-			IsWrite:   parseBool(rec[idx["IsWrite"]]),
-			IsDynamic: parseBool(rec[idx["IsDynamic"]]),
+			AppName:    rec[idx["AppName"]],
+			RelPath:    rec[idx["RelPath"]],
+			File:       rec[idx["File"]],
+			SourceCat:  pick(rec, idx, "SourceCategory"),
+			SourceKind: pick(rec, idx, "SourceKind"),
+			RawSql:     pick(rec, idx, "RawSql"),
+			SqlClean:   pick(rec, idx, "SqlClean"),
+			Func:       rec[idx["Func"]],
+			QueryHash:  rec[idx["QueryHash"]],
+			UsageKind:  rec[idx["UsageKind"]],
+			IsWrite:    parseBool(rec[idx["IsWrite"]]),
+			IsDynamic:  parseBool(rec[idx["IsDynamic"]]),
 		}
 		if col, ok := idx["HasCrossDb"]; ok {
 			row.HasCrossDb = parseBool(rec[col])
@@ -263,6 +268,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		maxLine := 0
 		dbListSet := make(map[string]struct{})
 		objectCounter := make(map[string]*objectRoleCounter)
+		dynamicSigCounts := make(map[string]int)
 		for _, q := range qRows {
 			switch strings.ToUpper(q.UsageKind) {
 			case "EXEC":
@@ -280,6 +286,10 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 			if isDynamicQuery(q) {
 				totalDynamic++
+				sig := dynamicSignature(q)
+				if sig != "" {
+					dynamicSigCounts[sig]++
+				}
 			}
 			if q.HasCrossDb {
 				hasCross = true
@@ -337,6 +347,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 
 		topObjects := buildTopObjectSummary(objectCounter)
 		dbList := setToSortedSlice(dbListSet)
+		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 
 		result = append(result, FunctionSummaryRow{
 			AppName:       app,
@@ -350,6 +361,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalDelete:   totalDelete,
 			TotalTruncate: totalTruncate,
 			TotalDynamic:  totalDynamic,
+			DynamicSig:    dynamicSig,
 			TotalWrite:    totalWrite,
 			TotalObjects:  len(objSet),
 			TopObjects:    topObjects,
@@ -633,6 +645,51 @@ func (c *objectRoleCounter) Register(o ObjectRow) {
 	}
 }
 
+func dynamicSignature(q QueryRow) string {
+	if q.LineStart == 0 {
+		return ""
+	}
+	callKind := strings.TrimSpace(q.SourceKind)
+	if callKind == "" {
+		callKind = strings.TrimSpace(q.SourceCat)
+	}
+	if callKind == "" {
+		callKind = strings.TrimSpace(q.UsageKind)
+	}
+	if callKind == "" {
+		callKind = "unknown"
+	}
+	return fmt.Sprintf("%s@%d", callKind, q.LineStart)
+}
+
+func summarizeDynamicSignatures(counts map[string]int) string {
+	if len(counts) == 0 {
+		return ""
+	}
+	type sigCount struct {
+		key   string
+		count int
+	}
+	list := make([]sigCount, 0, len(counts))
+	for key, count := range counts {
+		list = append(list, sigCount{key: key, count: count})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].count != list[j].count {
+			return list[i].count > list[j].count
+		}
+		return list[i].key < list[j].key
+	})
+	if len(list) > 3 {
+		list = list[:3]
+	}
+	parts := make([]string, 0, len(list))
+	for _, item := range list {
+		parts = append(parts, fmt.Sprintf("%s:%d", item.key, item.count))
+	}
+	return strings.Join(parts, ";")
+}
+
 func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	if len(stats) == 0 {
 		return ""
@@ -782,7 +839,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "TotalObjects", "TopObjects", "HasCrossDb", "DbList"}
+	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "TopObjects", "HasCrossDb", "DbList"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -802,6 +859,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalExec),
 			fmt.Sprintf("%d", r.TotalWrite),
 			fmt.Sprintf("%d", r.TotalDynamic),
+			r.DynamicSig,
 			fmt.Sprintf("%d", r.TotalObjects),
 			r.TopObjects,
 			boolToStr(r.HasCrossDb),
