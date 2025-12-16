@@ -368,7 +368,7 @@ func findObjectTokens(sql string) []ObjectToken {
 				schemaName = "dbo"
 			}
 			fullName := buildFullName(dbName, schemaName, baseName)
-			tokens = append(tokens, ObjectToken{
+			tok := ObjectToken{
 				DbName:          dbName,
 				SchemaName:      schemaName,
 				BaseName:        baseName,
@@ -376,7 +376,9 @@ func findObjectTokens(sql string) []ObjectToken {
 				FoundAt:         p,
 				IsLinkedServer:  isLinked,
 				IsObjectNameDyn: hasDynamicPlaceholder(objText),
-			})
+			}
+			tok = normalizeObjectToken(tok)
+			tokens = append(tokens, tok)
 			start = end
 		}
 	}
@@ -521,6 +523,19 @@ func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) 
 	}
 	base = parts[0]
 	return
+}
+
+func normalizeObjectToken(tok ObjectToken) ObjectToken {
+	if tok.SchemaName == "" && tok.BaseName != "" {
+		tok.SchemaName = "dbo"
+	}
+	if tok.FullName == "" {
+		tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
+	}
+	if tok.DbName != "" {
+		tok.IsCrossDb = true
+	}
+	return tok
 }
 
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
@@ -950,6 +965,8 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			IsLinkedServer:     isLinked,
 		}
 
+		tok = normalizeObjectToken(tok)
+
 		switch keyword {
 		case "insert into":
 			tok.Role = "target"
@@ -1024,9 +1041,7 @@ func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken,
 		IsObjectNameDyn:    hasDynamicPlaceholder(objText),
 		RepresentativeLine: line,
 	}
-	if tok.DbName != "" {
-		tok.IsCrossDb = true
-	}
+	tok = normalizeObjectToken(tok)
 	tok.Role = "target"
 	tok.DmlKind = "INSERT"
 	tok.IsWrite = true
@@ -1079,9 +1094,7 @@ func collectInsertTargets(sql string, connDb string, line int) []ObjectToken {
 			DmlKind:            "INSERT",
 			IsWrite:            true,
 		}
-		if tok.DbName != "" {
-			tok.IsCrossDb = true
-		}
+		tok = normalizeObjectToken(tok)
 		tokens = append(tokens, tok)
 		idx = p
 	}

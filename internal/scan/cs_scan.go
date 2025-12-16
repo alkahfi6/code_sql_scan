@@ -38,14 +38,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		literalInMethod[method][name] = val
 	}
 
-        lookupLiteralAnyMethod := func(name string) (string, bool) {
-                for _, m := range literalInMethod {
-                        if val, ok := m[name]; ok {
-                                return val, true
-                        }
-                }
-                return "", false
-        }
+	lookupLiteralAnyMethod := func(name string) (string, bool) {
+		for _, m := range literalInMethod {
+			if val, ok := m[name]; ok {
+				return val, true
+			}
+		}
+		return "", false
+	}
 	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
 		line := countLinesUpTo(clean, m[0])
 		funcName := ""
@@ -643,7 +643,7 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 		return "", dynamic
 	}
 
-	combined := normalizeSqlSkeleton(strings.Join(fragments, " "))
+	combined := normalizeSqlSkeleton(strings.Join(fragments, "\n"))
 	return combined, dynamic
 }
 

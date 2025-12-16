@@ -231,10 +231,12 @@ func parseVerbatimString(src string, start int) (string, int, bool) {
 }
 
 func normalizeSqlSkeleton(s string) string {
-	cleaned := strings.ReplaceAll(s, "\r", " ")
-	cleaned = strings.ReplaceAll(cleaned, "\n", " ")
-	parts := strings.Fields(cleaned)
-	return strings.Join(parts, " ")
+	cleaned := strings.ReplaceAll(s, "\r", "\n")
+	lines := strings.Split(cleaned, "\n")
+	for i, line := range lines {
+		lines[i] = strings.Join(strings.Fields(line), " ")
+	}
+	return strings.TrimSpace(strings.Join(lines, "\n"))
 }
 
 func trimToSqlVerb(s string) string {
