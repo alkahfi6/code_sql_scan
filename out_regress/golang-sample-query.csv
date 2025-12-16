@@ -91,7 +91,7 @@ select CFN1,CA1
 ,C2_1,ST1,ST2,ST3,ST4,C1_2,C2_2
 ,BIC,SD,DESCR,BROKFEEAMT
 ,M_BANK,CONTRACT,X_M_NB
-    from [[schema]].mk006a_confo",SELECT,false,false,,1,true,,,8717d331471ce71d63d2557ed7c6eb41d1738832,LOW,go1/query.go,10
+    from [[schema]].mk006a_confo",SELECT,false,false,,2,true,,,8717d331471ce71d63d2557ed7c6eb41d1738832,LOW,go1/query.go,10
 golang-sample,go1/query.go,query.go,code,go,22,22,,"
 SELECT CFN1,CA1,CA2,CA3,CA4
 ,DEALNO,PS_1,SECID,DESCR,ISSUER
@@ -109,7 +109,7 @@ FROM [[schema]].MK005A_CONFO","SELECT CFN1,CA1,CA2,CA3,CA4
 ,SETTCCY,SETTAMT,C1_1,C2_1,ST1
 ,ST2,ST3,ST4,C1_2,C2_2
 ,BIC,SD,M_BANK,CONTRACT,X_M_NB 
-FROM [[schema]].MK005A_CONFO",SELECT,false,false,,1,true,,,20aee50cc7753e486e9e1768204f61789b0c97da,LOW,go1/query.go,22
+FROM [[schema]].MK005A_CONFO",SELECT,false,false,,2,true,,,20aee50cc7753e486e9e1768204f61789b0c97da,LOW,go1/query.go,22
 golang-sample,go1/query.go,query.go,code,go,33,33,,"
 INSERT INTO SQL_REPLICATE.dbo.confomk006_a (
 CFN1,CA1,CA2,CA3,CA4,
@@ -207,7 +207,7 @@ select DEALNO,BRANCHTRANSACTION  ,BRANCHCOMPLETION
 ,KATEGORIPENGUKURAN,NOMINAL,TANGGALPEMBELIAN
 ,JUMLAHPEMBELIAN,NAMAPEMBELI,GOLONGANPEMBELI
 ,MATAUANG,CIFNO,JUMLAHPENJUALAN
-,CONTRACT,X_M_NB FROM [[schema]].MK006_A",SELECT,false,false,,1,true,,,3066fe98cfba745aaa8d218d4d9709683503959a,LOW,go1/query.go,82
+,CONTRACT,X_M_NB FROM [[schema]].MK006_A",SELECT,false,false,,2,true,,,3066fe98cfba745aaa8d218d4d9709683503959a,LOW,go1/query.go,82
 golang-sample,go1/query.go,query.go,code,go,91,91,,"
 select DEALNO ,BRANCHTRANSACTION ,BRANCHCOMPLETION
 ,USERCOMPLETION ,STATUSDOKUMEN ,TRANSACTIONDATE
@@ -227,7 +227,7 @@ FROM [[schema]].MK005_A","select DEALNO ,BRANCHTRANSACTION ,BRANCHCOMPLETION
 ,DURASI   ,TANGGALJATUHTEMPO     ,JENISBUNGA
 ,CIFNO    ,JUMLAH   ,NAMAPENJUAL
 ,CONTRACT ,X_M_NB
-FROM [[schema]].MK005_A",SELECT,false,false,,1,true,,,e5a6b58c40aeee2a5c37a31a98841e0121ff0621,LOW,go1/query.go,91
+FROM [[schema]].MK005_A",SELECT,false,false,,2,true,,,e5a6b58c40aeee2a5c37a31a98841e0121ff0621,LOW,go1/query.go,91
 golang-sample,go1/query.go,query.go,code,go,103,103,,"
 INSERT INTO SQL_REPLICATE.dbo.mk006_a (
 DealNo,BranchTransaction,BranchCompletion
@@ -340,19 +340,19 @@ from [[schema]].BOND_DETAIL where trim(SECID) not in (
 select distinct trim(SECID) from [[schema]].BOND_JOURNAL where TDPRINTAMT > 0
 )
 and TRIM(SECID) IN ([[param]])
-group by SECID",SELECT,false,false,,1,true,,,58b836ac3e25feb6f7f2ff92f82b638a00effcfc,LOW,go1/query.go,157
+group by SECID",SELECT,false,false,,2,true,,,58b836ac3e25feb6f7f2ff92f82b638a00effcfc,LOW,go1/query.go,157
 golang-sample,go1/query.go,query.go,code,go,171,171,,"
 INSERT INTO [dbo].[mk006_a_actuate] (secid,avg_price,ProcessDate)
 SELECT ?,?,?
 ","INSERT INTO [dbo].[mk006_a_actuate] (secid,avg_price,ProcessDate)
 SELECT ?,?,?",INSERT,true,false,,1,false,,,0f9eed78afc29b9ce10155287fe99a42e438fcaa,MEDIUM,go1/query.go,171
-golang-sample,go1/source.go,source.go,code,go,24,24,ExecSPMurexMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,41,41,ExecuteSPMurexConfoMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,51,51,GetMK006AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,61,61,GetMK006A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,71,71,GetMurexAvgPrice,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,82,82,GetMK005AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
-golang-sample,go1/source.go,source.go,code,go,93,93,GetMK005A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,0,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,24,24,ExecSPMurexMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,41,41,ExecuteSPMurexConfoMK,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,51,51,GetMK006AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,61,61,GetMK006A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,71,71,GetMurexAvgPrice,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,82,82,GetMK005AConfo,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
+golang-sample,go1/source.go,source.go,code,go,93,93,GetMK005A,<dynamic-sql>,<dynamic-sql>,UNKNOWN,false,false,,1,true,db,,829e30d2ed137a41defc3a465e6c3746bc753ccf,LOW,go1/source.go,0
 golang-sample,go1/source.go,source.go,code,go,112,112,ValidateMKData,[dbo].[MKValidateData] ?,[dbo].[MKValidateData] ?,EXEC,true,false,,1,false,db,,cfac7247a5fa57eb91826f292a7b1996e62814a7,MEDIUM,go1/sp.go,16
 golang-sample,go2/impl.go,impl.go,code,go,26,26,GetCurrWorkingDate,"
 	SELECT TOP 1 current_working_date
@@ -2273,7 +2273,7 @@ golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,
 		DROP TABLE #tmp_SOF
 
 	IF OBJECT_ID('tempdb..#tmpSumberDana') IS NOT NULL  
-		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,29,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
+		DROP TABLE #tmpSumberDana",INSERT,true,true,SQL_SIBS,28,false,r.db_trs,,44ff9378fdf69b713d4b5873b3d5d00f93521632,HIGH,go3/bond_transaction_repository.go,67
 golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,code,go,12,12,,"-- name: ExecBASelectRefundBilling :many
 exec BA_SelectRefundBilling @p1
 ",exec BA_SelectRefundBilling @p1,EXEC,true,false,,1,false,,,09e3f5e7c70f4edd069a225b1172391461671c3f,MEDIUM,go3/refundBillingQueries_manual.sql.go,12
