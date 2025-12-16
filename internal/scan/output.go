@@ -44,7 +44,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		"Line", "Func", "QueryHash", "ObjectName",
 		"DbName", "SchemaName", "BaseName",
 		"IsCrossDb", "IsLinkedServer", "Role", "DmlKind",
-		"IsWrite", "IsObjectNameDynamic",
+		"IsWrite", "IsObjectNameDynamic", "IsPseudoObject", "PseudoKind",
 	}
 	if err := ow.Write(oHeader); err != nil {
 		return err
@@ -105,6 +105,8 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				o.DmlKind,
 				boolToStr(o.IsWrite),
 				boolToStr(o.IsObjectNameDyn),
+				boolToStr(o.IsPseudoObject),
+				o.PseudoKind,
 			}
 			if err := ow.Write(oRow); err != nil {
 				return err

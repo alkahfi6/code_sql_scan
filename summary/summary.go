@@ -28,17 +28,21 @@ type QueryRow struct {
 
 // ObjectRow represents a row from ObjectUsage.csv used for summaries.
 type ObjectRow struct {
-	AppName    string
-	RelPath    string
-	File       string
-	QueryHash  string
-	DbName     string
-	SchemaName string
-	BaseName   string
-	Role       string
-	DmlKind    string
-	IsWrite    bool
-	IsCrossDb  bool
+	AppName         string
+	RelPath         string
+	File            string
+	QueryHash       string
+	ObjectName      string
+	DbName          string
+	SchemaName      string
+	BaseName        string
+	Role            string
+	DmlKind         string
+	IsWrite         bool
+	IsCrossDb       bool
+	IsObjectNameDyn bool
+	IsPseudoObject  bool
+	PseudoKind      string
 }
 
 // FunctionSummaryRow represents aggregated information per function.
@@ -188,7 +192,7 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 			}
 			return nil, err
 		}
-		rows = append(rows, ObjectRow{
+		row := ObjectRow{
 			AppName:    rec[idx["AppName"]],
 			RelPath:    rec[idx["RelPath"]],
 			File:       rec[idx["File"]],
@@ -200,7 +204,20 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 			DmlKind:    rec[idx["DmlKind"]],
 			IsWrite:    parseBool(rec[idx["IsWrite"]]),
 			IsCrossDb:  parseBool(rec[idx["IsCrossDb"]]),
-		})
+		}
+		if col, ok := idx["ObjectName"]; ok {
+			row.ObjectName = rec[col]
+		}
+		if col, ok := idx["IsObjectNameDynamic"]; ok {
+			row.IsObjectNameDyn = parseBool(rec[col])
+		}
+		if col, ok := idx["IsPseudoObject"]; ok {
+			row.IsPseudoObject = parseBool(rec[col])
+		}
+		if col, ok := idx["PseudoKind"]; ok {
+			row.PseudoKind = rec[col]
+		}
+		rows = append(rows, row)
 	}
 	return rows, nil
 }
@@ -211,8 +228,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	queryByKey := make(map[string]QueryRow)
 
 	for _, q := range queries {
-		normFunc := normalizeFuncName(q.Func)
-		key := functionKey(q.AppName, q.RelPath, q.File, normFunc)
+		key := functionKey(q.AppName, q.RelPath, q.File, q.Func)
 		grouped[key] = append(grouped[key], q)
 		if _, ok := hashByFunc[key]; !ok {
 			hashByFunc[key] = make(map[string]struct{})
@@ -231,7 +247,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	for _, o := range objects {
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 		if q, ok := queryByKey[qKey]; ok {
-			funcKey := functionKey(o.AppName, o.RelPath, o.File, normalizeFuncName(q.Func))
+			funcKey := functionKey(o.AppName, o.RelPath, o.File, q.Func)
 			objectsByFunc[funcKey] = append(objectsByFunc[funcKey], o)
 		}
 	}
@@ -402,9 +418,21 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			if o.IsCrossDb {
 				hasCross = true
 			}
+			if o.IsObjectNameDyn {
+				isDynamicObj = true
+				if o.PseudoKind != "" {
+					dynamicKind = o.PseudoKind
+				}
+			}
+			if o.IsPseudoObject {
+				isPseudo = true
+				if o.PseudoKind != "" {
+					pseudoKind = o.PseudoKind
+				}
+			}
 			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 			if q, ok := queryByKey[qKey]; ok {
-				funcSet[normalizeFuncName(q.Func)] = struct{}{}
+				funcSet[q.Func] = struct{}{}
 			}
 		}
 

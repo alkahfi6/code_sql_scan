@@ -266,7 +266,6 @@ func isWriteKind(kind string) bool {
 func findObjectTokens(sql string) []ObjectToken {
 	lower := strings.ToLower(sql)
 	var tokens []ObjectToken
-	seen := make(map[string]bool)
 
 	keywords := []string{
 		"from", "join", "update", "into",
@@ -313,18 +312,22 @@ func findObjectTokens(sql string) []ObjectToken {
 				break
 			}
 			objText, _ := scanObjectName(sql, lower, p)
-			key := strings.ToLower(strings.TrimSpace(objText))
-			if objText == "" || seen[key] {
+			key := strings.TrimSpace(objText)
+			if key == "" {
 				start = end
 				continue
 			}
-			seen[key] = true
 			dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
+			if baseName != "" && schemaName == "" {
+				schemaName = "dbo"
+			}
+			fullName := buildFullName(dbName, schemaName, baseName)
 			tokens = append(tokens, ObjectToken{
 				DbName:          dbName,
 				SchemaName:      schemaName,
 				BaseName:        baseName,
-				FullName:        objText,
+				FullName:        fullName,
+				FoundAt:         p,
 				IsLinkedServer:  isLinked,
 				IsObjectNameDyn: hasDynamicPlaceholder(objText),
 			})
@@ -475,6 +478,27 @@ func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) 
 }
 
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
+	if c.IsDynamic {
+		hasPseudo := false
+		for _, tok := range tokens {
+			if tok.IsPseudoObject {
+				hasPseudo = true
+				break
+			}
+		}
+		if !hasPseudo {
+			tokens = append(tokens, ObjectToken{
+				BaseName:        "<dynamic-sql>",
+				FullName:        "<dynamic-sql>",
+				Role:            "mixed",
+				DmlKind:         usageKind,
+				IsWrite:         c.IsWrite,
+				IsObjectNameDyn: true,
+				IsPseudoObject:  true,
+				PseudoKind:      "dynamic-sql",
+			})
+		}
+	}
 	// Determine cross-DB for each token first
 	for i := range tokens {
 		tokens[i].IsCrossDb = tokens[i].DbName != "" && c.ConnDb != "" && !strings.EqualFold(tokens[i].DbName, c.ConnDb)
@@ -487,6 +511,10 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	// Compute first occurrence index for each token in the SQL
 	positions := make([]int, len(tokens))
 	for i := range tokens {
+		if tokens[i].FoundAt > 0 {
+			positions[i] = tokens[i].FoundAt
+			continue
+		}
 		// search using the token's full name in lower case
 		nameLower := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
 		idx := strings.Index(sqlLower, nameLower)
@@ -606,7 +634,109 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens[i].IsObjectNameDyn = tokens[i].IsObjectNameDyn || hasDynamicPlaceholder(full)
 		tokens[i].RepresentativeLine = c.LineStart
 	}
-	c.Objects = tokens
+	c.Objects = mergeObjectRoles(tokens)
+}
+
+func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
+	if len(tokens) <= 1 {
+		for i := range tokens {
+			if tokens[i].SchemaName == "" && tokens[i].BaseName != "" && !tokens[i].IsPseudoObject {
+				tokens[i].SchemaName = "dbo"
+				tokens[i].FullName = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
+			}
+		}
+		return tokens
+	}
+
+	type agg struct {
+		first     ObjectToken
+		hasSource bool
+		hasTarget bool
+		hasExec   bool
+		hasWrite  bool
+		dmlSet    map[string]struct{}
+		minLine   int
+	}
+
+	groups := make(map[string]*agg)
+	order := []string{}
+	for _, tok := range tokens {
+		key := strings.ToLower(buildFullName(tok.DbName, tok.SchemaName, tok.BaseName))
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(tok.FullName))
+		}
+		if _, ok := groups[key]; !ok {
+			copyTok := tok
+			if copyTok.SchemaName == "" && copyTok.BaseName != "" && !copyTok.IsPseudoObject {
+				copyTok.SchemaName = "dbo"
+				copyTok.FullName = buildFullName(copyTok.DbName, copyTok.SchemaName, copyTok.BaseName)
+			}
+			groups[key] = &agg{first: copyTok, dmlSet: make(map[string]struct{}), minLine: tok.RepresentativeLine}
+			order = append(order, key)
+		}
+		g := groups[key]
+		roleLower := strings.ToLower(strings.TrimSpace(tok.Role))
+		switch roleLower {
+		case "target":
+			g.hasTarget = true
+		case "exec":
+			g.hasExec = true
+		default:
+			g.hasSource = true
+		}
+		if tok.IsWrite {
+			g.hasWrite = true
+		}
+		if tok.DmlKind != "" {
+			g.dmlSet[strings.ToUpper(strings.TrimSpace(tok.DmlKind))] = struct{}{}
+		}
+		if tok.RepresentativeLine > 0 && (g.minLine == 0 || tok.RepresentativeLine < g.minLine) {
+			g.minLine = tok.RepresentativeLine
+		}
+		g.first.IsPseudoObject = g.first.IsPseudoObject || tok.IsPseudoObject
+		if g.first.PseudoKind == "" {
+			g.first.PseudoKind = tok.PseudoKind
+		}
+		g.first.IsObjectNameDyn = g.first.IsObjectNameDyn || tok.IsObjectNameDyn
+	}
+
+	var merged []ObjectToken
+	for _, key := range order {
+		g := groups[key]
+		tok := g.first
+		tok.RepresentativeLine = g.minLine
+		role := "source"
+		if g.hasExec {
+			if g.hasSource || g.hasTarget {
+				role = "mixed"
+			} else {
+				role = "exec"
+			}
+		} else if g.hasTarget && g.hasSource {
+			role = "mixed"
+		} else if g.hasTarget {
+			role = "target"
+		}
+		tok.Role = role
+		tok.IsWrite = g.hasWrite
+		if len(g.dmlSet) == 1 {
+			for k := range g.dmlSet {
+				tok.DmlKind = k
+			}
+		} else if len(g.dmlSet) > 1 {
+			var kinds []string
+			for k := range g.dmlSet {
+				kinds = append(kinds, k)
+			}
+			sort.Strings(kinds)
+			tok.DmlKind = strings.Join(kinds, ";")
+		} else {
+			tok.DmlKind = "UNKNOWN"
+		}
+		merged = append(merged, tok)
+	}
+
+	return merged
 }
 
 func findKeywordPosition(sqlLower, usageKind string) int {
