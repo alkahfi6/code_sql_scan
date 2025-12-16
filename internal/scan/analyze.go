@@ -109,6 +109,7 @@ func analyzeCandidate(c *SqlCandidate) {
 	tokens := findObjectTokens(sqlClean)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
 	tokens = append(detectDmlTargetsFromSql(sqlClean, usage, c.LineStart), tokens...)
+	tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
 	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
 		insertTargets := detectDmlTargetsFromSql(sqlClean, usage, c.LineStart)
@@ -1062,6 +1063,63 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 	}
 
 	return tokens
+}
+
+func inferDynamicObjectFallbacks(sqlClean, rawSql, usage string, line int) []ObjectToken {
+	usage = strings.ToUpper(strings.TrimSpace(usage))
+	if usage == "" || usage == "UNKNOWN" {
+		return nil
+	}
+
+	hasHint := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		if strings.Contains(s, "[[") || strings.Contains(s, "]]") || strings.Contains(s, "${") {
+			return true
+		}
+		if strings.Contains(s, "<expr>") {
+			return true
+		}
+		if strings.Contains(s, "$") && strings.Contains(s, "{") && strings.Contains(s, "}") {
+			return true
+		}
+		if strings.Contains(s, "\" +") || strings.Contains(s, "+ \"") {
+			return true
+		}
+		return false
+	}
+
+	if !hasHint(sqlClean) && !hasHint(rawSql) {
+		return nil
+	}
+
+	tok := ObjectToken{
+		BaseName:           "<dynamic-object>",
+		FullName:           "<dynamic-object>",
+		IsObjectNameDyn:    true,
+		IsPseudoObject:     true,
+		PseudoKind:         "dynamic-object",
+		RepresentativeLine: line,
+	}
+
+	switch usage {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		tok.Role = "target"
+		tok.DmlKind = usage
+		tok.IsWrite = true
+	case "EXEC":
+		tok.Role = "exec"
+		tok.DmlKind = usage
+		tok.IsWrite = true
+	default:
+		tok.Role = "source"
+		tok.DmlKind = "SELECT"
+		tok.IsWrite = false
+	}
+
+	return []ObjectToken{tok}
 }
 
 func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken, bool) {
