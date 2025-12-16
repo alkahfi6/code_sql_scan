@@ -110,11 +110,7 @@ func analyzeCandidate(c *SqlCandidate) {
 	// If Exec stub and no tokens, interpret RawSql as proc spec
 	if c.IsExecStub && len(c.Objects) == 0 && strings.TrimSpace(c.RawSql) != "" {
 		tok := parseProcNameSpec(c.RawSql)
-		if c.ConnDb != "" {
-			tok.IsCrossDb = tok.DbName != "" && !strings.EqualFold(tok.DbName, c.ConnDb)
-		} else {
-			tok.IsCrossDb = tok.DbName != ""
-		}
+		tok.IsCrossDb = tok.DbName != ""
 		tok.Role = "exec"
 		tok.DmlKind = "EXEC"
 		tok.IsWrite = true
@@ -129,10 +125,8 @@ func analyzeCandidate(c *SqlCandidate) {
 	hasCross := false
 	for i := range c.Objects {
 		obj := &c.Objects[i]
-		if obj.DbName != "" {
+		if obj.IsCrossDb && obj.DbName != "" {
 			dbSet[obj.DbName] = struct{}{}
-		}
-		if obj.IsCrossDb {
 			hasCross = true
 		}
 	}
@@ -141,7 +135,11 @@ func analyzeCandidate(c *SqlCandidate) {
 		dbList = append(dbList, db)
 	}
 	sort.Strings(dbList)
-	c.DbList = dbList
+	if hasCross {
+		c.DbList = dbList
+	} else {
+		c.DbList = nil
+	}
 	c.HasCrossDb = hasCross
 
 	hashInput := c.SqlClean
@@ -520,10 +518,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	}
 	// Determine cross-DB for each token first
 	for i := range tokens {
-		tokens[i].IsCrossDb = tokens[i].DbName != "" && c.ConnDb != "" && !strings.EqualFold(tokens[i].DbName, c.ConnDb)
-		if c.ConnDb == "" && tokens[i].DbName != "" {
-			tokens[i].IsCrossDb = true
-		}
+		tokens[i].IsCrossDb = tokens[i].DbName != ""
 	}
 	// Normalize SQL to lower case for position lookup
 	sqlLower := strings.ToLower(c.SqlClean)
@@ -866,9 +861,7 @@ func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken,
 		IsObjectNameDyn:    hasDynamicPlaceholder(objText),
 		RepresentativeLine: line,
 	}
-	if tok.DbName != "" && connDb != "" {
-		tok.IsCrossDb = !strings.EqualFold(tok.DbName, connDb)
-	} else if tok.DbName != "" {
+	if tok.DbName != "" {
 		tok.IsCrossDb = true
 	}
 	tok.Role = "target"
