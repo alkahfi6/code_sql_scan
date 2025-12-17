@@ -676,6 +676,13 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	// Determine cross-DB for each token first
 	for i := range tokens {
 		tokens[i].IsCrossDb = tokens[i].DbName != ""
+		if tokens[i].RepresentativeLine == 0 {
+			tokens[i].RepresentativeLine = c.LineStart
+		}
+		if strings.TrimSpace(tokens[i].Role) != "" || strings.TrimSpace(tokens[i].DmlKind) != "" || tokens[i].IsWrite {
+			preserveRole[i] = true
+			continue
+		}
 		if tokens[i].IsPseudoObject && strings.TrimSpace(tokens[i].Role) != "" {
 			preserveRole[i] = true
 		}
