@@ -24,6 +24,7 @@ type functionAgg struct {
 	truncateCount int
 	execCount     int
 	writeCount    int
+	dynamicCount  int
 }
 
 // TotalMismatches returns the total number of mismatches found.
@@ -77,8 +78,9 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 }
 
 func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) []string {
+	normQueries := normalizeQueryFuncs(queries)
 	expected := make(map[string]*functionAgg)
-	for _, q := range queries {
+	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		entry := expected[key]
 		if entry == nil {
@@ -100,6 +102,9 @@ func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) 
 		case "EXEC":
 			entry.execCount++
 		}
+		if isDynamicQuery(q) {
+			entry.dynamicCount++
+		}
 	}
 
 	for _, v := range expected {
@@ -108,7 +113,8 @@ func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) 
 
 	summaryMap := make(map[string]FunctionSummaryRow)
 	for _, s := range summaries {
-		key := strings.Join([]string{s.AppName, s.RelPath, s.Func}, "|")
+		fn := resolveFuncName(s.Func, s.RelPath, s.LineStart)
+		key := strings.Join([]string{s.AppName, s.RelPath, fn}, "|")
 		summaryMap[key] = s
 	}
 
@@ -117,7 +123,7 @@ func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) 
 		summary, ok := summaryMap[key]
 		rel, fn := splitKey(key)
 		if !ok {
-			mismatches = append(mismatches, fmt.Sprintf("function %s/%s missing in summary (raw select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d)", rel, fn, raw.selectCount, raw.insertCount, raw.updateCount, raw.deleteCount, raw.truncateCount, raw.execCount, raw.writeCount))
+			mismatches = append(mismatches, fmt.Sprintf("function %s/%s missing in summary (raw select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d)", rel, fn, raw.selectCount, raw.insertCount, raw.updateCount, raw.deleteCount, raw.truncateCount, raw.execCount, raw.writeCount, raw.dynamicCount))
 			continue
 		}
 
@@ -132,7 +138,7 @@ func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) 
 			continue
 		}
 		rel, fn := splitKey(key)
-		mismatches = append(mismatches, fmt.Sprintf("function %s/%s present in summary only (summary select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d)", rel, fn, summary.TotalSelect, summary.TotalInsert, summary.TotalUpdate, summary.TotalDelete, summary.TotalTruncate, summary.TotalExec, summary.TotalWrite))
+		mismatches = append(mismatches, fmt.Sprintf("function %s/%s present in summary only (summary select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d)", rel, fn, summary.TotalSelect, summary.TotalInsert, summary.TotalUpdate, summary.TotalDelete, summary.TotalTruncate, summary.TotalExec, summary.TotalWrite, summary.TotalDynamic))
 	}
 
 	sort.Strings(mismatches)
@@ -163,20 +169,26 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 	check("truncate", raw.truncateCount, summary.TotalTruncate)
 	check("exec", raw.execCount, summary.TotalExec)
 	check("write", raw.writeCount, summary.TotalWrite)
+	check("dynamic", raw.dynamicCount, summary.TotalDynamic)
 
 	return strings.Join(diffs, "; ")
 }
 
 func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []ObjectSummaryRow) []string {
 	type agg struct {
-		reads   int
-		writes  int
-		execs   int
-		funcSet map[string]struct{}
+		reads      int
+		writes     int
+		execs      int
+		funcSet    map[string]struct{}
+		isPseudo   bool
+		pseudoKind string
+		hasCross   bool
+		dbSet      map[string]struct{}
 	}
 
+	normQueries := normalizeQueryFuncs(queries)
 	queryByKey := make(map[string]QueryRow)
-	for _, q := range queries {
+	for _, q := range normQueries {
 		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
 	}
 
@@ -186,7 +198,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		key := strings.Join([]string{o.AppName, base}, "|")
 		entry := expected[key]
 		if entry == nil {
-			entry = &agg{funcSet: make(map[string]struct{})}
+			entry = &agg{funcSet: make(map[string]struct{}), dbSet: make(map[string]struct{})}
 			expected[key] = entry
 		}
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
@@ -201,6 +213,22 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		}
 		if isExec {
 			entry.execs++
+		}
+		if o.IsCrossDb {
+			entry.hasCross = true
+		}
+		if db := strings.TrimSpace(o.DbName); db != "" {
+			entry.dbSet[db] = struct{}{}
+		}
+
+		isPseudoObj, kind := pseudoObjectInfo(base)
+		if o.IsPseudoObject {
+			isPseudoObj = true
+			kind = choosePseudoKind(kind, defaultPseudoKind(o.PseudoKind))
+		}
+		if isPseudoObj {
+			entry.isPseudo = true
+			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(kind))
 		}
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 		if q, ok := queryByKey[qKey]; ok {
@@ -242,6 +270,31 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		}
 		if rawFuncCount != summary.TotalFuncs {
 			diffs = append(diffs, fmt.Sprintf("funcs raw=%d summary=%d", rawFuncCount, summary.TotalFuncs))
+		}
+		expectedRoles := summarizeRoleCounts(raw.reads, raw.writes, raw.execs)
+		if strings.TrimSpace(summary.Roles) != expectedRoles {
+			diffs = append(diffs, fmt.Sprintf("roles raw=%s summary=%s", expectedRoles, summary.Roles))
+		}
+		expectedPseudoKind := strings.TrimSpace(defaultPseudoKind(raw.pseudoKind))
+		if raw.isPseudo != summary.IsPseudoObject {
+			diffs = append(diffs, fmt.Sprintf("pseudo raw=%t summary=%t", raw.isPseudo, summary.IsPseudoObject))
+		} else if raw.isPseudo {
+			if strings.TrimSpace(summary.PseudoKind) == "" {
+				summary.PseudoKind = "unknown"
+			}
+			if expectedPseudoKind == "" {
+				expectedPseudoKind = "unknown"
+			}
+			if !strings.EqualFold(expectedPseudoKind, strings.TrimSpace(summary.PseudoKind)) {
+				diffs = append(diffs, fmt.Sprintf("pseudoKind raw=%s summary=%s", expectedPseudoKind, summary.PseudoKind))
+			}
+		}
+		if raw.hasCross != summary.HasCrossDb {
+			diffs = append(diffs, fmt.Sprintf("crossdb raw=%t summary=%t", raw.hasCross, summary.HasCrossDb))
+		}
+		expectedDbList := strings.Join(setToSortedSlice(raw.dbSet), ";")
+		if strings.TrimSpace(summary.DbList) != expectedDbList {
+			diffs = append(diffs, fmt.Sprintf("dbList raw=%s summary=%s", expectedDbList, summary.DbList))
 		}
 		if len(diffs) > 0 {
 			mismatches = append(mismatches, fmt.Sprintf("object %s mismatch: %s", baseName, strings.Join(diffs, "; ")))
@@ -321,8 +374,10 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		if col, ok := idx["TotalObjects"]; ok {
 			row.TotalObjects = parseInt(rec[col])
 		}
-		if col, ok := idx["TopObjects"]; ok {
-			row.TopObjects = rec[col]
+		if col, ok := idx["ObjectsUsed"]; ok {
+			row.ObjectsUsed = rec[col]
+		} else if col, ok := idx["TopObjects"]; ok {
+			row.ObjectsUsed = rec[col]
 		}
 		if col, ok := idx["HasCrossDb"]; ok {
 			row.HasCrossDb = parseBool(rec[col])
