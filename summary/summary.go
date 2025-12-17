@@ -18,6 +18,7 @@ type QueryRow struct {
 	File       string
 	SourceCat  string
 	SourceKind string
+	CallSite   string
 	Func       string
 	RawSql     string
 	SqlClean   string
@@ -142,6 +143,7 @@ func LoadQueryUsage(path string) ([]QueryRow, error) {
 			File:       rec[idx["File"]],
 			SourceCat:  pick(rec, idx, "SourceCategory"),
 			SourceKind: pick(rec, idx, "SourceKind"),
+			CallSite:   pick(rec, idx, "CallSiteKind"),
 			RawSql:     pick(rec, idx, "RawSql"),
 			SqlClean:   pick(rec, idx, "SqlClean"),
 			Func:       rec[idx["Func"]],
@@ -667,13 +669,7 @@ func dynamicSignature(q QueryRow) string {
 	if q.LineStart == 0 {
 		return ""
 	}
-	callKind := strings.TrimSpace(q.SourceKind)
-	if callKind == "" {
-		callKind = strings.TrimSpace(q.SourceCat)
-	}
-	if callKind == "" {
-		callKind = strings.TrimSpace(q.UsageKind)
-	}
+	callKind := callSiteKind(q)
 	if callKind == "" {
 		callKind = "unknown"
 	}
@@ -693,6 +689,34 @@ func dynamicSignature(q QueryRow) string {
 type dynamicSignatureInfo struct {
 	count       int
 	exampleHash string
+}
+
+func callSiteKind(q QueryRow) string {
+	candidates := []string{q.CallSite, q.SourceKind, q.SourceCat, q.UsageKind}
+	for _, cand := range candidates {
+		normalized := canonicalCallSiteKind(cand)
+		if normalized != "" {
+			return normalized
+		}
+	}
+	return ""
+}
+
+func canonicalCallSiteKind(kind string) string {
+	trimmed := strings.TrimSpace(kind)
+	if trimmed == "" {
+		return ""
+	}
+	switch strings.ToLower(trimmed) {
+	case "execproc", "exec-proc", "exec":
+		return "ExecProc"
+	case "commandtext", "command-text":
+		return "CommandText"
+	case "sqlcommand", "sql-command":
+		return "SqlCommand"
+	default:
+		return trimmed
+	}
 }
 
 func summarizeDynamicSignatures(counts map[string]dynamicSignatureInfo) string {

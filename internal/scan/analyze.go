@@ -156,6 +156,12 @@ func analyzeCandidate(c *SqlCandidate) {
 		c.Objects = []ObjectToken{tok}
 	}
 
+	if strings.TrimSpace(c.CallSiteKind) == "" {
+		c.CallSiteKind = canonicalCallSiteKind(c.SourceKind)
+	} else {
+		c.CallSiteKind = canonicalCallSiteKind(c.CallSiteKind)
+	}
+
 	updateCrossDbMetadata(c)
 
 	hashInput := c.SqlClean
@@ -1339,6 +1345,23 @@ func defaultPseudoKind(kind string) string {
 		return "unknown"
 	}
 	return k
+}
+
+func canonicalCallSiteKind(kind string) string {
+	trimmed := strings.TrimSpace(kind)
+	if trimmed == "" {
+		return ""
+	}
+	switch strings.ToLower(trimmed) {
+	case "execproc", "exec-proc", "exec":
+		return "ExecProc"
+	case "commandtext", "command-text":
+		return "CommandText"
+	case "sqlcommand", "sql-command":
+		return "SqlCommand"
+	default:
+		return trimmed
+	}
 }
 
 func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {

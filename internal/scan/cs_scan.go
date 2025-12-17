@@ -116,27 +116,28 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	var cands []SqlCandidate
 
 	type pat struct {
-		re          *regexp.Regexp
-		execStub    bool
-		dynamic     bool
-		sqlArgIndex int
+		re           *regexp.Regexp
+		execStub     bool
+		dynamic      bool
+		sqlArgIndex  int
+		callSiteKind string
 	}
 	patterns := []pat{
-		{regexes.execProcLit, true, false, 0},
-		{regexes.execProcDyn, true, true, 0},
-		{regexes.newCmd, false, false, 0},
-		{regexes.newCmdIdent, false, false, 0},
-		{regexes.dapperQuery, false, false, 0},
-		{regexes.dapperExec, false, false, 0},
-		{regexes.efFromSql, false, false, 0},
-		{regexes.efExecRaw, false, false, 0},
-		{regexes.execQuery, false, false, 1},       // ExecuteQuery(conn, "SQL")
-		{regexes.execQueryIdent, false, false, 1},  // ExecuteQuery(conn, variable)
-		{regexes.byQueryCall, false, false, 1},     // InsertXByQuery(data, sql)
-		{regexes.callQueryWsLit, false, false, 2},  // CallQueryFromWs with literal SQL
-		{regexes.callQueryWsDyn, false, true, 2},   // CallQueryFromWs with dynamic SQL expression
-		{regexes.commandTextLit, false, false, -1}, // CommandText = "ProcName"
-		{regexes.commandTextIdent, false, false, -1},
+		{regexes.execProcLit, true, false, 0, "ExecProc"},
+		{regexes.execProcDyn, true, true, 0, "ExecProc"},
+		{regexes.newCmd, false, false, 0, "SqlCommand"},
+		{regexes.newCmdIdent, false, false, 0, "SqlCommand"},
+		{regexes.dapperQuery, false, false, 0, "CommandText"},
+		{regexes.dapperExec, false, false, 0, "CommandText"},
+		{regexes.efFromSql, false, false, 0, "CommandText"},
+		{regexes.efExecRaw, false, false, 0, "CommandText"},
+		{regexes.execQuery, false, false, 1, "CommandText"},       // ExecuteQuery(conn, "SQL")
+		{regexes.execQueryIdent, false, false, 1, "CommandText"},  // ExecuteQuery(conn, variable)
+		{regexes.byQueryCall, false, false, 1, "CommandText"},     // InsertXByQuery(data, sql)
+		{regexes.callQueryWsLit, false, false, 2, "CommandText"},  // CallQueryFromWs with literal SQL
+		{regexes.callQueryWsDyn, false, true, 2, "CommandText"},   // CallQueryFromWs with dynamic SQL expression
+		{regexes.commandTextLit, false, false, -1, "CommandText"}, // CommandText = "ProcName"
+		{regexes.commandTextIdent, false, false, -1, "CommandText"},
 	}
 
 	unquoteIfQuoted := func(s string) (string, bool) {
@@ -413,21 +414,22 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 
 			cand := SqlCandidate{
-				AppName:     cfg.AppName,
-				RelPath:     relPath,
-				File:        filepath.Base(path),
-				SourceCat:   "code",
-				SourceKind:  "csharp",
-				LineStart:   lineStart,
-				LineEnd:     lineEnd,
-				Func:        funcName,
-				RawSql:      raw,
-				IsDynamic:   isDyn,
-				IsExecStub:  isExecStub,
-				ConnName:    connName,
-				ConnDb:      "",
-				DefinedPath: defPath,
-				DefinedLine: defLine,
+				AppName:      cfg.AppName,
+				RelPath:      relPath,
+				File:         filepath.Base(path),
+				SourceCat:    "code",
+				SourceKind:   "csharp",
+				CallSiteKind: canonicalCallSiteKind(p.callSiteKind),
+				LineStart:    lineStart,
+				LineEnd:      lineEnd,
+				Func:         funcName,
+				RawSql:       raw,
+				IsDynamic:    isDyn,
+				IsExecStub:   isExecStub,
+				ConnName:     connName,
+				ConnDb:       "",
+				DefinedPath:  defPath,
+				DefinedLine:  defLine,
 			}
 			cands = append(cands, cand)
 		}
