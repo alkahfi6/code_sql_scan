@@ -631,10 +631,21 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 		dynamic = dynamic || dyn
 
 		if m.kind == "assign" {
-			fragments = fragments[:0]
 			if frag != "" {
-				fragments = append(fragments, frag)
+				fragments = []string{frag}
+				dynamic = dynamic || dyn
+				continue
 			}
+
+			trimmedExpr := strings.TrimSpace(expr)
+			if strings.Contains(trimmedExpr, varName) {
+				// Preserve prior fragments when the assignment rewrites the same variable (e.g., Replace). If
+				// we fail to parse the new expression, fallback to previously collected SQL parts.
+				dynamic = dynamic || dyn
+				continue
+			}
+
+			fragments = fragments[:0]
 			continue
 		}
 
