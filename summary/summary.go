@@ -66,7 +66,7 @@ type FunctionSummaryRow struct {
 	DynamicSig    string
 	TotalWrite    int
 	TotalObjects  int
-	TopObjects    string
+	ObjectsUsed   string
 	HasCrossDb    bool
 	DbList        string
 	LineStart     int
@@ -230,11 +230,12 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 }
 
 func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSummaryRow, error) {
+	normQueries := normalizeQueryFuncs(queries)
 	grouped := make(map[string][]QueryRow)
 	hashByFunc := make(map[string]map[string]struct{})
 	queryByKey := make(map[string]QueryRow)
 
-	for _, q := range queries {
+	for _, q := range normQueries {
 		key := functionKey(q.AppName, q.RelPath, q.File, q.Func)
 		grouped[key] = append(grouped[key], q)
 		if _, ok := hashByFunc[key]; !ok {
@@ -268,7 +269,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		maxLine := 0
 		dbListSet := make(map[string]struct{})
 		objectCounter := make(map[string]*objectRoleCounter)
-		dynamicSigCounts := make(map[string]int)
+		dynamicSigCounts := make(map[string]dynamicSignatureInfo)
 		for _, q := range qRows {
 			switch strings.ToUpper(q.UsageKind) {
 			case "EXEC":
@@ -288,7 +289,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				totalDynamic++
 				sig := dynamicSignature(q)
 				if sig != "" {
-					dynamicSigCounts[sig]++
+					entry := dynamicSigCounts[sig]
+					entry.count++
+					if entry.exampleHash == "" {
+						entry.exampleHash = q.QueryHash
+					}
+					dynamicSigCounts[sig] = entry
 				}
 			}
 			if q.HasCrossDb {
@@ -345,7 +351,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			consumeObj(o)
 		}
 
-		topObjects := buildTopObjectSummary(objectCounter)
+		objectsUsed := buildTopObjectSummary(objectCounter)
 		dbList := setToSortedSlice(dbListSet)
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 
@@ -364,7 +370,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			DynamicSig:    dynamicSig,
 			TotalWrite:    totalWrite,
 			TotalObjects:  len(objSet),
-			TopObjects:    topObjects,
+			ObjectsUsed:   objectsUsed,
 			HasCrossDb:    hasCross,
 			DbList:        strings.Join(dbList, ";"),
 			LineStart:     minLine,
@@ -387,22 +393,22 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 }
 
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
+	normQueries := normalizeQueryFuncs(queries)
+	queryByKey := make(map[string]QueryRow)
+	for _, q := range normQueries {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
+
 	grouped := make(map[string][]ObjectRow)
 	for _, o := range objects {
 		key := strings.TrimSpace(o.BaseName)
 		grouped[key] = append(grouped[key], o)
 	}
 
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range queries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
-
 	var result []ObjectSummaryRow
 	for base, objs := range grouped {
 		baseName := strings.TrimSpace(base)
 		funcSet := make(map[string]struct{})
-		roleSet := make(map[string]struct{})
 		totalReads := 0
 		totalWrites := 0
 		totalExec := 0
@@ -415,10 +421,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		fullNames := make(map[string]struct{})
 
 		for _, o := range objs {
-			role := strings.TrimSpace(o.Role)
-			if role != "" {
-				roleSet[role] = struct{}{}
-			}
 			upperDml := strings.ToUpper(o.DmlKind)
 			isWrite := o.IsWrite || isWriteDml(upperDml)
 			isRead := (!isWrite && upperDml == "SELECT") || strings.EqualFold(o.Role, "source")
@@ -455,7 +457,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			pseudoKind = "unknown"
 		}
 
-		roles := setToSortedSlice(roleSet)
 		usedIn := setToSortedSlice(funcSet)
 		fullNameList := setToSortedSlice(fullNames)
 		dbList := setToSortedSlice(dbSet)
@@ -464,10 +465,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			exampleFuncs = exampleFuncs[:5]
 		}
 
-		roleSummary := fmt.Sprintf("read=%d; write=%d; exec=%d", totalReads, totalWrites, totalExec)
-		if len(roles) > 0 {
-			roleSummary = strings.Join([]string{roleSummary, strings.Join(roles, ";")}, "; ")
-		}
+		roleSummary := summarizeRoleCounts(totalReads, totalWrites, totalExec)
 
 		result = append(result, ObjectSummaryRow{
 			AppName:        objs[0].AppName,
@@ -677,17 +675,23 @@ func dynamicSignature(q QueryRow) string {
 	return fmt.Sprintf("%s@%d", strings.Join(parts, "|"), q.LineStart)
 }
 
-func summarizeDynamicSignatures(counts map[string]int) string {
+type dynamicSignatureInfo struct {
+	count       int
+	exampleHash string
+}
+
+func summarizeDynamicSignatures(counts map[string]dynamicSignatureInfo) string {
 	if len(counts) == 0 {
 		return ""
 	}
 	type sigCount struct {
-		key   string
-		count int
+		key     string
+		count   int
+		example string
 	}
 	list := make([]sigCount, 0, len(counts))
-	for key, count := range counts {
-		list = append(list, sigCount{key: key, count: count})
+	for key, info := range counts {
+		list = append(list, sigCount{key: key, count: info.count, example: info.exampleHash})
 	}
 	sort.Slice(list, func(i, j int) bool {
 		if list[i].count != list[j].count {
@@ -700,7 +704,12 @@ func summarizeDynamicSignatures(counts map[string]int) string {
 	}
 	parts := make([]string, 0, len(list))
 	for _, item := range list {
-		parts = append(parts, fmt.Sprintf("%s:%d", item.key, item.count))
+		example := strings.TrimSpace(item.example)
+		if example != "" {
+			parts = append(parts, fmt.Sprintf("%s x%d (example=%s)", item.key, item.count, example))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s x%d", item.key, item.count))
 	}
 	return strings.Join(parts, ";")
 }
@@ -737,6 +746,10 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 		parts = append(parts, fmt.Sprintf("%s(%s)", t.name, t.role))
 	}
 	return strings.Join(parts, ";")
+}
+
+func summarizeRoleCounts(reads, writes, execs int) string {
+	return fmt.Sprintf("read=%d; write=%d; exec=%d", reads, writes, execs)
 }
 
 func buildTopObjects(stats map[string]*objectRoleCounter) string {
@@ -889,7 +902,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "TopObjects", "HasCrossDb", "DbList"}
+	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "ObjectsUsed", "HasCrossDb", "DbList"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -911,7 +924,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalDynamic),
 			r.DynamicSig,
 			fmt.Sprintf("%d", r.TotalObjects),
-			r.TopObjects,
+			r.ObjectsUsed,
 			boolToStr(r.HasCrossDb),
 			r.DbList,
 		}
@@ -1052,6 +1065,33 @@ func setToSortedSlice(m map[string]struct{}) []string {
 	}
 	sort.Strings(res)
 	return res
+}
+
+func normalizeQueryFuncs(queries []QueryRow) []QueryRow {
+	if len(queries) == 0 {
+		return nil
+	}
+	res := make([]QueryRow, len(queries))
+	for i, q := range queries {
+		q.Func = resolveFuncName(q.Func, q.RelPath, q.LineStart)
+		res[i] = q
+	}
+	return res
+}
+
+func resolveFuncName(raw, rel string, line int) string {
+	name := strings.TrimSpace(raw)
+	if name != "" && !strings.EqualFold(name, "<unknown-func>") {
+		return name
+	}
+	anchor := strings.TrimSpace(rel)
+	if anchor == "" {
+		anchor = "<file-scope>"
+	}
+	if line <= 0 {
+		return fmt.Sprintf("%s@L?", anchor)
+	}
+	return fmt.Sprintf("%s@L%d", anchor, line)
 }
 
 func functionKey(app, rel, file, fn string) string {

@@ -21,11 +21,11 @@ type funcSummaryRow struct {
 }
 
 type objSummaryRow struct {
-	BaseName        string
-	UsedInFuncs     string
-	Roles           string
-	IsDynamicObject bool
-	DynamicKind     string
+	BaseName     string
+	ExampleFuncs string
+	Roles        string
+	IsPseudo     bool
+	PseudoKind   string
 }
 
 func TestDotnetSummaryQuality(t *testing.T) {
@@ -64,11 +64,11 @@ func TestDotnetSummaryQuality(t *testing.T) {
 	if dyn == nil {
 		t.Fatalf("expected dynamic-sql pseudo object to exist")
 	}
-	if !dyn.IsDynamicObject || dyn.DynamicKind == "" {
+	if !dyn.IsPseudo || dyn.PseudoKind == "" {
 		t.Fatalf("dynamic pseudo object flags not set properly: %+v", dyn)
 	}
-	if !strings.Contains(strings.ToLower(dyn.UsedInFuncs), "subpopulategridmain") {
-		t.Fatalf("dynamic pseudo object should reference subPopulateGridMain, got %s", dyn.UsedInFuncs)
+	if !strings.Contains(strings.ToLower(dyn.ExampleFuncs), "subpopulategridmain") {
+		t.Fatalf("dynamic pseudo object should reference subPopulateGridMain, got %s", dyn.ExampleFuncs)
 	}
 }
 
@@ -102,8 +102,19 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 	}
 	defer f.Close()
 	r := csv.NewReader(f)
-	if _, err := r.Read(); err != nil {
+	header, err := r.Read()
+	if err != nil {
 		t.Fatalf("read header: %v", err)
+	}
+	idx := make(map[string]int)
+	for i, h := range header {
+		idx[h] = i
+	}
+	required := []string{"Func", "RelPath", "TotalExec", "TotalWrite", "TotalDynamic", "ObjectsUsed"}
+	for _, req := range required {
+		if _, ok := idx[req]; !ok {
+			t.Fatalf("function summary missing column %s", req)
+		}
 	}
 	var rows []funcSummaryRow
 	for {
@@ -115,12 +126,12 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 			t.Fatalf("read record: %v", err)
 		}
 		rows = append(rows, funcSummaryRow{
-			Func:         rec[3],
-			RelPath:      rec[1],
-			TotalExec:    atoi(rec[5]),
-			TotalWrite:   atoi(rec[12]),
-			TotalDynamic: atoi(rec[11]),
-			ObjectsUsed:  rec[14],
+			Func:         rec[idx["Func"]],
+			RelPath:      rec[idx["RelPath"]],
+			TotalExec:    atoi(rec[idx["TotalExec"]]),
+			TotalWrite:   atoi(rec[idx["TotalWrite"]]),
+			TotalDynamic: atoi(rec[idx["TotalDynamic"]]),
+			ObjectsUsed:  rec[idx["ObjectsUsed"]],
 		})
 	}
 	return rows
@@ -134,8 +145,19 @@ func loadObjectSummary(t *testing.T, path string) []objSummaryRow {
 	}
 	defer f.Close()
 	r := csv.NewReader(f)
-	if _, err := r.Read(); err != nil {
+	header, err := r.Read()
+	if err != nil {
 		t.Fatalf("read header: %v", err)
+	}
+	idx := make(map[string]int)
+	for i, h := range header {
+		idx[h] = i
+	}
+	required := []string{"BaseName", "ExampleFuncs", "Roles", "IsPseudoObject", "PseudoKind"}
+	for _, req := range required {
+		if _, ok := idx[req]; !ok {
+			t.Fatalf("object summary missing column %s", req)
+		}
 	}
 	var rows []objSummaryRow
 	for {
@@ -147,11 +169,11 @@ func loadObjectSummary(t *testing.T, path string) []objSummaryRow {
 			t.Fatalf("read record: %v", err)
 		}
 		rows = append(rows, objSummaryRow{
-			BaseName:        rec[6],
-			UsedInFuncs:     rec[7],
-			Roles:           rec[9],
-			IsDynamicObject: strings.EqualFold(rec[13], "true"),
-			DynamicKind:     rec[14],
+			BaseName:     rec[idx["BaseName"]],
+			ExampleFuncs: rec[idx["ExampleFuncs"]],
+			Roles:        rec[idx["Roles"]],
+			IsPseudo:     strings.EqualFold(rec[idx["IsPseudoObject"]], "true"),
+			PseudoKind:   rec[idx["PseudoKind"]],
 		})
 	}
 	return rows
