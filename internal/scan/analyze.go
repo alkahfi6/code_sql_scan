@@ -84,6 +84,15 @@ func paramsOnly(s string) bool {
 	return true
 }
 
+func normalizeSqlWhitespace(sql string) string {
+	if sql == "" {
+		return ""
+	}
+	sql = strings.ReplaceAll(sql, "\r", "\n")
+	parts := strings.Fields(sql)
+	return strings.Join(parts, " ")
+}
+
 func analyzeCandidate(c *SqlCandidate) {
 	if !c.IsDynamic {
 		raw := c.RawSql
@@ -92,7 +101,7 @@ func analyzeCandidate(c *SqlCandidate) {
 		}
 	}
 	sqlClean := StripSqlComments(c.RawSql)
-	sqlClean = strings.TrimSpace(sqlClean)
+	sqlClean = normalizeSqlWhitespace(sqlClean)
 	c.SqlClean = sqlClean
 
 	// Attempt to map ConnName to default database via shared connection registry.

@@ -90,7 +90,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			continue
 		}
 		name := cleanedGroup(clean, m, 1)
-		val := cleanedGroup(clean, m, 2)
+		val := decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), true)
 		recordLiteral(funcName, name, val, line)
 	}
 	for i, line := range lines {
@@ -102,14 +102,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			continue
 		}
 		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], m[2], i+1)
+			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1)
 			continue
 		}
 		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
 			continue
 		}
 		if m := regexes.bareAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], m[2], i+1)
+			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1)
 		}
 	}
 
@@ -222,10 +222,10 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 			switch p.re {
 			case regexes.newCmd:
-				// group1 = SQL, group2 = conn
-				raw = cleanedGroup(clean, m, 1)
+				// group1 = verbatim flag, group2 = SQL, group3 = conn
+				raw = decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), cleanedGroup(clean, m, 1) == "@")
 				rawLiteral = true
-				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 3))
 			case regexes.newCmdIdent:
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
@@ -239,15 +239,17 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 						isDyn = true
 					}
 				}
-			case regexes.execProcLit, regexes.execProcDyn:
-				// group1 = conn, group2 = arg (SP literal or expr)
+			case regexes.execProcLit:
+				// group1 = conn, group2 = verbatim flag, group3 = arg (SP literal or expr)
+				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 3))
+				raw = decodeCSharpLiteralContent(rawArg, cleanedGroup(clean, m, 2) == "@")
+				rawLiteral = true
+			case regexes.execProcDyn:
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
-				if p.re == regexes.execProcLit {
-					rawLiteral = true
-				}
-				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
+				if funcName != "" && regexes.identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
 						raw = lit.Value
 						isDyn = false
@@ -297,13 +299,17 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				rawLiteral = false
 			case regexes.callQueryWsLit, regexes.callQueryWsDyn:
 				// group1 = SQL or expression
-				raw = cleanedGroup(clean, m, 1)
+				if p.re == regexes.callQueryWsLit {
+					raw = decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), cleanedGroup(clean, m, 1) == "@")
+				} else {
+					raw = cleanedGroup(clean, m, 1)
+				}
 				if p.re == regexes.callQueryWsLit {
 					rawLiteral = true
 				}
 			default:
 				// Dapper / EF / ExecuteQuery / CommandText: group1 = SQL
-				raw = cleanedGroup(clean, m, 1)
+				raw = decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), cleanedGroup(clean, m, 1) == "@")
 				rawLiteral = true
 				if p.re == regexes.commandTextIdent {
 					expr := strings.TrimSpace(raw)
@@ -373,13 +379,16 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					ctxEnd = len(lines)
 				}
 				ctxText = strings.Join(lines[ctxStart:ctxEnd], "\n")
+				ctxText = StripCodeCommentsCStyle(ctxText, true)
+				methodTextClean := StripCodeCommentsCStyle(methodText, true)
+				cleanRawExpr := StripCodeCommentsCStyle(rawExpr, true)
 
-				skel, dyn, _ := BuildSqlSkeletonFromCSharpExpr(rawExpr)
+				skel, dyn, _ := BuildSqlSkeletonFromCSharpExpr(cleanRawExpr)
 				if skel == "" && ctxText != "" {
 					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(ctxText)
 				}
-				if skel == "" && methodText != "" {
-					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(methodText)
+				if skel == "" && methodTextClean != "" {
+					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(methodTextClean)
 				}
 				if skel != "" && detectUsageKind(false, skel) != "UNKNOWN" {
 					raw = skel
@@ -449,6 +458,20 @@ func cleanedGroup(s string, idxs []int, groupNumber int) string {
 		return ""
 	}
 	return s[start:end]
+}
+
+func decodeCSharpLiteralContent(val string, verbatim bool) string {
+	if val == "" {
+		return ""
+	}
+	if verbatim {
+		return strings.ReplaceAll(val, `""`, `"`)
+	}
+	wrapped := `"` + val + `"`
+	if decoded, _, ok := parseCSharpStringLiteral(wrapped, 0); ok {
+		return decoded
+	}
+	return val
 }
 
 type methodRange struct {
