@@ -648,6 +648,21 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 		}
 
 		frag, dyn := extractSqlFragmentFromCSharpExpr(expr)
+		if frag == "" {
+			if base, fromLit, toLit, hasFrom, hasTo, ok := parseReplaceExpression(expr); ok && !strings.EqualFold(base, varName) {
+				if sql, innerDyn := rebuildCSharpVariableSql(methodText, base); sql != "" {
+					frag = sql
+					dyn = dyn || innerDyn
+					if hasFrom {
+						if hasTo {
+							frag = strings.ReplaceAll(frag, fromLit, toLit)
+						} else {
+							dyn = true
+						}
+					}
+				}
+			}
+		}
 		trimmedExpr := strings.TrimSpace(expr)
 		if frag == "" && trimmedExpr != "" && !strings.EqualFold(trimmedExpr, varName) {
 			if regexes.identRe.MatchString(trimmedExpr) {
@@ -760,4 +775,32 @@ func extractSqlFragmentFromCSharpExpr(expr string) (string, bool) {
 
 	sql, dyn, _ := BuildSqlSkeletonFromCSharpExpr(trimmed)
 	return sql, dyn
+}
+
+func parseReplaceExpression(expr string) (base string, fromLit string, toLit string, hasFrom bool, hasTo bool, ok bool) {
+	trimmed := strings.TrimSpace(expr)
+	if trimmed == "" {
+		return
+	}
+	lower := strings.ToLower(trimmed)
+	idx := strings.Index(lower, ".replace")
+	if idx <= 0 {
+		return
+	}
+
+	base = strings.TrimSpace(trimmed[:idx])
+	base = strings.Trim(base, "()")
+	if base == "" {
+		return
+	}
+
+	args := extractCSharpArgs(trimmed, idx)
+	if len(args) < 2 {
+		return
+	}
+
+	from, fromOk := extractPureStringLiteral(args[0])
+	to, toOk := extractPureStringLiteral(args[1])
+
+	return base, from, to, fromOk, toOk, true
 }
