@@ -30,24 +30,25 @@ type staticSet struct {
 }
 
 type SqlCandidate struct {
-	AppName     string
-	RelPath     string
-	File        string
-	SourceCat   string // code / config / script
-	SourceKind  string // go / csharp / xml / yaml / json / sql
-	LineStart   int
-	LineEnd     int
-	Func        string
-	RawSql      string
-	SqlClean    string
-	UsageKind   string // SELECT/INSERT/UPDATE/DELETE/TRUNCATE/EXEC/UNKNOWN
-	IsWrite     bool
-	IsDynamic   bool
-	IsExecStub  bool
-	ConnName    string
-	ConnDb      string
-	DefinedPath string
-	DefinedLine int
+	AppName      string
+	RelPath      string
+	File         string
+	SourceCat    string // code / config / script
+	SourceKind   string // go / csharp / xml / yaml / json / sql
+	CallSiteKind string
+	LineStart    int
+	LineEnd      int
+	Func         string
+	RawSql       string
+	SqlClean     string
+	UsageKind    string // SELECT/INSERT/UPDATE/DELETE/TRUNCATE/EXEC/UNKNOWN
+	IsWrite      bool
+	IsDynamic    bool
+	IsExecStub   bool
+	ConnName     string
+	ConnDb       string
+	DefinedPath  string
+	DefinedLine  int
 	// Analisis objek
 	HasCrossDb bool
 	DbList     []string
@@ -76,28 +77,29 @@ type ObjectToken struct {
 
 // QueryUsageRow represents one CSV row for query usage output.
 type QueryUsageRow struct {
-	AppName     string
-	RelPath     string
-	File        string
-	SourceCat   string
-	SourceKind  string
-	LineStart   int
-	LineEnd     int
-	Func        string
-	RawSql      string
-	SqlClean    string
-	UsageKind   string
-	IsWrite     bool
-	HasCrossDb  bool
-	DbList      string
-	ObjectCount int
-	IsDynamic   bool
-	ConnName    string
-	ConnDb      string
-	QueryHash   string
-	RiskLevel   string
-	DefinedPath string
-	DefinedLine int
+	AppName      string
+	RelPath      string
+	File         string
+	SourceCat    string
+	SourceKind   string
+	CallSiteKind string
+	LineStart    int
+	LineEnd      int
+	Func         string
+	RawSql       string
+	SqlClean     string
+	UsageKind    string
+	IsWrite      bool
+	HasCrossDb   bool
+	DbList       string
+	ObjectCount  int
+	IsDynamic    bool
+	ConnName     string
+	ConnDb       string
+	QueryHash    string
+	RiskLevel    string
+	DefinedPath  string
+	DefinedLine  int
 }
 
 // ObjectUsageRow represents one CSV row for object usage output.

@@ -29,7 +29,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	ow := csv.NewWriter(of)
 
 	qHeader := []string{
-		"AppName", "RelPath", "File", "SourceCategory", "SourceKind",
+		"AppName", "RelPath", "File", "SourceCategory", "SourceKind", "CallSiteKind",
 		"LineStart", "LineEnd", "Func", "RawSql", "SqlClean",
 		"UsageKind", "IsWrite", "HasCrossDb", "DbList", "ObjectCount",
 		"IsDynamic", "ConnName", "ConnDb", "QueryHash", "RiskLevel",
@@ -59,6 +59,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			c.File,
 			c.SourceCat,
 			c.SourceKind,
+			c.CallSiteKind,
 			fmt.Sprintf("%d", c.LineStart),
 			fmt.Sprintf("%d", c.LineEnd),
 			c.Func,
