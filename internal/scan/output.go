@@ -3,6 +3,7 @@ package scan
 import (
 	"encoding/csv"
 	"fmt"
+	"log"
 	"os"
 	"strings"
 
@@ -203,8 +204,13 @@ func generateSummaries(cfg *Config) error {
 		}
 		if report != nil && report.TotalMismatches() > 0 {
 			examples := report.Examples(3)
+			log.Printf("[ERROR] summary consistency mismatches=%d", report.TotalMismatches())
+			for i, ex := range examples {
+				log.Printf("[ERROR] mismatch #%d: %s", i+1, ex)
+			}
 			return fmt.Errorf("SUMMARY CONSISTENCY FAIL (%d mismatches). Examples: %s", report.TotalMismatches(), strings.Join(examples, "; "))
 		}
+		log.Printf("[INFO] summary consistency check passed")
 	}
 
 	return nil
