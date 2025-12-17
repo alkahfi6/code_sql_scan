@@ -402,7 +402,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 	for base, objs := range grouped {
 		baseName := strings.TrimSpace(base)
 		funcSet := make(map[string]struct{})
-		roleSet := make(map[string]struct{})
 		totalReads := 0
 		totalWrites := 0
 		totalExec := 0
@@ -415,10 +414,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		fullNames := make(map[string]struct{})
 
 		for _, o := range objs {
-			role := strings.TrimSpace(o.Role)
-			if role != "" {
-				roleSet[role] = struct{}{}
-			}
 			upperDml := strings.ToUpper(o.DmlKind)
 			isWrite := o.IsWrite || isWriteDml(upperDml)
 			isRead := (!isWrite && upperDml == "SELECT") || strings.EqualFold(o.Role, "source")
@@ -455,7 +450,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			pseudoKind = "unknown"
 		}
 
-		roles := setToSortedSlice(roleSet)
 		usedIn := setToSortedSlice(funcSet)
 		fullNameList := setToSortedSlice(fullNames)
 		dbList := setToSortedSlice(dbSet)
@@ -465,9 +459,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		}
 
 		roleSummary := fmt.Sprintf("read=%d; write=%d; exec=%d", totalReads, totalWrites, totalExec)
-		if len(roles) > 0 {
-			roleSummary = strings.Join([]string{roleSummary, strings.Join(roles, ";")}, "; ")
-		}
 
 		result = append(result, ObjectSummaryRow{
 			AppName:        objs[0].AppName,
@@ -1218,7 +1209,10 @@ func isDynamicBaseName(base string) bool {
 func pseudoObjectInfo(base string) (bool, string) {
 	trimmed := strings.TrimSpace(base)
 	lower := strings.ToLower(trimmed)
-	if isDynamicBaseName(trimmed) {
+	if strings.HasPrefix(lower, "<dynamic-object") {
+		return true, "dynamic-object"
+	}
+	if lower == "<dynamic-sql>" {
 		return true, "dynamic-sql"
 	}
 	if strings.HasPrefix(lower, "<") && strings.HasSuffix(lower, ">") {
