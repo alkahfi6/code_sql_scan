@@ -421,17 +421,15 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		fullNames := make(map[string]struct{})
 
 		for _, o := range objs {
+			flags := classifyRoles(o)
 			upperDml := strings.ToUpper(o.DmlKind)
-			isWrite := o.IsWrite || isWriteDml(upperDml)
-			isRead := (!isWrite && upperDml == "SELECT") || strings.EqualFold(o.Role, "source")
-			isExec := strings.EqualFold(o.Role, "exec") || upperDml == "EXEC"
-			if isRead {
+			if flags.read {
 				totalReads++
 			}
-			if isWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
+			if flags.write && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
 				totalWrites++
 			}
-			if isExec {
+			if flags.exec {
 				totalExec++
 			}
 			if o.IsCrossDb {
@@ -628,23 +626,40 @@ type objectRoleCounter struct {
 	HasExec    bool
 }
 
-func (c *objectRoleCounter) Register(o ObjectRow) {
-	role := strings.ToLower(strings.TrimSpace(o.Role))
-	isExec := role == "exec" || strings.EqualFold(o.DmlKind, "exec")
-	isWrite := o.IsWrite || isWriteDml(o.DmlKind) || role == "target"
-	isRead := role == "source" || (!isExec && !isWrite)
+type roleFlags struct {
+	read  bool
+	write bool
+	exec  bool
+}
 
-	if isExec {
+func (c *objectRoleCounter) Register(o ObjectRow) {
+	flags := classifyRoles(o)
+
+	if flags.exec {
 		c.HasExec = true
 		c.ExecCount++
 	}
-	if isWrite {
+	if flags.write {
 		c.HasWrite = true
 		c.WriteCount++
 	}
-	if isRead {
+	if flags.read {
 		c.HasRead = true
 		c.ReadCount++
+	}
+}
+
+func classifyRoles(o ObjectRow) roleFlags {
+	role := strings.ToLower(strings.TrimSpace(o.Role))
+	upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
+	isExec := role == "exec" || upperDml == "EXEC"
+	isWrite := (!isExec && (o.IsWrite || isWriteDml(upperDml) || role == "target"))
+	isRead := role == "source" || (!isExec && !isWrite && upperDml == "SELECT")
+
+	return roleFlags{
+		read:  isRead,
+		write: isWrite,
+		exec:  isExec,
 	}
 }
 
@@ -721,16 +736,19 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	type top struct {
 		name  string
 		count int
-		role  string
+		roles []string
 	}
 	tops := make([]top, 0, len(stats))
 	for name, counter := range stats {
-		role := dominantRole(counter)
-		count := roleCount(counter, role)
-		if count == 0 {
-			count = counter.ReadCount + counter.WriteCount + counter.ExecCount
+		roles := collectRoles(counter)
+		if len(roles) == 0 {
+			continue
 		}
-		tops = append(tops, top{name: name, count: count, role: role})
+		count := counter.ReadCount + counter.WriteCount + counter.ExecCount
+		if count == 0 {
+			count = len(roles)
+		}
+		tops = append(tops, top{name: name, count: count, roles: roles})
 	}
 	sort.Slice(tops, func(i, j int) bool {
 		if tops[i].count != tops[j].count {
@@ -743,9 +761,10 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	}
 	parts := make([]string, 0, len(tops))
 	for _, t := range tops {
-		parts = append(parts, fmt.Sprintf("%s(%s)", t.name, t.role))
+		roleLabel := strings.Join(t.roles, "+")
+		parts = append(parts, fmt.Sprintf("%s(%s)", t.name, roleLabel))
 	}
-	return strings.Join(parts, ";")
+	return strings.Join(parts, "; ")
 }
 
 func summarizeRoleCounts(reads, writes, execs int) string {
@@ -876,6 +895,27 @@ func dominantRole(counter *objectRoleCounter) string {
 		return "read"
 	}
 	return "mixed"
+}
+
+func collectRoles(counter *objectRoleCounter) []string {
+	if counter == nil {
+		return nil
+	}
+	ordered := []struct {
+		name string
+		has  bool
+	}{
+		{"exec", counter.HasExec},
+		{"write", counter.HasWrite},
+		{"read", counter.HasRead},
+	}
+	roles := []string{}
+	for _, entry := range ordered {
+		if entry.has {
+			roles = append(roles, entry.name)
+		}
+	}
+	return roles
 }
 
 func roleCount(counter *objectRoleCounter, role string) int {
@@ -1302,7 +1342,7 @@ func defaultPseudoKind(kind string) string {
 
 func isWriteDml(dml string) bool {
 	switch strings.ToUpper(strings.TrimSpace(dml)) {
-	case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
 		return true
 	default:
 		return false
