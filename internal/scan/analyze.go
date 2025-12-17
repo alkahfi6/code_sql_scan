@@ -892,6 +892,31 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			}
 		}
 	}
+	if usageKind == "DELETE" {
+		targetKeys := make(map[string]struct{})
+		for i := range tokens {
+			if strings.EqualFold(tokens[i].Role, "target") {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				targetKeys[key] = struct{}{}
+			}
+		}
+		if len(targetKeys) > 0 {
+			for i := range tokens {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				if _, ok := targetKeys[key]; ok {
+					tokens[i].Role = "target"
+					tokens[i].DmlKind = "DELETE"
+					tokens[i].IsWrite = true
+				}
+			}
+		}
+	}
 	// Mark dynamic object names
 	for i := range tokens {
 		full := tokens[i].FullName
