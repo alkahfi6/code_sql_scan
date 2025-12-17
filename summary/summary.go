@@ -664,7 +664,17 @@ func dynamicSignature(q QueryRow) string {
 	if callKind == "" {
 		callKind = "unknown"
 	}
-	return fmt.Sprintf("%s@%d", callKind, q.LineStart)
+	relPath := strings.TrimSpace(q.RelPath)
+	funcName := strings.TrimSpace(q.Func)
+	parts := []string{}
+	if relPath != "" {
+		parts = append(parts, relPath)
+	}
+	if funcName != "" {
+		parts = append(parts, funcName)
+	}
+	parts = append(parts, callKind)
+	return fmt.Sprintf("%s@%d", strings.Join(parts, "|"), q.LineStart)
 }
 
 func summarizeDynamicSignatures(counts map[string]int) string {

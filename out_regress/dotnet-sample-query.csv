@@ -596,470 +596,6 @@ DELETE FROM dbo.[[paramTableName]] TRUNCATE TABLE dbo.[[paramTableName]]
 20240508, darul.wahid, HTR - 214, end INSERT INTO dbo.[[paramTableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR ) SELECT branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR FROM #tmpResult",INSERT,true,false,,5,true,this._connSibs,,9e03aa7310d4170486c77d1e0f6c3bc7d7f90bc5,HIGH,clsValasService.cs,1451
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1478,1501,InsertValasTransactionByQuery,Insert Transaction: <expr>,Insert Transaction: <expr>,INSERT,true,false,,1,true,,,d7e2662652f93cbb3c04ed10cd6b7e826bf60ee4,HIGH,clsValasService.cs,1478
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1511,1511,InsertValasTransactionByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
---20240508, darul.wahid, HTR - 214, begin
-                    --DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
---20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
-
-20240508, darul.wahid, HTR - 214, begin
-                    
-DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
-
-20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans",INSERT,true,false,,5,true,this._connSFX,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,1511
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1517,1517,InsertValasTransactionByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
---20240508, darul.wahid, HTR - 214, begin
-                    --DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
---20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
-
-20240508, darul.wahid, HTR - 214, begin
-                    
-DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
-
-20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans",INSERT,true,false,,5,true,this._connObli,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,1517
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1523,1523,InsertValasTransactionByQuery,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
 
@@ -1173,460 +709,16 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1523,1523,Insert
 , ProcessTime	    DATETIME
                         , strProcessTime	VARCHAR(50)	                    
                         , InUSDJISDOR	    MONEY    	          			
-                    )",INSERT,true,false,,3,false,this._connSibs,,f725108dc3feabc369b1e36afe03ef0a8814bcc1,MEDIUM,clsValasService.cs,1523
+                    )",INSERT,true,false,,3,false,this._connSFX,,f725108dc3feabc369b1e36afe03ef0a8814bcc1,MEDIUM,clsValasService.cs,1511
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1517,1517,InsertValasTransactionByQuery," TRUNCATE TABLE dbo.VLSSummary_TM  ",TRUNCATE TABLE dbo.VLSSummary_TM,TRUNCATE,true,false,,1,false,this._connObli,,47438f4e398931c3034da9776312d165c92c5d5a,MEDIUM,clsValasService.cs,1517
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1523,1523,InsertValasTransactionByQuery,"
+                    IF NOT EXISTS (
+		                    SELECT TOP 1 1 
+		                    FROM dbo.","IF NOT EXISTS (
+		                    SELECT TOP 1 1 
+		                    FROM dbo.",EXEC,true,false,,1,false,this._connSibs,,cffa614781734afe8a403fee0af2eaf8932ca5d6,MEDIUM,clsValasService.cs,1523
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1549,1572,InsertValasSummaryByQuery,Insert Summary: <expr>,Insert Summary: <expr>,INSERT,true,false,,1,true,,,d6ead547a59c22e6415b37830d6e0fb7669b7e4a,HIGH,clsValasService.cs,1549
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1582,1582,InsertValasSummaryByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )",INSERT,true,false,,3,false,this._connSFX,,c6372f474c88b23ed007fb1d1c8a0b3793056033,MEDIUM,clsValasService.cs,1582
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1588,1588,InsertValasSummaryByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          BIT
-                        , buy_sell_code     CHAR(1)
-                        , product           VARCHAR(50)
-                        , in_usd_before     MONEY
-                        , in_usd_total      MONEY
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        --20251120, darul.wahid, end
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          
-                        , buy_sell_code     
-                        , product           
-                        , in_usd_before     
-                        , in_usd_total      
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            
-                        --20251120, darul.wahid, end
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')   
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          
-                        , BuySellCode     
-                        , Product           
-                        , inUSDBefore     
-                        , inUSDTotal      
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            
-                        --20251120, darul.wahid, end
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          BIT
-                        , BuySellCode      CHAR(1)
-                        , Product          VARCHAR(50)
-                        , inUSDBefore      MONEY
-                        , inUSDTotal       MONEY
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        --20251120, darul.wahid, end
-                    )  
-                    
-                    DELETE #tmpTrans
-                    WHERE amount < 0
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          BIT
-                        , buy_sell_code     CHAR(1)
-                        , product           VARCHAR(50)
-                        , in_usd_before     MONEY
-                        , in_usd_total      MONEY
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        
-20251120, darul.wahid, end
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          
-                        , buy_sell_code     
-                        , product           
-                        , in_usd_before     
-                        , in_usd_total      
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            
-                        
-20251120, darul.wahid, end
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')   
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          
-                        , BuySellCode     
-                        , Product           
-                        , inUSDBefore     
-                        , inUSDTotal      
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            
-                        
-20251120, darul.wahid, end
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          BIT
-                        , BuySellCode      CHAR(1)
-                        , Product          VARCHAR(50)
-                        , inUSDBefore      MONEY
-                        , inUSDTotal       MONEY
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        
-20251120, darul.wahid, end
-                    )  
-                    
-                    DELETE #tmpTrans
-                    WHERE amount < 0",INSERT,true,false,,3,false,this._connObli,,60a4e9d3d72554859d16f35e081b173976160edc,MEDIUM,clsValasService.cs,1588
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1594,1594,InsertValasSummaryByQuery,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
 
@@ -1857,38 +949,227 @@ DELETE FROM dbo.[[paramTableName]]
 	                    , SourceKey
 	                    , JISDORRate
 	                    , InUSDJISDOR	
-                    FROM #tmpTrans",INSERT,true,false,,5,true,this._connSibs,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,1594
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1620,1643,InsertValasResultByQuery,Insert Result: <expr>,Insert Result: <expr>,INSERT,true,false,,1,true,,,41061b518080a52bb49f7669278e389df0e882be,HIGH,clsValasService.cs,1620
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,InsertValasResultByQuery,"
+                    FROM #tmpTrans",INSERT,true,false,,5,true,this._connSFX,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,1582
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1588,1588,InsertValasSummaryByQuery,"
+                    INSERT INTO dbo.VLSTransactions_TH
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , m_pl_key
+	                    , NIKAgent
+                    )
+                    SELECT
+	                    tr.src
+	                    , tr.dealno
+	                    , tr.customer_id
+	                    , tr.acc_id
+	                    , tr.trx_branch
+	                    , tr.trx_date
+	                    , tr.trx_datetime
+	                    , tr.currency_code
+	                    , tr.amount
+	                    , tr.rate
+	                    , tr.InUSD
+	                    , tr.SourceKey
+	                    , tr.JISDORRate
+	                    , tr.InUSDJISDOR
+	                    , tr.m_pl_key
+	                    , tr.NIKAgent
+                    FROM dbo.VLSTransactions_TR AS tr
+                    LEFT JOIN dbo.VLSTransactions_TH AS th
+                    ON tr.dealno = th.dealno
+                    --20241106, darul.wahid, ONFX-243, begin
+                        AND tr.trx_date = th.trx_date
+                    --20241106, darul.wahid, ONFX-243, end
+                    WHERE ISNULL(th.dealno, '') = ''
+
+                    --Transaksi Today (yang kemarin sebelum dihapus)
+                    INSERT INTO dbo.VLSTransactions_TH
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , m_pl_key
+	                    , NIKAgent
+                    )
+                    SELECT
+	                    tr.src
+	                    , tr.dealno
+	                    , tr.customer_id
+	                    , tr.acc_id
+	                    , tr.trx_branch
+	                    , tr.trx_date
+	                    , tr.trx_datetime
+	                    , tr.currency_code
+	                    , tr.amount
+	                    , tr.rate
+	                    , tr.InUSD
+	                    , tr.SourceKey
+	                    , tr.JISDORRate
+	                    , tr.InUSDJISDOR
+	                    , tr.m_pl_key
+	                    , tr.NIKAgent
+                    FROM dbo.VLSTransactionsToday_TR AS tr
+                    LEFT JOIN dbo.VLSTransactions_TH AS th
+                    ON tr.dealno = th.dealno
+                    --20241106, darul.wahid, ONFX-243, begin
+                        AND tr.trx_date = th.trx_date
+                    --20241106, darul.wahid, ONFX-243, end                    
+                    WHERE ISNULL(th.dealno, '') = ''
+
+--20240508, darul.wahid, HTR - 214, begin
+                    --DELETE FROM dbo.VLSTransactions_TR 
+                    TRUNCATE TABLE dbo.VLSTransactions_TR 
+--20240508, darul.wahid, HTR - 214, end ","INSERT INTO dbo.VLSTransactions_TH
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , m_pl_key
+	                    , NIKAgent
+                    )
+                    SELECT
+	                    tr.src
+	                    , tr.dealno
+	                    , tr.customer_id
+	                    , tr.acc_id
+	                    , tr.trx_branch
+	                    , tr.trx_date
+	                    , tr.trx_datetime
+	                    , tr.currency_code
+	                    , tr.amount
+	                    , tr.rate
+	                    , tr.InUSD
+	                    , tr.SourceKey
+	                    , tr.JISDORRate
+	                    , tr.InUSDJISDOR
+	                    , tr.m_pl_key
+	                    , tr.NIKAgent
+                    FROM dbo.VLSTransactions_TR AS tr
+                    LEFT JOIN dbo.VLSTransactions_TH AS th
+                    ON tr.dealno = th.dealno
+                    
+20241106, darul.wahid, ONFX-243, begin
+                        AND tr.trx_date = th.trx_date
+                    
+20241106, darul.wahid, ONFX-243, end
+                    WHERE ISNULL(th.dealno, '') = ''
+
+                    
+Transaksi Today (yang kemarin sebelum dihapus)
+                    INSERT INTO dbo.VLSTransactions_TH
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , m_pl_key
+	                    , NIKAgent
+                    )
+                    SELECT
+	                    tr.src
+	                    , tr.dealno
+	                    , tr.customer_id
+	                    , tr.acc_id
+	                    , tr.trx_branch
+	                    , tr.trx_date
+	                    , tr.trx_datetime
+	                    , tr.currency_code
+	                    , tr.amount
+	                    , tr.rate
+	                    , tr.InUSD
+	                    , tr.SourceKey
+	                    , tr.JISDORRate
+	                    , tr.InUSDJISDOR
+	                    , tr.m_pl_key
+	                    , tr.NIKAgent
+                    FROM dbo.VLSTransactionsToday_TR AS tr
+                    LEFT JOIN dbo.VLSTransactions_TH AS th
+                    ON tr.dealno = th.dealno
+                    
+20241106, darul.wahid, ONFX-243, begin
+                        AND tr.trx_date = th.trx_date
+                    
+20241106, darul.wahid, ONFX-243, end                    
+                    WHERE ISNULL(th.dealno, '') = ''
+
+
+20240508, darul.wahid, HTR - 214, begin
+                    
+DELETE FROM dbo.VLSTransactions_TR 
+                    TRUNCATE TABLE dbo.VLSTransactions_TR 
+
+20240508, darul.wahid, HTR - 214, end",INSERT,true,false,,3,false,this._connObli,,a71f0e469dc27ae4c6826e1c49252b6ceb16f774,MEDIUM,clsValasService.cs,1588
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1594,1594,InsertValasSummaryByQuery,"
                     IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
 	                    DROP TABLE #tmpResult
 
                     CREATE TABLE #tmpResult                     
                     (    
-	                    branch			    VARCHAR(5)
-	                    , customer_id	    VARCHAR(20)
-	                    , [name]		    VARCHAR(20)
-	                    , acc_id		    VARCHAR(20)
-	                    , trx_branch	    VARCHAR(5)
-	                    , trx_date		    DATETIME
-	                    , currency_code	    VARCHAR(5)
-	                    , amount		    MONEY
-	                    , rate			    FLOAT
-	                    , InUSD			    MONEY
-	                    , dealno		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    , isHit			    BIT
-	                    , ProcessTime	    DATETIME
-	                    , underlying	    VARCHAR(15)
-                        , KetUnderlying	    VARCHAR(150)
-                        , Purpose           VARCHAR(50)
-	                    , JISDORRate	    FLOAT
-	                    , InUSDJISDOR	    MONEY
-	                    , isHitJISDOR	    BIT   		
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		
                     )   
 
                     DECLARE 
@@ -1915,13 +1196,9 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , isHit
 	                    , ProcessTime
 	                    , underlying
-                        , KetUnderlying
-                        , Purpose          
 	                    , JISDORRate
 	                    , InUSDJISDOR
-	                    , isHitJISDOR 	
-                        , m_pl_key
-                        , nik_agent         
+	                    , isHitJISDOR 						
                     )
                     SELECT
 	                    branch
@@ -1929,7 +1206,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , [name]
 	                    , acc_id
 	                    , trx_branch
-	                    , strTrx_date
+	                    , trx_date
 	                    , currency_code
 	                    , amount
 	                    , rate
@@ -1939,73 +1216,110 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , npwp
 	                    , identity_1
 	                    , isHit
-	                    , strProcessTime
+	                    , ProcessTime
 	                    , underlying
-                        , ketUnderlying
-                        , Purpose           
 	                    , JISDORRate
 	                    , InUSDJISDOR
-	                    , isHitJISDOR    
-                        , m_pl_key
-                        , nik_agent         
+	                    , isHitJISDOR        			
                     FROM openxml(@nDocHandle, N'/Data/Results',2)           
                     WITH (
-	                    branch			    VARCHAR(5)
-	                    , customer_id	    VARCHAR(20)
-	                    , [name]		    VARCHAR(20)
-	                    , acc_id		    VARCHAR(20)
-	                    , trx_branch	    VARCHAR(5)
-	                    --, trx_date		    DATETIME
-	                    , currency_code	    VARCHAR(5)
-	                    , amount		    MONEY
-	                    , rate			    FLOAT
-	                    , InUSD			    MONEY
-	                    , dealno		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    , isHit			    BIT
-	                    --, ProcessTime	    DATETIME
-	                    , underlying	    VARCHAR(15)
-                        , ketUnderlying     VARCHAR(150)
-                        , Purpose           VARCHAR(50)
-	                    , JISDORRate	    FLOAT
-	                    , InUSDJISDOR	    MONEY
-	                    , isHitJISDOR	    BIT   	
-                        , strTrx_date		VARCHAR(20)
-                        , strProcessTime	VARCHAR(50)
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT    
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		          			
                     )  
+
+--20240508, darul.wahid, HTR - 214, begin
+                    --DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+--20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    )
+                    SELECT 
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    FROM #tmpResult
                     ","IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
 	                    DROP TABLE #tmpResult
 
                     CREATE TABLE #tmpResult                     
                     (    
-	                    branch			    VARCHAR(5)
-	                    , customer_id	    VARCHAR(20)
-	                    , [name]		    VARCHAR(20)
-	                    , acc_id		    VARCHAR(20)
-	                    , trx_branch	    VARCHAR(5)
-	                    , trx_date		    DATETIME
-	                    , currency_code	    VARCHAR(5)
-	                    , amount		    MONEY
-	                    , rate			    FLOAT
-	                    , InUSD			    MONEY
-	                    , dealno		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    , isHit			    BIT
-	                    , ProcessTime	    DATETIME
-	                    , underlying	    VARCHAR(15)
-                        , KetUnderlying	    VARCHAR(150)
-                        , Purpose           VARCHAR(50)
-	                    , JISDORRate	    FLOAT
-	                    , InUSDJISDOR	    MONEY
-	                    , isHitJISDOR	    BIT   		
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		
                     )   
 
                     DECLARE 
@@ -2032,13 +1346,9 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , isHit
 	                    , ProcessTime
 	                    , underlying
-                        , KetUnderlying
-                        , Purpose          
 	                    , JISDORRate
 	                    , InUSDJISDOR
-	                    , isHitJISDOR 	
-                        , m_pl_key
-                        , nik_agent         
+	                    , isHitJISDOR 						
                     )
                     SELECT
 	                    branch
@@ -2046,7 +1356,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , [name]
 	                    , acc_id
 	                    , trx_branch
-	                    , strTrx_date
+	                    , trx_date
 	                    , currency_code
 	                    , amount
 	                    , rate
@@ -2056,47 +1366,495 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,Insert
 	                    , npwp
 	                    , identity_1
 	                    , isHit
-	                    , strProcessTime
+	                    , ProcessTime
 	                    , underlying
-                        , ketUnderlying
-                        , Purpose           
 	                    , JISDORRate
 	                    , InUSDJISDOR
-	                    , isHitJISDOR    
-                        , m_pl_key
-                        , nik_agent         
+	                    , isHitJISDOR        			
                     FROM openxml(@nDocHandle, N'/Data/Results',2)           
                     WITH (
-	                    branch			    VARCHAR(5)
-	                    , customer_id	    VARCHAR(20)
-	                    , [name]		    VARCHAR(20)
-	                    , acc_id		    VARCHAR(20)
-	                    , trx_branch	    VARCHAR(5)
-	                    
-, trx_date		    DATETIME
-	                    , currency_code	    VARCHAR(5)
-	                    , amount		    MONEY
-	                    , rate			    FLOAT
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		          			
+                    )  
+
+
+20240508, darul.wahid, HTR - 214, begin
+                    
+DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+
+20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    )
+                    SELECT 
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    FROM #tmpResult",INSERT,true,false,,5,true,this._connSibs,,3922039ecdec4780ab090e3c4821f41c7403c0c1,HIGH,clsValasService.cs,1594
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1620,1643,InsertValasResultByQuery,Insert Result: <expr>,Insert Result: <expr>,INSERT,true,false,,1,true,,,41061b518080a52bb49f7669278e389df0e882be,HIGH,clsValasService.cs,1620
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1653,1653,InsertValasResultByQuery,"
+                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+	                    DROP TABLE #tmpSummary
+
+                    CREATE TABLE #tmpSummary                     
+                    (    
+	                    customer_id		VARCHAR(20)
+	                    , InUSD			MONEY
+	                    , branch		VARCHAR(5)
+	                    , [name]		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , ProcessTime	DATETIME
+	                    , InUSDJISDOR	MONEY    		
+                    )   
+
+                    DECLARE 
+	                    @nDocHandle	INT
+
+                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+                    INSERT INTO #tmpSummary
+                    (
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR							
+                    )
+                    SELECT
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , strProcessTime
+	                    , InUSDJISDOR	        			
+                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
+                    WITH (
+	                    customer_id		    VARCHAR(20)
 	                    , InUSD			    MONEY
-	                    , dealno		    VARCHAR(20)
+	                    , branch		    VARCHAR(5)
+	                    , [name]		    VARCHAR(20)
 	                    , office_name	    VARCHAR(50)
 	                    , npwp			    VARCHAR(30)
 	                    , identity_1	    VARCHAR(50)
-	                    , isHit			    BIT
-	                    
-, ProcessTime	    DATETIME
-	                    , underlying	    VARCHAR(15)
-                        , ketUnderlying     VARCHAR(150)
-                        , Purpose           VARCHAR(50)
-	                    , JISDORRate	    FLOAT
-	                    , InUSDJISDOR	    MONEY
-	                    , isHitJISDOR	    BIT   	
-                        , strTrx_date		VARCHAR(20)
-                        , strProcessTime	VARCHAR(50)
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT    
-                    )",INSERT,true,false,,3,false,this._connSFX,,6f3e3054257fd271dde676cdff68e8899a27720f,MEDIUM,clsValasService.cs,1653
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1659,1659,InsertValasResultByQuery,TRUNCATE TABLE dbo.VLSSummaryFXOption_TM ,TRUNCATE TABLE dbo.VLSSummaryFXOption_TM,TRUNCATE,true,false,,1,false,this._connObli,,6c0f1160e218eb712f67045a6ea75fcc71356204,MEDIUM,clsValasService.cs,1659
+	                    , ProcessTime	    DATETIME
+                        , strProcessTime	VARCHAR(50)	                    
+                        , InUSDJISDOR	    MONEY    	          			
+                    )  
+
+--20240508, darul.wahid, HTR - 214, begin
+                    --DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+--20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    )
+                    SELECT 
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    FROM #tmpSummary
+                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+	                    DROP TABLE #tmpSummary
+
+                    CREATE TABLE #tmpSummary                     
+                    (    
+	                    customer_id		VARCHAR(20)
+	                    , InUSD			MONEY
+	                    , branch		VARCHAR(5)
+	                    , [name]		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , ProcessTime	DATETIME
+	                    , InUSDJISDOR	MONEY    		
+                    )   
+
+                    DECLARE 
+	                    @nDocHandle	INT
+
+                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+                    INSERT INTO #tmpSummary
+                    (
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR							
+                    )
+                    SELECT
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , strProcessTime
+	                    , InUSDJISDOR	        			
+                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
+                    WITH (
+	                    customer_id		    VARCHAR(20)
+	                    , InUSD			    MONEY
+	                    , branch		    VARCHAR(5)
+	                    , [name]		    VARCHAR(20)
+	                    , office_name	    VARCHAR(50)
+	                    , npwp			    VARCHAR(30)
+	                    , identity_1	    VARCHAR(50)
+	                    , ProcessTime	    DATETIME
+                        , strProcessTime	VARCHAR(50)	                    
+                        , InUSDJISDOR	    MONEY    	          			
+                    )  
+
+
+20240508, darul.wahid, HTR - 214, begin
+                    
+DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+
+20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    )
+                    SELECT 
+	                    customer_id
+	                    , InUSD
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    FROM #tmpSummary",INSERT,true,false,,5,true,this._connSFX,,b23a1b2fc9cc6bc39865e1efcd3eb165ac18fbca,HIGH,clsValasService.cs,1653
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1659,1659,InsertValasResultByQuery,"
+                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
+	                    DROP TABLE #tmpTrans
+
+                    CREATE TABLE #tmpTrans                     
+                    (    
+	                    src					VARCHAR(20)
+	                    , dealno			VARCHAR(20)
+	                    , customer_id		VARCHAR(20)
+	                    , acc_id			VARCHAR(20)
+	                    , trx_branch		VARCHAR(20)
+	                    , trx_date			DATETIME
+	                    , trx_datetime		DATETIME
+	                    , currency_code		VARCHAR(20)
+	                    , amount			MONEY
+	                    , rate				FLOAT
+	                    , InUSD				MONEY
+	                    , SourceKey			VARCHAR(20)
+	                    , JISDORRate		FLOAT
+	                    , InUSDJISDOR		MONEY      		
+                    )   
+
+                    DECLARE 
+	                    @nDocHandle	INT
+
+                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+                    INSERT INTO #tmpTrans
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR							
+                    )
+                    SELECT
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , strTrx_date
+	                    , strTrx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR		        			
+                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
+                    WITH (
+	                    src					VARCHAR(20)
+	                    , dealno			VARCHAR(20)
+	                    , customer_id		VARCHAR(20)
+	                    , acc_id			VARCHAR(20)
+	                    , trx_branch		VARCHAR(20)
+	                    , strTrx_date		VARCHAR(20)
+                        , strTrx_datetime	VARCHAR(50)
+	                    , currency_code		VARCHAR(20)
+	                    , amount			MONEY
+	                    , rate				FLOAT
+	                    , InUSD				MONEY
+	                    , SourceKey			VARCHAR(20)
+	                    , JISDORRate		FLOAT
+	                    , InUSDJISDOR		MONEY             			
+                    )  
+
+--20240508, darul.wahid, HTR - 214, begin
+                    --DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+--20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR	
+                    )
+                    SELECT 
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR	
+                    FROM #tmpTrans
+                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
+	                    DROP TABLE #tmpTrans
+
+                    CREATE TABLE #tmpTrans                     
+                    (    
+	                    src					VARCHAR(20)
+	                    , dealno			VARCHAR(20)
+	                    , customer_id		VARCHAR(20)
+	                    , acc_id			VARCHAR(20)
+	                    , trx_branch		VARCHAR(20)
+	                    , trx_date			DATETIME
+	                    , trx_datetime		DATETIME
+	                    , currency_code		VARCHAR(20)
+	                    , amount			MONEY
+	                    , rate				FLOAT
+	                    , InUSD				MONEY
+	                    , SourceKey			VARCHAR(20)
+	                    , JISDORRate		FLOAT
+	                    , InUSDJISDOR		MONEY      		
+                    )   
+
+                    DECLARE 
+	                    @nDocHandle	INT
+
+                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+                    INSERT INTO #tmpTrans
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR							
+                    )
+                    SELECT
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , strTrx_date
+	                    , strTrx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR		        			
+                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
+                    WITH (
+	                    src					VARCHAR(20)
+	                    , dealno			VARCHAR(20)
+	                    , customer_id		VARCHAR(20)
+	                    , acc_id			VARCHAR(20)
+	                    , trx_branch		VARCHAR(20)
+	                    , strTrx_date		VARCHAR(20)
+                        , strTrx_datetime	VARCHAR(50)
+	                    , currency_code		VARCHAR(20)
+	                    , amount			MONEY
+	                    , rate				FLOAT
+	                    , InUSD				MONEY
+	                    , SourceKey			VARCHAR(20)
+	                    , JISDORRate		FLOAT
+	                    , InUSDJISDOR		MONEY             			
+                    )  
+
+
+20240508, darul.wahid, HTR - 214, begin
+                    
+DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+
+20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR	
+                    )
+                    SELECT 
+	                    src
+	                    , dealno
+	                    , customer_id
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , trx_datetime
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , SourceKey
+	                    , JISDORRate
+	                    , InUSDJISDOR	
+                    FROM #tmpTrans",INSERT,true,false,,5,true,this._connObli,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,1659
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,1665,1665,InsertValasResultByQuery,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
