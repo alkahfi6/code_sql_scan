@@ -371,6 +371,36 @@ func TestCrossDbParsingEvidence(t *testing.T) {
 	}
 }
 
+func TestCrossDbCollectsMultipleDatabases(t *testing.T) {
+	sql := "select * from dbA..TableX join dbB.dbo.TableY on 1=1"
+	cand := &SqlCandidate{RawSql: sql, LineStart: 21}
+
+	analyzeCandidate(cand)
+
+	if !cand.HasCrossDb {
+		t.Fatalf("expected HasCrossDb true when multiple databases are referenced")
+	}
+
+	expected := []string{"dbA", "dbB"}
+	if len(cand.DbList) != len(expected) {
+		t.Fatalf("unexpected DbList length: got %d want %d", len(cand.DbList), len(expected))
+	}
+	for i, db := range expected {
+		if cand.DbList[i] != db {
+			t.Fatalf("DbList[%d] mismatch: got %s want %s", i, cand.DbList[i], db)
+		}
+	}
+
+	if len(cand.Objects) != 2 {
+		t.Fatalf("expected two object tokens, got %d", len(cand.Objects))
+	}
+	for _, obj := range cand.Objects {
+		if !obj.IsCrossDb {
+			t.Fatalf("object %+v should be marked cross-db", obj)
+		}
+	}
+}
+
 func TestClassifyObjectsFlagsDynamicPlaceholders(t *testing.T) {
 	sql := "SELECT * FROM [[schema]].MK005_A WHERE id IN (?)"
 	tokens := findObjectTokens(sql)
