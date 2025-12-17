@@ -61,7 +61,7 @@ golang-sample,go3/aajiQueries.sql.go,GetLastInsertedBatchId,487,487,1,0,0,0,0,0,
 golang-sample,go3/aajiQueries.sql.go,GetNIKFromBancaNoAAJITMByAAUIANDNIK,503,503,1,1,0,0,0,0,0,0,0,,1,BancaNoAAUI_TM(read),false,
 golang-sample,go3/aajiQueries.sql.go,GetNIKFromBancaNoAAUITMByAAJIANDNIK,535,535,1,1,0,0,0,0,0,0,0,,1,BancaNoAAJI_TM(read),false,
 golang-sample,go3/aajiQueries.sql.go,GetNameAndJobTitleByNIK,567,567,1,1,0,0,0,0,0,0,0,,1,PSEmployee_v(read),true,SQL_Employee
-golang-sample,go3/aajiQueries.sql.go,InsertBancaMTranAAJIAAUITT,607,617,1,0,0,0,0,0,1,1,0,,2,BancaMTranAAJIAAUI_TT(exec); insert(exec),false,
+golang-sample,go3/aajiQueries.sql.go,InsertBancaMTranAAJIAAUITT,607,617,1,0,0,0,0,0,1,1,0,,2,BancaMTranAAJIAAUI_TT(write); insert(exec),false,
 golang-sample,go3/aajiQueries.sql.go,PopulateDataFromBancaNoAAUITMAndBancaNoAAUITM,60,65,1,1,0,0,0,0,0,0,0,,2,BancaNoAAJI_TM(read); BancaNoAAUI_TM(read),false,
 golang-sample,go3/aajiQueries.sql.go,UpdateBatchCode,627,627,1,0,0,1,0,0,0,1,0,,2,BancaMTranAAJIAAUI_TT(write); UPDATE(write),false,
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L13,13,13,1,1,0,0,0,0,0,0,0,,2,BancaNoAAJI_TM(read); BancaNoAAUI_TM(read),false,
@@ -78,7 +78,7 @@ golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L482,482,482,1,0,0,0
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L493,493,493,1,1,0,0,0,0,0,0,0,,1,BancaNoAAUI_TM(read),false,
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L525,525,525,1,1,0,0,0,0,0,0,0,,1,BancaNoAAJI_TM(read),false,
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L557,557,557,1,1,0,0,0,0,0,0,0,,1,PSEmployee_v(read),true,SQL_Employee
-golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L589,589,589,1,0,0,0,0,0,1,1,0,,2,BancaMTranAAJIAAUI_TT(exec); insert(exec),false,
+golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L589,589,589,1,0,0,0,0,0,1,1,0,,2,BancaMTranAAJIAAUI_TT(write); insert(exec),false,
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L621,621,621,1,0,0,1,0,0,0,1,0,,2,BancaMTranAAJIAAUI_TT(write); UPDATE(write),false,
 golang-sample,go3/aajiQueries.sql.go,go3/aajiQueries.sql.go@L97,97,97,1,1,0,0,0,0,0,0,0,,2,BancaNoAAJI_TM(read); BancaNoAAUI_TM(read),false,
 golang-sample,go3/bancaQueries_manual.sql.go,GetBancaControlTableTMLastId,127,127,1,0,0,1,0,0,0,1,0,,1,BancaControlTable_TM(write),false,

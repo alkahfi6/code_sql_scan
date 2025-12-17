@@ -106,9 +106,10 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.UsageKind = usage
 	c.IsWrite = isWriteKind(usage)
 
-	tokens := findObjectTokens(sqlClean)
+	dmlTokens := detectAllDmlTargets(sqlClean, c.LineStart)
+	tokens := append([]ObjectToken{}, dmlTokens...)
+	tokens = append(tokens, findObjectTokens(sqlClean)...)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
-	tokens = append(detectDmlTargetsFromSql(sqlClean, usage, c.LineStart), tokens...)
 	tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
 	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
@@ -125,6 +126,16 @@ func analyzeCandidate(c *SqlCandidate) {
 			insertTargetKeys[key] = struct{}{}
 		}
 		tokens = append(insertTargets, tokens...)
+	} else {
+		for _, t := range dmlTokens {
+			if strings.EqualFold(strings.TrimSpace(t.DmlKind), "INSERT") {
+				key := strings.ToLower(buildFullName(t.DbName, t.SchemaName, t.BaseName))
+				if key == "" {
+					key = strings.ToLower(strings.TrimSpace(t.FullName))
+				}
+				insertTargetKeys[key] = struct{}{}
+			}
+		}
 	}
 	classifyObjects(c, usage, tokens)
 
@@ -244,17 +255,9 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		"go":      {},
 	}
 
-	priority := map[string]int{
-		"INSERT":   1,
-		"UPDATE":   1,
-		"DELETE":   1,
-		"TRUNCATE": 1,
-		"SELECT":   2,
-		"EXEC":     3,
-	}
-
 	var tokenBuf strings.Builder
 	var found []string
+	foundSet := make(map[string]struct{})
 
 	flushToken := func() string {
 		tok := strings.Trim(tokenBuf.String(), "[]")
@@ -271,6 +274,7 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		}
 		if val, ok := targets[tok]; ok {
 			found = append(found, val)
+			foundSet[val] = struct{}{}
 		}
 	}
 
@@ -285,18 +289,20 @@ func detectUsageKind(isExecStub bool, sql string) string {
 
 	processToken(strings.ToLower(flushToken()))
 
-	bestKind := "UNKNOWN"
-	bestScore := 100
-	for _, kind := range found {
-		if score, ok := priority[kind]; ok {
-			if score < bestScore {
-				bestScore = score
-				bestKind = kind
-			}
-		}
+	if len(foundSet) == 0 {
+		return "UNKNOWN"
 	}
 
-	return bestKind
+	order := []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "SELECT", "EXEC"}
+	for _, kind := range order {
+		if _, ok := foundSet[kind]; ok {
+			return kind
+		}
+	}
+	if len(found) > 0 {
+		return found[0]
+	}
+	return "UNKNOWN"
 }
 
 // normalizeProcSpecForHash removes optional EXEC/EXECUTE prefixes and trailing semicolons
@@ -474,6 +480,25 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 		tokens = append(tokens, tok)
 	}
 
+	return tokens
+}
+
+func detectAllDmlTargets(sql string, line int) []ObjectToken {
+	var tokens []ObjectToken
+	seen := make(map[string]struct{})
+	for _, kind := range []string{"INSERT", "UPDATE", "DELETE"} {
+		for _, tok := range detectDmlTargetsFromSql(sql, kind, line) {
+			key := strings.ToLower(fmt.Sprintf("%s|%s|%s|%s", kind, tok.DbName, tok.SchemaName, tok.BaseName))
+			if key == "" {
+				key = strings.ToLower(strings.TrimSpace(tok.FullName + "|" + tok.Role + "|" + tok.DmlKind))
+			}
+			if _, ok := seen[key]; ok {
+				continue
+			}
+			seen[key] = struct{}{}
+			tokens = append(tokens, tok)
+		}
+	}
 	return tokens
 }
 
