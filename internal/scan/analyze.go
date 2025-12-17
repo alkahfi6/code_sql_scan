@@ -156,34 +156,7 @@ func analyzeCandidate(c *SqlCandidate) {
 		c.Objects = []ObjectToken{tok}
 	}
 
-	dbSet := make(map[string]struct{})
-	hasCross := false
-	for i := range c.Objects {
-		obj := &c.Objects[i]
-		if obj.DbName == "" {
-			continue
-		}
-		dbSet[obj.DbName] = struct{}{}
-		if obj.IsCrossDb {
-			hasCross = true
-			continue
-		}
-		// Defensive: if the parser captured an explicit database prefix but
-		// did not mark IsCrossDb, treat it as cross-database access.
-		obj.IsCrossDb = true
-		hasCross = true
-	}
-	var dbList []string
-	for db := range dbSet {
-		dbList = append(dbList, db)
-	}
-	sort.Strings(dbList)
-	if hasCross {
-		c.DbList = dbList
-	} else {
-		c.DbList = nil
-	}
-	c.HasCrossDb = hasCross
+	updateCrossDbMetadata(c)
 
 	hashInput := c.SqlClean
 	if hashInput == "" {
@@ -193,6 +166,40 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.QueryHash = fmt.Sprintf("%x", h[:])
 
 	c.RiskLevel = classifyRisk(c)
+}
+
+func updateCrossDbMetadata(c *SqlCandidate) {
+	dbSet := make(map[string]struct{})
+	hasCross := false
+
+	for i := range c.Objects {
+		obj := &c.Objects[i]
+		obj.DbName = strings.TrimSpace(obj.DbName)
+		if obj.DbName != "" {
+			dbSet[obj.DbName] = struct{}{}
+			if !obj.IsCrossDb {
+				obj.IsCrossDb = true
+			}
+			hasCross = true
+			continue
+		}
+		if obj.IsCrossDb {
+			hasCross = true
+		}
+	}
+
+	var dbList []string
+	for db := range dbSet {
+		dbList = append(dbList, db)
+	}
+	sort.Strings(dbList)
+
+	if hasCross {
+		c.DbList = dbList
+	} else {
+		c.DbList = nil
+	}
+	c.HasCrossDb = hasCross
 }
 
 func detectUsageKind(isExecStub bool, sql string) string {
