@@ -596,20 +596,31 @@ DELETE FROM dbo.[[paramTableName]] TRUNCATE TABLE dbo.[[paramTableName]]
 20240508, darul.wahid, HTR - 214, end INSERT INTO dbo.[[paramTableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR ) SELECT branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR FROM #tmpResult",INSERT,true,false,,4,true,this._connSibs,,9e03aa7310d4170486c77d1e0f6c3bc7d7f90bc5,HIGH,clsValasService.cs,1273
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1478,1501,InsertValasTransactionByQuery,Insert Transaction: <expr>,Insert Transaction: <expr>,INSERT,true,false,,1,true,,,d7e2662652f93cbb3c04ed10cd6b7e826bf60ee4,HIGH,clsValasService.cs,1478
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1511,1511,InsertValasTransactionByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+                    IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
+	                    DROP TABLE #tmpResult
 
-                    CREATE TABLE #tmpSummary                     
+                    CREATE TABLE #tmpResult                     
                     (    
-	                    customer_id		VARCHAR(20)
-	                    , InUSD			MONEY
-	                    , branch		VARCHAR(5)
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
 	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
 	                    , office_name	VARCHAR(50)
 	                    , npwp			VARCHAR(30)
 	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
 	                    , ProcessTime	DATETIME
-	                    , InUSDJISDOR	MONEY    		
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		
                     )   
 
                     DECLARE 
@@ -617,56 +628,149 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1511
 
                     EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpSummary
+                    INSERT INTO #tmpResult
                     (
-	                    customer_id
-	                    , InUSD
-	                    , branch
+	                    branch
+	                    , customer_id
 	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
 	                    , office_name
 	                    , npwp
 	                    , identity_1
+	                    , isHit
 	                    , ProcessTime
-	                    , InUSDJISDOR							
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 						
                     )
                     SELECT
-	                    customer_id
-	                    , InUSD
-	                    , branch
+	                    branch
+	                    , customer_id
 	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
 	                    , office_name
 	                    , npwp
 	                    , identity_1
-	                    , strProcessTime
-	                    , InUSDJISDOR	        			
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR        			
+                    FROM openxml(@nDocHandle, N'/Data/Results',2)           
                     WITH (
-	                    customer_id		    VARCHAR(20)
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    --, ProcessTime	    DATETIME
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY    	          			
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		          			
                     )  
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+--20240508, darul.wahid, HTR - 214, begin
+                    --DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+--20240508, darul.wahid, HTR - 214, end
 
-                    CREATE TABLE #tmpSummary                     
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    )
+                    SELECT 
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    FROM #tmpResult
+                    ","IF OBJECT_ID('tempdb..#tmpResult') IS NOT NULL
+	                    DROP TABLE #tmpResult
+
+                    CREATE TABLE #tmpResult                     
                     (    
-	                    customer_id		VARCHAR(20)
-	                    , InUSD			MONEY
-	                    , branch		VARCHAR(5)
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
 	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
 	                    , office_name	VARCHAR(50)
 	                    , npwp			VARCHAR(30)
 	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
 	                    , ProcessTime	DATETIME
-	                    , InUSDJISDOR	MONEY    		
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		
                     )   
 
                     DECLARE 
@@ -674,43 +778,137 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1511
 
                     EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpSummary
+                    INSERT INTO #tmpResult
                     (
-	                    customer_id
-	                    , InUSD
-	                    , branch
+	                    branch
+	                    , customer_id
 	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
 	                    , office_name
 	                    , npwp
 	                    , identity_1
+	                    , isHit
 	                    , ProcessTime
-	                    , InUSDJISDOR							
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 						
                     )
                     SELECT
-	                    customer_id
-	                    , InUSD
-	                    , branch
+	                    branch
+	                    , customer_id
 	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
 	                    , office_name
 	                    , npwp
 	                    , identity_1
-	                    , strProcessTime
-	                    , InUSDJISDOR	        			
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR        			
+                    FROM openxml(@nDocHandle, N'/Data/Results',2)           
                     WITH (
-	                    customer_id		    VARCHAR(20)
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-, ProcessTime	    DATETIME
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY    	          			
-                    )",INSERT,true,false,,3,false,this._connSFX,,f725108dc3feabc369b1e36afe03ef0a8814bcc1,MEDIUM,clsValasService.cs,1880
+	                    branch			VARCHAR(5)
+	                    , customer_id	VARCHAR(20)
+	                    , [name]		VARCHAR(20)
+	                    , acc_id		VARCHAR(20)
+	                    , trx_branch	VARCHAR(5)
+	                    , trx_date		DATETIME
+	                    , currency_code	VARCHAR(5)
+	                    , amount		MONEY
+	                    , rate			FLOAT
+	                    , InUSD			MONEY
+	                    , dealno		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , isHit			BIT
+	                    , ProcessTime	DATETIME
+	                    , underlying	VARCHAR(15)
+	                    , JISDORRate	FLOAT
+	                    , InUSDJISDOR	MONEY
+	                    , isHitJISDOR	BIT   		          			
+                    )  
+
+
+20240508, darul.wahid, HTR - 214, begin
+                    
+DELETE FROM dbo.[[paramTableName]]
+                    TRUNCATE TABLE dbo.[[paramTableName]]
+
+20240508, darul.wahid, HTR - 214, end
+
+                    INSERT INTO dbo.[[paramTableName]] 
+                    (
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    )
+                    SELECT 
+	                    branch
+	                    , customer_id
+	                    , [name]
+	                    , acc_id
+	                    , trx_branch
+	                    , trx_date
+	                    , currency_code
+	                    , amount
+	                    , rate
+	                    , InUSD
+	                    , dealno
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , isHit
+	                    , ProcessTime
+	                    , underlying
+	                    , JISDORRate
+	                    , InUSDJISDOR
+	                    , isHitJISDOR 
+                    FROM #tmpResult",INSERT,true,false,,4,true,this._connSFX,,3922039ecdec4780ab090e3c4821f41c7403c0c1,HIGH,clsValasService.cs,1273
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1517,1517,InsertValasTransactionByQuery,"
+                    IF NOT EXISTS (
+		                    SELECT TOP 1 1 
+		                    FROM dbo.","IF NOT EXISTS (
+		                    SELECT TOP 1 1 
+		                    FROM dbo.",EXEC,true,false,,1,false,this._connObli,,cffa614781734afe8a403fee0af2eaf8932ca5d6,MEDIUM,clsValasService.cs,5732
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1523,1523,InsertValasTransactionByQuery,TRUNCATE TABLE dbo.VLSTransactions_TR  ,TRUNCATE TABLE dbo.VLSTransactions_TR,TRUNCATE,true,false,,1,false,this._connSibs,,6ac1364217e6d69be4e7b9183695e92f8bd23995,MEDIUM,clsValasService.cs,3789
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1549,1572,InsertValasSummaryByQuery,Insert Summary: <expr>,Insert Summary: <expr>,INSERT,true,false,,1,true,,,d6ead547a59c22e6415b37830d6e0fb7669b7e4a,HIGH,clsValasService.cs,1549
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1582,1582,InsertValasSummaryByQuery,TRUNCATE TABLE dbo.VLSTransactions_TR  ,TRUNCATE TABLE dbo.VLSTransactions_TR,TRUNCATE,true,false,,1,false,this._connSFX,,6ac1364217e6d69be4e7b9183695e92f8bd23995,MEDIUM,clsValasService.cs,3789
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1588,1588,InsertValasSummaryByQuery,"
                     IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
 	                    DROP TABLE #tmpSummary
 
@@ -824,714 +1022,24 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1517
 , ProcessTime	    DATETIME
                         , strProcessTime	VARCHAR(50)	                    
                         , InUSDJISDOR	    MONEY    	          			
-                    )",INSERT,true,false,,3,false,this._connObli,,f725108dc3feabc369b1e36afe03ef0a8814bcc1,MEDIUM,clsValasService.cs,1880
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1523,1523,InsertValasTransactionByQuery," TRUNCATE TABLE dbo.VLSSummary_TM  ",TRUNCATE TABLE dbo.VLSSummary_TM,TRUNCATE,true,false,,1,false,this._connSibs,,47438f4e398931c3034da9776312d165c92c5d5a,MEDIUM,clsValasService.cs,3838
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1549,1572,InsertValasSummaryByQuery,Insert Summary: <expr>,Insert Summary: <expr>,INSERT,true,false,,1,true,,,d6ead547a59c22e6415b37830d6e0fb7669b7e4a,HIGH,clsValasService.cs,1549
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1582,1582,InsertValasSummaryByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          BIT
-                        , buy_sell_code     CHAR(1)
-                        , product           VARCHAR(50)
-                        , in_usd_before     MONEY
-                        , in_usd_total      MONEY
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        --20251120, darul.wahid, end
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          
-                        , buy_sell_code     
-                        , product           
-                        , in_usd_before     
-                        , in_usd_total      
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            
-                        --20251120, darul.wahid, end
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')   
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          
-                        , BuySellCode     
-                        , Product           
-                        , inUSDBefore     
-                        , inUSDTotal      
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            
-                        --20251120, darul.wahid, end
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        --20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          BIT
-                        , BuySellCode      CHAR(1)
-                        , Product          VARCHAR(50)
-                        , inUSDBefore      MONEY
-                        , inUSDTotal       MONEY
-                        --20250701, darul.wahid, ONFX-267, end
-                        --20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        --20251120, darul.wahid, end
-                    )  
-                    
-                    DELETE #tmpTrans
-                    WHERE amount < 0
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          BIT
-                        , buy_sell_code     CHAR(1)
-                        , product           VARCHAR(50)
-                        , in_usd_before     MONEY
-                        , in_usd_total      MONEY
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        
-20251120, darul.wahid, end
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , lcs_flag          
-                        , buy_sell_code     
-                        , product           
-                        , in_usd_before     
-                        , in_usd_total      
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            
-                        
-20251120, darul.wahid, end
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')   
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          
-                        , BuySellCode     
-                        , Product           
-                        , inUSDBefore     
-                        , inUSDTotal      
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            
-                        
-20251120, darul.wahid, end
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                        
-20250701, darul.wahid, ONFX-267, begin
-                        , FlagLCS          BIT
-                        , BuySellCode      CHAR(1)
-                        , Product          VARCHAR(50)
-                        , inUSDBefore      MONEY
-                        , inUSDTotal       MONEY
-                        
-20250701, darul.wahid, ONFX-267, end
-                        
-20251120, darul.wahid, begin
-                        , [call]            VARCHAR(5)
-                        
-20251120, darul.wahid, end
-                    )  
-                    
-                    DELETE #tmpTrans
-                    WHERE amount < 0",INSERT,true,false,,3,false,this._connSFX,,60a4e9d3d72554859d16f35e081b173976160edc,MEDIUM,clsValasService.cs,6830
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1588,1588,InsertValasSummaryByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
---20240508, darul.wahid, HTR - 214, begin
-                    --DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
---20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR							
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
-                    )  
-
-
-20240508, darul.wahid, HTR - 214, begin
-                    
-DELETE FROM dbo.[[paramTableName]]
-                    TRUNCATE TABLE dbo.[[paramTableName]]
-
-20240508, darul.wahid, HTR - 214, end
-
-                    INSERT INTO dbo.[[paramTableName]] 
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    )
-                    SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans",INSERT,true,false,,4,true,this._connObli,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,924
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1594,1594,InsertValasSummaryByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
-
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
-                    (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
-                        , m_pl_key1         
-                    )
-                    SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , ISNULL(SourceKey, '')
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent     
-                        , ISNULL(m_pl_key1, '')         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                        , m_pl_key1         VARCHAR(38)
-                    )",INSERT,true,false,,3,false,this._connSibs,,c6372f474c88b23ed007fb1d1c8a0b3793056033,MEDIUM,clsValasService.cs,4048
+                    )",INSERT,true,false,,3,false,this._connObli,,f725108dc3feabc369b1e36afe03ef0a8814bcc1,MEDIUM,clsValasService.cs,4538
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1594,1594,InsertValasSummaryByQuery,TRUNCATE TABLE dbo.VLSSummaryFXOption_TM ,TRUNCATE TABLE dbo.VLSSummaryFXOption_TM,TRUNCATE,true,false,,1,false,this._connSibs,,6c0f1160e218eb712f67045a6ea75fcc71356204,MEDIUM,clsValasService.cs,3888
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1620,1643,InsertValasResultByQuery,Insert Result: <expr>,Insert Result: <expr>,INSERT,true,false,,1,true,,,41061b518080a52bb49f7669278e389df0e882be,HIGH,clsValasService.cs,1620
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1653,1653,InsertValasResultByQuery,EXEC dbo.VLSGenerateDataTrxNasabah @pdCurrentDate = @pdInputDate,EXEC dbo.VLSGenerateDataTrxNasabah @pdCurrentDate = @pdInputDate,EXEC,true,false,,1,false,this._connSFX,,9fbfb24aa2693ebda70608046fd9f2aaa224e73c,MEDIUM,clsValasService.cs,8762
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1659,1659,InsertValasResultByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1653,1653,InsertValasResultByQuery,"
+                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+	                    DROP TABLE #tmpSummary
 
-                    CREATE TABLE #tmpTrans                     
+                    CREATE TABLE #tmpSummary                     
                     (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
+	                    customer_id		VARCHAR(20)
+	                    , InUSD			MONEY
+	                    , branch		VARCHAR(5)
+	                    , [name]		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , ProcessTime	DATETIME
+	                    , InUSDJISDOR	MONEY    		
                     )   
 
                     DECLARE 
@@ -1539,54 +1047,40 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1659
 
                     EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpTrans
+                    INSERT INTO #tmpSummary
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
 	                    , InUSDJISDOR							
                     )
                     SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , strProcessTime
+	                    , InUSDJISDOR	        			
+                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
                     WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
+	                    customer_id		    VARCHAR(20)
+	                    , InUSD			    MONEY
+	                    , branch		    VARCHAR(5)
+	                    , [name]		    VARCHAR(20)
+	                    , office_name	    VARCHAR(50)
+	                    , npwp			    VARCHAR(30)
+	                    , identity_1	    VARCHAR(50)
+	                    , ProcessTime	    DATETIME
+                        , strProcessTime	VARCHAR(50)	                    
+                        , InUSDJISDOR	    MONEY    	          			
                     )  
 
 --20240508, darul.wahid, HTR - 214, begin
@@ -1596,56 +1090,41 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1659
 
                     INSERT INTO dbo.[[paramTableName]] 
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
                     )
                     SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans
-                    ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    FROM #tmpSummary
+                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+	                    DROP TABLE #tmpSummary
 
-                    CREATE TABLE #tmpTrans                     
+                    CREATE TABLE #tmpSummary                     
                     (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      		
+	                    customer_id		VARCHAR(20)
+	                    , InUSD			MONEY
+	                    , branch		VARCHAR(5)
+	                    , [name]		VARCHAR(20)
+	                    , office_name	VARCHAR(50)
+	                    , npwp			VARCHAR(30)
+	                    , identity_1	VARCHAR(50)
+	                    , ProcessTime	DATETIME
+	                    , InUSDJISDOR	MONEY    		
                     )   
 
                     DECLARE 
@@ -1653,54 +1132,40 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1659
 
                     EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpTrans
+                    INSERT INTO #tmpSummary
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
 	                    , InUSDJISDOR							
                     )
                     SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		        			
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , strProcessTime
+	                    , InUSDJISDOR	        			
+                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
                     WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY             			
+	                    customer_id		    VARCHAR(20)
+	                    , InUSD			    MONEY
+	                    , branch		    VARCHAR(5)
+	                    , [name]		    VARCHAR(20)
+	                    , office_name	    VARCHAR(50)
+	                    , npwp			    VARCHAR(30)
+	                    , identity_1	    VARCHAR(50)
+	                    , ProcessTime	    DATETIME
+                        , strProcessTime	VARCHAR(50)	                    
+                        , InUSDJISDOR	    MONEY    	          			
                     )  
 
 
@@ -1713,203 +1178,157 @@ DELETE FROM dbo.[[paramTableName]]
 
                     INSERT INTO dbo.[[paramTableName]] 
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
                     )
                     SELECT 
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
+	                    customer_id
 	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                    FROM #tmpTrans",INSERT,true,false,,4,true,this._connObli,,8e3f6b7ade318234a7598e6d4d78d74f28015d3d,HIGH,clsValasService.cs,924
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1665,1665,InsertValasResultByQuery,"
-                    IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
+	                    , branch
+	                    , [name]
+	                    , office_name
+	                    , npwp
+	                    , identity_1
+	                    , ProcessTime
+	                    , InUSDJISDOR
+                    FROM #tmpSummary",INSERT,true,false,,4,true,this._connSFX,,b23a1b2fc9cc6bc39865e1efcd3eb165ac18fbca,HIGH,clsValasService.cs,1113
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1659,1659,InsertValasResultByQuery,"
+					--20240508, darul.wahid, HTR-214, begin
+                    --DELETE FROM dbo.VLSTransactionsToday_TR
+                    
+                    --DELETE FROM dbo.VLSSummaryToday_TM
 
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                    )   
+                    --DELETE FROM dbo.VLSResultFinalToday_TT
 
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
+					--20241106, darul.wahid, ONFX-243, begin
+                    INSERT INTO dbo.VLSTransactionsToday_TL
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
+                        src			
+                        , dealno		
+                        , customer_id	
+                        , acc_id		
+                        , trx_branch	
+                        , trx_date		
+                        , trx_datetime	
+                        , currency_code	
+                        , amount		
+                        , rate			
+                        , InUSD			
+                        , SourceKey		
+                        , JISDORRate	
+                        , InUSDJISDOR	
+                        , m_pl_key		
+                        , NIKAgent		
+                        , GuidProcess	
+                        , m_pl_key1		
+                        , InsertedDate	
                     )
                     SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
-	                    DROP TABLE #tmpTrans
+                        src			
+                        , dealno		
+                        , customer_id	
+                        , acc_id		
+                        , trx_branch	
+                        , trx_date		
+                        , trx_datetime	
+                        , currency_code	
+                        , amount		
+                        , rate			
+                        , InUSD			
+                        , SourceKey		
+                        , JISDORRate	
+                        , InUSDJISDOR	
+                        , m_pl_key		
+                        , NIKAgent		
+                        , GuidProcess	
+                        , m_pl_key1		
+                        , WaktuMasukDeal	
+                    FROM dbo.VLSTransactionsToday_TR
+                    GO
+                    --20241106, darul.wahid, ONFX-243, end
 
-                    CREATE TABLE #tmpTrans                     
-                    (    
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , trx_date			DATETIME
-	                    , trx_datetime		DATETIME
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                    )   
+					TRUNCATE TABLE dbo.VLSTransactionsToday_TR
+                    GO
+                    TRUNCATE TABLE dbo.VLSSummaryToday_TM
+					GO
+                    TRUNCATE TABLE dbo.VLSResultFinalToday_TT
+					GO
+					--20240508, darul.wahid, HTR-214, begin                
+					","20240508, darul.wahid, HTR-214, begin
+                    
+DELETE FROM dbo.VLSTransactionsToday_TR
+                    
+                    
+DELETE FROM dbo.VLSSummaryToday_TM
 
-                    DECLARE 
-	                    @nDocHandle	INT
+                    
+DELETE FROM dbo.VLSResultFinalToday_TT
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
-
-                    INSERT INTO #tmpTrans
+					
+20241106, darul.wahid, ONFX-243, begin
+                    INSERT INTO dbo.VLSTransactionsToday_TL
                     (
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , trx_date
-	                    , trx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR	
-                        , m_pl_key
-                        , nik_agent
+                        src			
+                        , dealno		
+                        , customer_id	
+                        , acc_id		
+                        , trx_branch	
+                        , trx_date		
+                        , trx_datetime	
+                        , currency_code	
+                        , amount		
+                        , rate			
+                        , InUSD			
+                        , SourceKey		
+                        , JISDORRate	
+                        , InUSDJISDOR	
+                        , m_pl_key		
+                        , NIKAgent		
+                        , GuidProcess	
+                        , m_pl_key1		
+                        , InsertedDate	
                     )
                     SELECT
-	                    src
-	                    , dealno
-	                    , customer_id
-	                    , acc_id
-	                    , trx_branch
-	                    , strTrx_date
-	                    , strTrx_datetime
-	                    , currency_code
-	                    , amount
-	                    , rate
-	                    , InUSD
-	                    , SourceKey
-	                    , JISDORRate
-	                    , InUSDJISDOR		
-                        , m_pl_key
-                        , nik_agent         
-                    FROM openxml(@nDocHandle, N'/Data/Trans',2)           
-                    WITH (
-	                    src					VARCHAR(20)
-	                    , dealno			VARCHAR(20)
-	                    , customer_id		VARCHAR(20)
-	                    , acc_id			VARCHAR(20)
-	                    , trx_branch		VARCHAR(20)
-	                    , strTrx_date		VARCHAR(20)
-                        , strTrx_datetime	VARCHAR(50)
-	                    , currency_code		VARCHAR(20)
-	                    , amount			MONEY
-	                    , rate				FLOAT
-	                    , InUSD				MONEY
-	                    , SourceKey			VARCHAR(20)
-	                    , JISDORRate		FLOAT
-	                    , InUSDJISDOR		MONEY      
-                        , m_pl_key			NVARCHAR(50)
-                        , nik_agent         BIGINT
-                    )",INSERT,true,false,,3,false,this._connSibs,,5ace9e6b4f34b1300f57478397acd23f075ff59b,MEDIUM,clsValasService.cs,1695
+                        src			
+                        , dealno		
+                        , customer_id	
+                        , acc_id		
+                        , trx_branch	
+                        , trx_date		
+                        , trx_datetime	
+                        , currency_code	
+                        , amount		
+                        , rate			
+                        , InUSD			
+                        , SourceKey		
+                        , JISDORRate	
+                        , InUSDJISDOR	
+                        , m_pl_key		
+                        , NIKAgent		
+                        , GuidProcess	
+                        , m_pl_key1		
+                        , WaktuMasukDeal	
+                    FROM dbo.VLSTransactionsToday_TR
+                    GO
+                    
+20241106, darul.wahid, ONFX-243, end
+
+					TRUNCATE TABLE dbo.VLSTransactionsToday_TR
+                    GO
+                    TRUNCATE TABLE dbo.VLSSummaryToday_TM
+					GO
+                    TRUNCATE TABLE dbo.VLSResultFinalToday_TT
+					GO
+					
+20240508, darul.wahid, HTR-214, begin",EXEC,true,false,,4,false,this._connObli,,81482d2db6f135d3263de35c8f41e00f0b2233cb,MEDIUM,clsValasService.cs,2273
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1665,1665,InsertValasResultByQuery,TRUNCATE TABLE dbo.VLSTransactions_TR  ,TRUNCATE TABLE dbo.VLSTransactions_TR,TRUNCATE,true,false,,1,false,this._connSibs,,6ac1364217e6d69be4e7b9183695e92f8bd23995,MEDIUM,clsValasService.cs,3789
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,1874,1877,InsertValasTransaction,"INSERT INTO dbo.VLSTransactionsToday_TR ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tmp.src , tmp.dealno , tmp.customer_id , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.trx_datetime , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.SourceKey , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.m_pl_key , tmp.nik_agent FROM #tmpTrans AS tmp LEFT JOIN dbo.VLSTransactionsToday_TR AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null","INSERT INTO dbo.VLSTransactionsToday_TR ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tmp.src , tmp.dealno , tmp.customer_id , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.trx_datetime , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.SourceKey , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.m_pl_key , tmp.nik_agent FROM #tmpTrans AS tmp LEFT JOIN dbo.VLSTransactionsToday_TR AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null",INSERT,true,false,,2,true,,,0606cbec0a0c58c1cc9173f5e2015332faf1ba4c,HIGH,clsValasService.cs,1874
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,2013,2016,InsertValasSummary,"INSERT INTO dbo.VLSSummaryToday_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryToday_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryToday_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id","INSERT INTO dbo.VLSSummaryToday_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryToday_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryToday_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id",INSERT,true,false,,3,true,,,f5b35c53d1bb50f6a9f6e475aee72e2c285d9a38,HIGH,clsValasService.cs,2013
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,2263,2274,InsertValasResult,"INSERT INTO dbo.VLSResultFinalToday_TT ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent FROM #tmpResult AS tmp LEFT JOIN dbo.VLSResultFinalToday_TT AS tt ON tmp.dealno = tt.dealno WHERE tt.dealno is null","INSERT INTO dbo.VLSResultFinalToday_TT ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent FROM #tmpResult AS tmp LEFT JOIN dbo.VLSResultFinalToday_TT AS tt ON tmp.dealno = tt.dealno WHERE tt.dealno is null",INSERT,true,false,,2,true,,,34259720bed0049f5887e5ec8e3d26edb5ed338d,HIGH,clsValasService.cs,2263
@@ -2049,10 +1468,10 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,5565
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,5653,5653,InsertValasResultV2,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,6008,6008,DeleteDataNotInProcess,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'
 DELETE FROM dbo.<expr>","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'
-DELETE FROM dbo.<expr>",INSERT,true,false,,5,true,connProps,,56542e91c118438c6a8f16439edeca3c63d2a0f0,HIGH,clsValasService.cs,3936
+DELETE FROM dbo.<expr>",INSERT,true,false,,5,true,connProps,,56542e91c118438c6a8f16439edeca3c63d2a0f0,HIGH,clsValasService.cs,4952
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,6097,6097,DeleteDataNotInProcess,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'
 DELETE FROM dbo.<expr>","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'
-DELETE FROM dbo.<expr>",INSERT,true,false,,5,true,connProps,,56542e91c118438c6a8f16439edeca3c63d2a0f0,HIGH,clsValasService.cs,3936
+DELETE FROM dbo.<expr>",INSERT,true,false,,5,true,connProps,,56542e91c118438c6a8f16439edeca3c63d2a0f0,HIGH,clsValasService.cs,1880
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,6371,6371,inquiryValasSummaryFXOption,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id ) SELECT customer_id FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.[name] , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummaryFXOption_TM AS tm JOIN #tmpSummary AS tmp ON tm.customer_id = tmp.customer_id","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id ) SELECT customer_id FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.[name] , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummaryFXOption_TM AS tm JOIN #tmpSummary AS tmp ON tm.customer_id = tmp.customer_id",INSERT,true,false,,4,false,this._connObli,,4efb3db513f37b6f90885347fb405d0f07b3db33,MEDIUM,clsValasService.cs,6327
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,6622,6622,InsertValasSummaryFXOptionV2,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.VLSSummaryTodayFXOption_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryTodayFXOption_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.VLSSummaryTodayFXOption_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryTodayFXOption_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,8e48e254ff8e0e02f203165340514a78d1faa883,HIGH,clsValasService.cs,6412
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,6688,6688,InsertValasSummaryFXOptionV2,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.VLSSummaryTodayFXOption_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryTodayFXOption_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.VLSSummaryTodayFXOption_TM ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.VLSSummaryTodayFXOption_TM AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.VLSSummaryTodayFXOption_TM AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,8e48e254ff8e0e02f203165340514a78d1faa883,HIGH,clsValasService.cs,6412
@@ -2073,7 +1492,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7232
 20250701, darul.wahid, ONFX-267, begin , tmp.lcs_flag , tmp.buy_sell_code , tmp.product , tmp.in_usd_before , tmp.in_usd_total 
 20250701, darul.wahid, ONFX-267, end 
 20251120, darul.wahid, begin , tmp.[call] 
-20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,8608
+20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,8693
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7313,7313,InsertValasTransactionV3,"UPDATE tr SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , m_pl_key = tmp.m_pl_key , m_pl_key1 = tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , lcs_flag = tmp.lcs_flag , buy_sell_code = tmp.buy_sell_code , product = tmp.product , in_usd_before = tmp.in_usd_before , in_usd_total = tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , [call] = tmp.[call] --20251120, darul.wahid, end FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ( tr.amount != tmp.amount OR tr.rate != tmp.rate OR tr.InUSD != tmp.InUSD OR tr.JISDORRate != tmp.JISDORRate OR tr.InUSDJISDOR != tmp.InUSDJISDOR OR tr.m_pl_key != tmp.m_pl_key OR ISNULL(tr.m_pl_key1, '') != tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin OR tr.lcs_flag != tmp.lcs_flag OR tr.buy_sell_code != tmp.buy_sell_code OR tr.product != tmp.product OR tr.in_usd_before != tmp.in_usd_before OR tr.in_usd_total != tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin OR tr.[call] != tmp.[call] --20251120, darul.wahid, end ) INSERT INTO dbo.[[TableName]] ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , lcs_flag , buy_sell_code , product , in_usd_before , in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , [call] --20251120, darul.wahid, end ) SELECT tmp.src , tmp.dealno , tmp.customer_id , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.trx_datetime , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.SourceKey , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess , tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , tmp.lcs_flag , tmp.buy_sell_code , tmp.product , tmp.in_usd_before , tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , tmp.[call] --20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tr SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , m_pl_key = tmp.m_pl_key , m_pl_key1 = tmp.m_pl_key1 
 20250701, darul.wahid, ONFX-267, begin , lcs_flag = tmp.lcs_flag , buy_sell_code = tmp.buy_sell_code , product = tmp.product , in_usd_before = tmp.in_usd_before , in_usd_total = tmp.in_usd_total 
 20250701, darul.wahid, ONFX-267, end 
@@ -2090,7 +1509,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7313
 20250701, darul.wahid, ONFX-267, begin , tmp.lcs_flag , tmp.buy_sell_code , tmp.product , tmp.in_usd_before , tmp.in_usd_total 
 20250701, darul.wahid, ONFX-267, end 
 20251120, darul.wahid, begin , tmp.[call] 
-20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,9327
+20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,8710
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7394,7394,InsertValasTransactionV3,"UPDATE tr SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , m_pl_key = tmp.m_pl_key , m_pl_key1 = tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , lcs_flag = tmp.lcs_flag , buy_sell_code = tmp.buy_sell_code , product = tmp.product , in_usd_before = tmp.in_usd_before , in_usd_total = tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , [call] = tmp.[call] --20251120, darul.wahid, end FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ( tr.amount != tmp.amount OR tr.rate != tmp.rate OR tr.InUSD != tmp.InUSD OR tr.JISDORRate != tmp.JISDORRate OR tr.InUSDJISDOR != tmp.InUSDJISDOR OR tr.m_pl_key != tmp.m_pl_key OR ISNULL(tr.m_pl_key1, '') != tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin OR tr.lcs_flag != tmp.lcs_flag OR tr.buy_sell_code != tmp.buy_sell_code OR tr.product != tmp.product OR tr.in_usd_before != tmp.in_usd_before OR tr.in_usd_total != tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin OR tr.[call] != tmp.[call] --20251120, darul.wahid, end ) INSERT INTO dbo.[[TableName]] ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , lcs_flag , buy_sell_code , product , in_usd_before , in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , [call] --20251120, darul.wahid, end ) SELECT tmp.src , tmp.dealno , tmp.customer_id , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.trx_datetime , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.SourceKey , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess , tmp.m_pl_key1 --20250701, darul.wahid, ONFX-267, begin , tmp.lcs_flag , tmp.buy_sell_code , tmp.product , tmp.in_usd_before , tmp.in_usd_total --20250701, darul.wahid, ONFX-267, end --20251120, darul.wahid, begin , tmp.[call] --20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tr SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , m_pl_key = tmp.m_pl_key , m_pl_key1 = tmp.m_pl_key1 
 20250701, darul.wahid, ONFX-267, begin , lcs_flag = tmp.lcs_flag , buy_sell_code = tmp.buy_sell_code , product = tmp.product , in_usd_before = tmp.in_usd_before , in_usd_total = tmp.in_usd_total 
 20250701, darul.wahid, ONFX-267, end 
@@ -2107,13 +1526,13 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7394
 20250701, darul.wahid, ONFX-267, begin , tmp.lcs_flag , tmp.buy_sell_code , tmp.product , tmp.in_usd_before , tmp.in_usd_total 
 20250701, darul.wahid, ONFX-267, end 
 20251120, darul.wahid, begin , tmp.[call] 
-20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,9344
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7693,7693,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,8608
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7774,7774,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,9327
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7855,7855,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,8642
+20251120, darul.wahid, end FROM #tmpTrans AS tmp LEFT JOIN dbo.[[TableName]] AS tr ON tmp.dealno = tr.dealno WHERE tr.dealno is null UPDATE tr SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tr JOIN #tmpTrans AS tmp ON tmp.dealno = tr.dealno AND tr.customer_id = tmp.customer_id WHERE 1 = 1 AND ISNULL(tr.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,506e4dd2310d26a38c9c3c45678363c5b28ff0ad,HIGH,clsValasService.cs,8727
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7693,7693,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,8693
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7774,7774,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,8540
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,7855,7855,InsertValasSummaryV3,"UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tm SET InUSD = new.InUSD , InUSDJISDOR = new.InUSDJISDOR FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE 1 = 1 AND ( tm.InUSD != new.InUSD OR tm.InUSDJISDOR != new.InUSDJISDOR ) INSERT INTO dbo.[[TableName]] ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR , GuidProcess ) SELECT tmp.customer_id , tmp.InUSD , tmp.branch , tmp.[name] , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.ProcessTime , tmp.InUSDJISDOR , @pcGuidProcess FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id WHERE tm.customer_id is null UPDATE tm SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,e554404bd4905458b00ea16abc765d2ef5b47616,HIGH,clsValasService.cs,8727
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8286,8286,InsertValasResultV3,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,8608
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8368,8368,InsertValasResultV3,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,9327
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8449,8449,InsertValasResultV3,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,8727
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8368,8368,InsertValasResultV3,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,8710
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8449,8449,InsertValasResultV3,"UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess","UPDATE tt SET amount = tmp.amount , rate = tmp.rate , InUSD = tmp.InUSD , isHit = tmp.isHit , JISDORRate = tmp.JISDORRate , InUSDJISDOR = tmp.InUSDJISDOR , isHitJISDOR = tmp.isHitJISDOR FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE 1 = 1 AND ( tmp.amount != tt.amount OR tmp.rate != tt.rate OR tmp.InUSD != tt.InUSD OR tmp.isHit != tt.isHit OR tmp.JISDORRate != tt.JISDORRate OR tmp.InUSDJISDOR != tt.InUSDJISDOR OR tmp.isHitJISDOR != tt.isHitJISDOR ) INSERT INTO dbo.[[TableName]] ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent , GuidProcess ) SELECT tmp.branch , tmp.customer_id , tmp.[name] , tmp.acc_id , tmp.trx_branch , tmp.trx_date , tmp.currency_code , tmp.amount , tmp.rate , tmp.InUSD , tmp.dealno , tmp.office_name , tmp.npwp , tmp.identity_1 , tmp.isHit , tmp.ProcessTime , tmp.underlying , tmp.KetUnderlying , tmp.Purpose , tmp.JISDORRate , tmp.InUSDJISDOR , tmp.isHitJISDOR , tmp.m_pl_key , tmp.nik_agent , @pcGuidProcess FROM #tmpResult AS tmp LEFT JOIN dbo.[[TableName]] AS tt ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE tt.dealno is null UPDATE tt SET GuidProcess = @pcGuidProcess FROM dbo.[[TableName]] AS tt JOIN #tmpResult AS tmp ON tmp.dealno = tt.dealno AND tmp.customer_id = tt.customer_id WHERE ISNULL(tt.GuidProcess, 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,9155432ec3bfd031bb5cf831ab895362820b6818,HIGH,clsValasService.cs,8557
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8526,8526,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connSFX,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8523
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8543,8543,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connObli,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8540
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8560,8560,DeleteDataValasTransactionV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connSibs,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8557
@@ -2123,8 +1542,8 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8645
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8696,8696,DeleteDataValasResultV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connSFX,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8693
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8713,8713,DeleteDataValasResultV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connObli,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8710
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,8730,8730,DeleteDataValasResultV2,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connSibs,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,8727
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9075,9075,InsertSummaryValas,"UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess","UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,adb4833669fd50b2e3303f849d68d2f2231791b8,HIGH,clsValasService.cs,8608
-dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9156,9156,InsertSummaryValas,"UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess","UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,adb4833669fd50b2e3303f849d68d2f2231791b8,HIGH,clsValasService.cs,8625
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9075,9075,InsertSummaryValas,"UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess","UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSFX,,adb4833669fd50b2e3303f849d68d2f2231791b8,HIGH,clsValasService.cs,8523
+dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9156,9156,InsertSummaryValas,"UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess","UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connObli,,adb4833669fd50b2e3303f849d68d2f2231791b8,HIGH,clsValasService.cs,8710
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9237,9237,InsertSummaryValas,"UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess","UPDATE tm SET [total_in_usd] = new.[total_in_usd] , [total_in_usd_jisdor] = new.[total_in_usd_jisdor] FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id AND tm.[product] = new.[product] AND tm.[buy_sell] = new.[buy_sell] AND tm.[lcs_flag] = new.[lcs_flag] WHERE 1 = 1 AND ( tm.[total_in_usd] != new.[total_in_usd] OR tm.[total_in_usd_jisdor] != new.[total_in_usd_jisdor] ) INSERT INTO dbo.[[TableName]] ( [customer_id] , [product] , [buy_sell] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT tmp.[customer_id] , tmp.[product] , tmp.[buy_sell] , tmp.[lcs_flag] , tmp.[total_in_usd] , tmp.[total_in_usd_jisdor] , tmp.[branch] , tmp.[name] , tmp.[office_name] , tmp.[no_npwp] , tmp.[no_identity] , tmp.[process_time] , tmp.[guid_process] FROM #tmpSummary AS tmp LEFT JOIN dbo.[[TableName]] AS tm ON tmp.customer_id = tm.customer_id AND tmp.[product] = tm.[product] AND tmp.[buy_sell] = tm.[buy_sell] AND tmp.[lcs_flag] = tm.[lcs_flag] WHERE tm.customer_id is null UPDATE tm SET [guid_process] = @pcGuidProcess FROM dbo.[[TableName]] AS tm JOIN #tmpSummary AS new ON tm.customer_id = new.customer_id WHERE ISNULL(tm.[guid_process], 0x0) != @pcGuidProcess",UPDATE,true,false,,3,true,this._connSibs,,adb4833669fd50b2e3303f849d68d2f2231791b8,HIGH,clsValasService.cs,8727
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9313,9313,DeleteDataSummaryValas,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connSFX,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,9310
 dotnet-sample,clsValasService.cs,clsValasService.cs,code,csharp,CommandText,9330,9330,DeleteDataSummaryValas,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,false,,3,true,this._connObli,,d0b51d6f6782f9577b0076a337c460116fd55ba7,HIGH,clsValasService.cs,9327
