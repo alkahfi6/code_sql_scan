@@ -201,17 +201,15 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			entry = &agg{funcSet: make(map[string]struct{}), dbSet: make(map[string]struct{})}
 			expected[key] = entry
 		}
+		flags := classifyRoles(o)
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		isWrite := o.IsWrite || isWriteDml(upperDml)
-		isRead := (!isWrite && upperDml == "SELECT") || strings.EqualFold(o.Role, "source")
-		isExec := strings.EqualFold(o.Role, "exec") || upperDml == "EXEC"
-		if isRead {
+		if flags.read {
 			entry.reads++
 		}
-		if isWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
+		if flags.write && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
 			entry.writes++
 		}
-		if isExec {
+		if flags.exec {
 			entry.execs++
 		}
 		if o.IsCrossDb {
