@@ -631,15 +631,20 @@ type objectRoleCounter struct {
 }
 
 func (c *objectRoleCounter) Register(o ObjectRow) {
-	if o.IsWrite || isWriteDml(o.DmlKind) {
-		c.HasWrite = true
-		c.WriteCount++
-	}
-	if strings.EqualFold(o.Role, "exec") || strings.EqualFold(o.DmlKind, "exec") {
+	role := strings.ToLower(strings.TrimSpace(o.Role))
+	isExec := role == "exec" || strings.EqualFold(o.DmlKind, "exec")
+	isWrite := o.IsWrite || isWriteDml(o.DmlKind) || role == "target"
+	isRead := role == "source" || (!isExec && !isWrite)
+
+	if isExec {
 		c.HasExec = true
 		c.ExecCount++
 	}
-	if !o.IsWrite && !strings.EqualFold(o.Role, "exec") {
+	if isWrite {
+		c.HasWrite = true
+		c.WriteCount++
+	}
+	if isRead {
 		c.HasRead = true
 		c.ReadCount++
 	}
@@ -701,8 +706,11 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter) string {
 	}
 	tops := make([]top, 0, len(stats))
 	for name, counter := range stats {
-		count := counter.ReadCount + counter.WriteCount + counter.ExecCount
-		role := describeRoles(counter)
+		role := dominantRole(counter)
+		count := roleCount(counter, role)
+		if count == 0 {
+			count = counter.ReadCount + counter.WriteCount + counter.ExecCount
+		}
 		tops = append(tops, top{name: name, count: count, role: role})
 	}
 	sort.Slice(tops, func(i, j int) bool {
@@ -829,6 +837,38 @@ func describeRoles(counter *objectRoleCounter) string {
 		return "mixed"
 	}
 	return strings.Join(roles, "+")
+}
+
+func dominantRole(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "mixed"
+	}
+	if counter.HasExec {
+		return "exec"
+	}
+	if counter.HasWrite {
+		return "write"
+	}
+	if counter.HasRead {
+		return "read"
+	}
+	return "mixed"
+}
+
+func roleCount(counter *objectRoleCounter, role string) int {
+	if counter == nil {
+		return 0
+	}
+	switch strings.ToLower(role) {
+	case "exec":
+		return counter.ExecCount
+	case "write":
+		return counter.WriteCount
+	case "read":
+		return counter.ReadCount
+	default:
+		return counter.ReadCount + counter.WriteCount + counter.ExecCount
+	}
 }
 
 func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
