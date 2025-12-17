@@ -438,6 +438,11 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 			schemaName = "dbo"
 		}
 
+		startPos := m[2]
+		if startPos < 0 {
+			startPos = m[0]
+		}
+
 		tok := ObjectToken{
 			DbName:             dbName,
 			SchemaName:         schemaName,
@@ -446,7 +451,7 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 			Role:               "target",
 			DmlKind:            usage,
 			IsWrite:            true,
-			FoundAt:            m[0],
+			FoundAt:            startPos,
 			RepresentativeLine: line,
 			IsObjectNameDyn:    hasDynamicPlaceholder(rawName),
 			IsLinkedServer:     isLinked,
@@ -548,7 +553,7 @@ func isIdentChar(b byte) bool {
 	return (b >= '0' && b <= '9') ||
 		(b >= 'a' && b <= 'z') ||
 		(b >= 'A' && b <= 'Z') ||
-		b == '_' || b == '.' || b == '$' || b == '-'
+		b == '_' || b == '.' || b == '$' || b == '-' || b == '[' || b == ']'
 }
 
 func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) {
@@ -558,6 +563,9 @@ func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) 
 	}
 	unbracket := func(s string) string {
 		s = strings.TrimSpace(s)
+		if strings.HasPrefix(s, "[[") && strings.HasSuffix(s, "]]") {
+			return s
+		}
 		if len(s) >= 2 && s[0] == '[' && s[len(s)-1] == ']' {
 			return s[1 : len(s)-1]
 		}
