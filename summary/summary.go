@@ -1137,7 +1137,8 @@ func normalizeQueryFuncs(queries []QueryRow) []QueryRow {
 	}
 	res := make([]QueryRow, len(queries))
 	for i, q := range queries {
-		q.Func = resolveFuncName(q.Func, q.RelPath, q.LineStart)
+		normalized := normalizeFuncName(q.Func)
+		q.Func = resolveFuncName(normalized, q.RelPath, q.LineStart)
 		res[i] = q
 	}
 	return res
