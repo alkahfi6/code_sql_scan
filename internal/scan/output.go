@@ -204,6 +204,9 @@ func generateSummaries(cfg *Config) error {
 			examples := report.Examples(3)
 			return fmt.Errorf("SUMMARY CONSISTENCY FAIL (%d mismatches). Examples: %s", report.TotalMismatches(), strings.Join(examples, "; "))
 		}
+		if report != nil {
+			fmt.Printf("SUMMARY CONSISTENCY OK (functions=%d, objects=%d)\n", len(report.FunctionMismatches), len(report.ObjectMismatches))
+		}
 	}
 
 	return nil

@@ -25,6 +25,32 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	lines := strings.Split(src, "\n")
 	methodRanges := detectCsMethods(lines)
 	methodAtLine := indexCsMethodLines(methodRanges, len(lines))
+	fallbackMethod := func(line int) *methodRange {
+		if len(methodRanges) == 0 {
+			return nil
+		}
+		if line < 1 {
+			line = 1
+		}
+		var best *methodRange
+		for i := range methodRanges {
+			mr := &methodRanges[i]
+			if mr.Start > line {
+				break
+			}
+			best = mr
+			if line <= mr.End {
+				return mr
+			}
+		}
+		if best != nil {
+			const maxGap = 200
+			if line-best.End <= maxGap {
+				return best
+			}
+		}
+		return nil
+	}
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]string)
@@ -139,6 +165,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			)
 			if line-1 >= 0 && line-1 < len(methodAtLine) {
 				funcRange = methodAtLine[line-1]
+			}
+			if funcRange == nil {
+				funcRange = fallbackMethod(line)
 			}
 			if funcRange != nil {
 				funcName = funcRange.Name
@@ -631,10 +660,21 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 		dynamic = dynamic || dyn
 
 		if m.kind == "assign" {
-			fragments = fragments[:0]
 			if frag != "" {
-				fragments = append(fragments, frag)
+				fragments = []string{frag}
+				dynamic = dynamic || dyn
+				continue
 			}
+
+			trimmedExpr := strings.TrimSpace(expr)
+			if strings.Contains(trimmedExpr, varName) {
+				// Preserve prior fragments when the assignment rewrites the same variable (e.g., Replace). If
+				// we fail to parse the new expression, fallback to previously collected SQL parts.
+				dynamic = dynamic || dyn
+				continue
+			}
+
+			fragments = fragments[:0]
 			continue
 		}
 

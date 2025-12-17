@@ -9,6 +9,12 @@ import (
 	"unicode"
 )
 
+var (
+	insertTargetRe = regexp.MustCompile(`(?is)insert\s+into\s+([A-Za-z0-9_\[\]\.\"]+)`)
+	updateTargetRe = regexp.MustCompile(`(?is)update\s+([A-Za-z0-9_\[\]\.\"]+)\s+set\s+`)
+	deleteTargetRe = regexp.MustCompile(`(?is)delete\s+from\s+([A-Za-z0-9_\[\]\.\"]+)`)
+)
+
 // ------------------------------------------------------------
 // SQL usage analysis (DML, objek, cross-DB)
 // ------------------------------------------------------------
@@ -102,9 +108,12 @@ func analyzeCandidate(c *SqlCandidate) {
 
 	tokens := findObjectTokens(sqlClean)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
+	tokens = append(detectDmlTargetsFromSql(sqlClean, usage, c.LineStart), tokens...)
+	tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
 	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
-		insertTargets := collectInsertTargets(sqlClean, c.ConnDb, c.LineStart)
+		insertTargets := detectDmlTargetsFromSql(sqlClean, usage, c.LineStart)
+		insertTargets = append(insertTargets, collectInsertTargets(sqlClean, c.ConnDb, c.LineStart)...)
 		if tok, ok := parseLeadingInsertTarget(sqlClean, c.ConnDb, c.LineStart); ok {
 			insertTargets = append([]ObjectToken{tok}, insertTargets...)
 		}
@@ -151,10 +160,18 @@ func analyzeCandidate(c *SqlCandidate) {
 	hasCross := false
 	for i := range c.Objects {
 		obj := &c.Objects[i]
-		if obj.IsCrossDb && obj.DbName != "" {
-			dbSet[obj.DbName] = struct{}{}
-			hasCross = true
+		if obj.DbName == "" {
+			continue
 		}
+		dbSet[obj.DbName] = struct{}{}
+		if obj.IsCrossDb {
+			hasCross = true
+			continue
+		}
+		// Defensive: if the parser captured an explicit database prefix but
+		// did not mark IsCrossDb, treat it as cross-database access.
+		obj.IsCrossDb = true
+		hasCross = true
 	}
 	var dbList []string
 	for db := range dbSet {
@@ -381,6 +398,62 @@ func findObjectTokens(sql string) []ObjectToken {
 			tokens = append(tokens, tok)
 			start = end
 		}
+	}
+
+	return tokens
+}
+
+func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
+	usage = strings.ToUpper(strings.TrimSpace(usage))
+	var re *regexp.Regexp
+	switch usage {
+	case "INSERT":
+		re = insertTargetRe
+	case "UPDATE":
+		re = updateTargetRe
+	case "DELETE":
+		re = deleteTargetRe
+	default:
+		return nil
+	}
+
+	cleaned := StripSqlComments(sql)
+	matches := re.FindAllStringSubmatchIndex(cleaned, -1)
+	var tokens []ObjectToken
+
+	for _, m := range matches {
+		if len(m) < 4 {
+			continue
+		}
+		rawName := strings.TrimSpace(cleaned[m[2]:m[3]])
+		if rawName == "" {
+			continue
+		}
+
+		dbName, schemaName, baseName, isLinked := splitObjectNameParts(rawName)
+		if baseName == "" {
+			continue
+		}
+		if schemaName == "" {
+			schemaName = "dbo"
+		}
+
+		tok := ObjectToken{
+			DbName:             dbName,
+			SchemaName:         schemaName,
+			BaseName:           baseName,
+			FullName:           buildFullName(dbName, schemaName, baseName),
+			Role:               "target",
+			DmlKind:            usage,
+			IsWrite:            true,
+			FoundAt:            m[0],
+			RepresentativeLine: line,
+			IsObjectNameDyn:    hasDynamicPlaceholder(rawName),
+			IsLinkedServer:     isLinked,
+		}
+
+		tok = normalizeObjectToken(tok)
+		tokens = append(tokens, tok)
 	}
 
 	return tokens
@@ -998,6 +1071,63 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 	}
 
 	return tokens
+}
+
+func inferDynamicObjectFallbacks(sqlClean, rawSql, usage string, line int) []ObjectToken {
+	usage = strings.ToUpper(strings.TrimSpace(usage))
+	if usage == "" || usage == "UNKNOWN" {
+		return nil
+	}
+
+	hasHint := func(s string) bool {
+		s = strings.TrimSpace(s)
+		if s == "" {
+			return false
+		}
+		if strings.Contains(s, "[[") || strings.Contains(s, "]]") || strings.Contains(s, "${") {
+			return true
+		}
+		if strings.Contains(s, "<expr>") {
+			return true
+		}
+		if strings.Contains(s, "$") && strings.Contains(s, "{") && strings.Contains(s, "}") {
+			return true
+		}
+		if strings.Contains(s, "\" +") || strings.Contains(s, "+ \"") {
+			return true
+		}
+		return false
+	}
+
+	if !hasHint(sqlClean) && !hasHint(rawSql) {
+		return nil
+	}
+
+	tok := ObjectToken{
+		BaseName:           "<dynamic-object>",
+		FullName:           "<dynamic-object>",
+		IsObjectNameDyn:    true,
+		IsPseudoObject:     true,
+		PseudoKind:         "dynamic-object",
+		RepresentativeLine: line,
+	}
+
+	switch usage {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		tok.Role = "target"
+		tok.DmlKind = usage
+		tok.IsWrite = true
+	case "EXEC":
+		tok.Role = "exec"
+		tok.DmlKind = usage
+		tok.IsWrite = true
+	default:
+		tok.Role = "source"
+		tok.DmlKind = "SELECT"
+		tok.IsWrite = false
+	}
+
+	return []ObjectToken{tok}
 }
 
 func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken, bool) {
