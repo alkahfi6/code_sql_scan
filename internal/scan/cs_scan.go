@@ -53,24 +53,30 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	}
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
-	literalInMethod := make(map[string]map[string]string)
-	recordLiteral := func(method, name, val string) {
+	literalInMethod := make(map[string]map[string]SqlSymbol)
+	recordLiteral := func(method, name, val string, line int) {
 		if method == "" || name == "" {
 			return
 		}
 		if _, ok := literalInMethod[method]; !ok {
-			literalInMethod[method] = make(map[string]string)
+			literalInMethod[method] = make(map[string]SqlSymbol)
 		}
-		literalInMethod[method][name] = val
+		literalInMethod[method][name] = SqlSymbol{
+			Name:       name,
+			Value:      val,
+			RelPath:    relPath,
+			Line:       line,
+			IsComplete: true,
+		}
 	}
 
-	lookupLiteralAnyMethod := func(name string) (string, bool) {
+	lookupLiteralAnyMethod := func(name string) (SqlSymbol, bool) {
 		for _, m := range literalInMethod {
 			if val, ok := m[name]; ok {
 				return val, true
 			}
 		}
-		return "", false
+		return SqlSymbol{}, false
 	}
 	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
 		line := countLinesUpTo(clean, m[0])
@@ -85,7 +91,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		}
 		name := cleanedGroup(clean, m, 1)
 		val := cleanedGroup(clean, m, 2)
-		recordLiteral(funcName, name, val)
+		recordLiteral(funcName, name, val, line)
 	}
 	for i, line := range lines {
 		method := ""
@@ -96,14 +102,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			continue
 		}
 		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], m[2])
+			recordLiteral(method, m[1], m[2], i+1)
 			continue
 		}
 		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
 			continue
 		}
 		if m := regexes.bareAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], m[2])
+			recordLiteral(method, m[1], m[2], i+1)
 		}
 	}
 
@@ -169,6 +175,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			if funcRange == nil {
 				funcRange = fallbackMethod(line)
 			}
+			if funcRange == nil {
+				funcRange = scanBackwardForMethod(lines, line)
+			}
 			if funcRange != nil {
 				funcName = funcRange.Name
 			} else {
@@ -192,11 +201,23 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					end = len(lines)
 				}
 				methodText = strings.Join(lines[start:end], "\n")
+			} else {
+				ctxStart := line - 50
+				if ctxStart < 0 {
+					ctxStart = 0
+				}
+				ctxEnd := line + 50
+				if ctxEnd > len(lines) {
+					ctxEnd = len(lines)
+				}
+				methodText = strings.Join(lines[ctxStart:ctxEnd], "\n")
 			}
 
 			isDyn := p.dynamic
 			isExecStub := p.execStub
 			rawLiteral := false
+			defPath := relPath
+			defLine := line
 
 			switch p.re {
 			case regexes.newCmd:
@@ -209,7 +230,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 				if funcName != "" && regexes.identRe.MatchString(raw) {
 					if lit, ok := literalInMethod[funcName][raw]; ok {
-						raw = lit
+						raw = lit.Value
+						defPath = lit.RelPath
+						defLine = lit.Line
 						rawLiteral = true
 					} else {
 						isDyn = true
@@ -225,10 +248,12 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				}
 				if p.re == regexes.execProcDyn && funcName != "" && regexes.identRe.MatchString(rawArg) {
 					if lit, ok := literalInMethod[funcName][rawArg]; ok {
-						raw = lit
+						raw = lit.Value
 						isDyn = false
 						isExecStub = true
 						rawLiteral = true
+						defPath = lit.RelPath
+						defLine = lit.Line
 					}
 				}
 			case regexes.execQueryIdent:
@@ -238,11 +263,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				rawLiteral = false
 				if funcName != "" && regexes.identRe.MatchString(expr) {
 					if lit, ok := literalInMethod[funcName][expr]; ok {
-						raw = lit
+						raw = lit.Value
+						defPath = lit.RelPath
+						defLine = lit.Line
 						rawLiteral = true
 					} else {
 						if lit, ok := lookupLiteralAnyMethod(expr); ok {
-							raw = lit
+							raw = lit.Value
+							defPath = lit.RelPath
+							defLine = lit.Line
 							rawLiteral = true
 						} else {
 							assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
@@ -281,11 +310,15 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					raw = expr
 					if funcName != "" && regexes.identRe.MatchString(expr) {
 						if lit, ok := literalInMethod[funcName][expr]; ok {
-							raw = lit
+							raw = lit.Value
+							defPath = lit.RelPath
+							defLine = lit.Line
 							rawLiteral = true
 						} else {
 							if lit, ok := lookupLiteralAnyMethod(expr); ok {
-								raw = lit
+								raw = lit.Value
+								defPath = lit.RelPath
+								defLine = lit.Line
 								rawLiteral = true
 							} else {
 								isDyn = true
@@ -393,8 +426,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				IsExecStub:  isExecStub,
 				ConnName:    connName,
 				ConnDb:      "",
-				DefinedPath: relPath,
-				DefinedLine: line,
+				DefinedPath: defPath,
+				DefinedLine: defLine,
 			}
 			cands = append(cands, cand)
 		}
@@ -497,6 +530,44 @@ func indexCsMethodLines(methods []methodRange, totalLines int) []*methodRange {
 		}
 	}
 	return methodAtLine
+}
+
+func scanBackwardForMethod(lines []string, line int) *methodRange {
+	if line < 1 {
+		line = 1
+	}
+	limit := line - 200
+	if limit < 0 {
+		limit = 0
+	}
+	for i := line - 1; i >= limit && i < len(lines); i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			continue
+		}
+		name := ""
+		if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
+			name = m[2]
+		} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+			candidate := m[1]
+			kw := strings.ToLower(candidate)
+			if kw != "if" && kw != "for" && kw != "foreach" && kw != "while" && kw != "switch" && kw != "catch" && kw != "using" && kw != "lock" {
+				name = candidate
+			}
+		}
+		if name != "" {
+			start := i + 1
+			end := line
+			if end < start {
+				end = start
+			}
+			return &methodRange{Name: name, Start: start, End: end}
+		}
+	}
+	return nil
 }
 
 func extractCSharpArgs(src string, matchStart int) []string {
