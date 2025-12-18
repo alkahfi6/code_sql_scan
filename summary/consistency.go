@@ -189,6 +189,11 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		fullName   string
 	}
 
+	queryByKey := make(map[string]QueryRow)
+	for _, q := range queries {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
+
 	expected := make(map[string]*agg)
 	for _, o := range objects {
 		if shouldSkipObject(o) {
@@ -232,13 +237,15 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			}
 			expected[key] = entry
 		}
-		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		if strings.ToLower(strings.TrimSpace(o.Role)) == "exec" || upperDml == "EXEC" {
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		qRow, hasQuery := queryByKey[qKey]
+		flags := roleFlagsForObject(o, qRow, hasQuery)
+		switch {
+		case flags.exec:
 			entry.execs++
-		}
-		if o.IsWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE" || upperDml == "EXEC") {
+		case flags.write:
 			entry.writes++
-		} else {
+		default:
 			entry.reads++
 		}
 		if o.IsCrossDb {

@@ -345,7 +345,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				counter = &objectRoleCounter{}
 				objectCounter[name] = counter
 			}
-			counter.Register(o)
+			qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
+			counter.Register(o, qRow, hasQuery)
 		}
 		for _, q := range qRows {
 			qKey := queryObjectKey(app, rel, q.File, q.QueryHash)
@@ -470,6 +471,10 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 	}
 
 	grouped := make(map[string]*agg)
+	queryByKey := make(map[string]QueryRow)
+	for _, q := range queries {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
 	for _, o := range objects {
 		if shouldSkipObject(o) {
 			continue
@@ -517,17 +522,16 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			grouped[key] = entry
 		}
 
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		qRow, hasQuery := queryByKey[qKey]
+		flags := roleFlagsForObject(o, qRow, hasQuery)
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		role := strings.ToLower(strings.TrimSpace(o.Role))
-		isExec := role == "exec" || upperDml == "EXEC"
-		isWrite := o.IsWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE" || upperDml == "EXEC")
-
-		if isExec {
+		switch {
+		case flags.exec:
 			entry.execs++
-		}
-		if isWrite {
+		case flags.write:
 			entry.writes++
-		} else {
+		default:
 			entry.reads++
 		}
 
@@ -621,8 +625,10 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 	dbListByForm := make(map[string]map[string]struct{})
 	funcSetByForm := make(map[string]map[string]struct{})
 	fileByForm := make(map[string]string)
+	queryByKey := make(map[string]QueryRow)
 
 	for _, q := range normQueries {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
 		key := formKey(q.AppName, q.RelPath, q.File)
 		groupQueries[key] = append(groupQueries[key], q)
 		if _, ok := funcSetByForm[key]; !ok {
@@ -682,7 +688,9 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			counter = &objectRoleCounter{}
 			topObjectStats[key][baseName] = counter
 		}
-		counter.Register(o)
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		qRow, hasQuery := queryByKey[qKey]
+		counter.Register(o, qRow, hasQuery)
 	}
 
 	allKeys := make(map[string]struct{})
@@ -793,8 +801,8 @@ type roleFlags struct {
 	exec  bool
 }
 
-func (c *objectRoleCounter) Register(o ObjectRow) {
-	flags := classifyRoles(o)
+func (c *objectRoleCounter) Register(o ObjectRow, q QueryRow, hasQuery bool) {
+	flags := roleFlagsForObject(o, q, hasQuery)
 
 	if flags.exec {
 		c.HasExec = true
@@ -842,6 +850,24 @@ func dynamicPseudoRoleFlags(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
 		}
 		return roleFlags{read: true}
 	}
+}
+
+func roleFlagsForObject(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
+	flags := dynamicPseudoRoleFlags(o, q, hasQuery)
+	return normalizeRoleFlags(flags)
+}
+
+func normalizeRoleFlags(flags roleFlags) roleFlags {
+	if flags.exec {
+		return roleFlags{exec: true}
+	}
+	if flags.write {
+		return roleFlags{write: true}
+	}
+	if flags.read {
+		return roleFlags{read: true}
+	}
+	return roleFlags{read: true}
 }
 
 func dynamicSignature(q QueryRow) string {
