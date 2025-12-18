@@ -210,7 +210,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		}
 		pseudoKind := defaultPseudoKind(o.PseudoKind)
 		isPseudoObj := o.IsPseudoObject
-		if detected, kind := pseudoObjectInfo(base); detected {
+		if detected, kind := pseudoObjectInfo(base, pseudoKind); detected {
 			isPseudoObj = true
 			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
 		}

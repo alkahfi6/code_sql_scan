@@ -490,7 +490,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		}
 		pseudoKind := defaultPseudoKind(o.PseudoKind)
 		isPseudoObj := o.IsPseudoObject
-		if detected, kind := pseudoObjectInfo(baseName); detected {
+		if detected, kind := pseudoObjectInfo(baseName, pseudoKind); detected {
 			isPseudoObj = true
 			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
 		}
@@ -1337,18 +1337,7 @@ func pick(rec []string, idx map[string]int, key string) string {
 }
 
 func isDynamicQuery(q QueryRow) bool {
-	if q.IsDynamic {
-		return true
-	}
-	lowerClean := strings.ToLower(q.SqlClean)
-	lowerRaw := strings.ToLower(q.RawSql)
-	if strings.Contains(lowerClean, "<expr>") || strings.Contains(lowerClean, "<dynamic") {
-		return true
-	}
-	if strings.Contains(lowerRaw, "<dynamic") {
-		return true
-	}
-	return false
+	return q.IsDynamic
 }
 
 func setToSortedSlice(m map[string]struct{}) []string {
@@ -1691,19 +1680,27 @@ func shouldSkipObject(o ObjectRow) bool {
 	return false
 }
 
-func pseudoObjectInfo(base string) (bool, string) {
+func pseudoObjectInfo(base string, pseudoKindHint string) (bool, string) {
 	trimmed := strings.TrimSpace(base)
-	lower := strings.ToLower(trimmed)
-	if isDynamicBaseName(trimmed) {
-		return true, "dynamic-sql"
+	if trimmed == "" {
+		return false, ""
 	}
-	if strings.HasPrefix(lower, "<") && strings.HasSuffix(lower, ">") {
-		kind := strings.TrimSuffix(strings.TrimPrefix(lower, "<"), ">")
-		kind = strings.TrimSpace(kind)
+	lower := strings.ToLower(trimmed)
+	switch {
+	case lower == "<dynamic-sql>":
+		return true, "dynamic-sql"
+	case strings.HasPrefix(lower, "<dynamic-object"):
+		return true, "dynamic-object"
+	case strings.HasPrefix(lower, "<") && strings.HasSuffix(lower, ">"):
+		kind := strings.TrimSpace(strings.TrimSuffix(strings.TrimPrefix(lower, "<"), ">"))
 		if kind == "" {
 			kind = "unknown"
 		}
 		return true, kind
+	}
+	hint := defaultPseudoKind(pseudoKindHint)
+	if strings.HasPrefix(hint, "dynamic-") && hint != "unknown" {
+		return true, hint
 	}
 	return false, ""
 }

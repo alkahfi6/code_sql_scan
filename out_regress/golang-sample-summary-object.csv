@@ -1,5 +1,5 @@
 AppName,RelPath,FullObjectName,BaseName,Roles,DmlKinds,TotalReads,TotalWrites,TotalExec,TotalFuncs,ExampleFuncs,IsPseudoObject,PseudoKind,HasCrossDb,DbList
-golang-sample,go1/query.go,<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go1/query.go,<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-object,false,
 golang-sample,go1/source.go,<dynamic-sql>,<dynamic-sql>,read=7; write=0; exec=0,UNKNOWN,7,0,0,7,ExecSPMurexMK;ExecuteSPMurexConfoMK;GetMK005A;GetMK005AConfo;GetMK006A,true,dynamic-sql,false,
 golang-sample,go3/aajiQueries.sql.go,SQL_Employee.dbo.PSEmployee_v,PSEmployee_v,read=2; write=0; exec=0,SELECT,2,0,0,2,GetNameAndJobTitleByNIK;go3/aajiQueries.sql.go@L557,false,,true,SQL_Employee
 golang-sample,go1/query.go,SQL_REPLICATE.dbo.confomk005_a,confomk005_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L55,false,,true,SQL_REPLICATE
@@ -7,7 +7,7 @@ golang-sample,go1/query.go,SQL_REPLICATE.dbo.confomk006_a,confomk006_a,read=0; w
 golang-sample,go1/query.go,SQL_REPLICATE.dbo.mk005_a,mk005_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L121,false,,true,SQL_REPLICATE
 golang-sample,go1/query.go,SQL_REPLICATE.dbo.mk006_a,mk006_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L103,false,,true,SQL_REPLICATE
 golang-sample,go3/bond_transaction_repository.go,SQL_SIBS.dbo.SIBSCurrencyTable_EOD,SIBSCurrencyTable_EOD,read=1; write=0; exec=0,SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
-golang-sample,go1/query.go,[[schema]].<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go1/query.go,[[schema]].<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-object,false,
 golang-sample,go1/destination.go,[dbo].[MK002-A],MK002-A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
 golang-sample,go1/destination.go,[dbo].[MK002-A_detail],MK002-A_detail,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
 golang-sample,go1/destination.go,[dbo].[MK002-A_flatfile],MK002-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileData,false,,false,
@@ -22,8 +22,8 @@ golang-sample,go1/destination.go,[dbo].[MK006-A_flatfile],MK006-A_flatfile,read=
 golang-sample,go1/destination.go,[dbo].[MK006UN-A_flatfile],MK006UN-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileUnstructuredData,false,,false,
 golang-sample,go1/source.go,[dbo].[MKValidateData],MKValidateData,read=0; write=0; exec=1,EXEC,0,0,1,1,ValidateMKData,false,,false,
 golang-sample,go1/destination.go,[dbo].[UpdateControlTableResikoPasar],UpdateControlTableResikoPasar,read=0; write=0; exec=1,EXEC,0,0,1,1,UpdateControlTableResikoPasar,false,,false,
-golang-sample,go3/bancaQueries_manual.sql.go,dbo.<dynamic-object>,<dynamic-object>,read=0; write=2; exec=0,SELECT,0,2,0,2,InsertDeleteTT;go3/bancaQueries_manual.sql.go@L13,true,dynamic-sql,false,
-golang-sample,go1/query.go,dbo.<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.<dynamic-object>,<dynamic-object>,read=0; write=2; exec=0,SELECT,0,2,0,2,InsertDeleteTT;go3/bancaQueries_manual.sql.go@L13,true,dynamic-object,false,
+golang-sample,go1/query.go,dbo.<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-object,false,
 golang-sample,go3/refundBillingQueries_manual.sql.go,dbo.BA_SelectRefundBilling,BA_SelectRefundBilling,read=0; write=0; exec=2,EXEC,0,0,2,2,ExecBASelectRefundBilling;go3/refundBillingQueries_manual.sql.go@L12,false,,false,
 golang-sample,go3/bancaQueries_manual.sql.go,dbo.BancaControlTable_TM,BancaControlTable_TM,read=0; write=2; exec=0,SELECT;UPDATE,0,2,0,2,GetBancaControlTableTMLastId;go3/bancaQueries_manual.sql.go@L64,false,,false,
 golang-sample,go3/bancaQueries_manual.sql.go,dbo.BancaDelete_TT,BancaDelete_TT,read=0; write=2; exec=0,INSERT,0,2,0,2,InsertDeleteTT;go3/bancaQueries_manual.sql.go@L13,false,,false,
