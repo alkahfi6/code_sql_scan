@@ -201,12 +201,23 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			entry = &agg{funcSet: make(map[string]struct{}), dbSet: make(map[string]struct{})}
 			expected[key] = entry
 		}
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		q, hasQuery := queryByKey[qKey]
 		flags := classifyRoles(o)
+		if isDynamicBaseName(o.BaseName) {
+			flags = dynamicPseudoRoleFlags(o, q, hasQuery)
+		}
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
+		upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
+		writeByUsage := upperUsage == "INSERT" || upperUsage == "UPDATE" || upperUsage == "DELETE" || upperUsage == "TRUNCATE" || upperUsage == "EXEC"
+		writeAllowed := upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE"
+		if isDynamicBaseName(o.BaseName) {
+			writeAllowed = writeAllowed || writeByUsage || q.IsWrite
+		}
 		if flags.read {
 			entry.reads++
 		}
-		if flags.write && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
+		if flags.write && writeAllowed {
 			entry.writes++
 		}
 		if flags.exec {
@@ -228,7 +239,6 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			entry.isPseudo = true
 			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(kind))
 		}
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 		if q, ok := queryByKey[qKey]; ok {
 			fn := strings.TrimSpace(q.Func)
 			if fn != "" {

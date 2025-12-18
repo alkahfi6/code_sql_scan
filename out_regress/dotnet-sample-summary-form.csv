@@ -3,10 +3,10 @@ dotnet-sample,ANTSNAModel.cs,11,11,11,0,11,"exec: ANTSNAGenerateFile, ANTSNAGetC
 dotnet-sample,ApprovalParamGLModel.cs,2,2,2,0,2,"exec: TRSApprovalParamGL, TRSPopulateApprovalParameterGL",false,
 dotnet-sample,ApprovalSIDModel.cs,4,4,4,0,4,"exec: TRSApproveSID, TRSInsertLogOneNotifNTI, TRSNTIUpdateStatusNotif, TRSPopulateApprovalSID",false,
 dotnet-sample,clsAPIServiceInvestmentObligasi.cs,3,1,0,1,3,"read: TreasuryCustomer_TM, control_table",false,
-dotnet-sample,clsAPIServiceNTI.cs,16,8,0,1,59,"write: TreasuryCustomer_TM, ProCIFChangeMaster_TH, OPENXML, ProACCASODocRepository_TM, ProCIFRiskProfile_TM; read: KodeKota_TR, KodePropinsi_TR, TRSParameter_TR, CFADDRKodeKotaMapping_TR, CFMAST_v",true,SQL_ACC;SQL_CIF;SQL_REPLICATE;SQL_SIBS;SQL_TRSRETAIL
-dotnet-sample,clsAntasenaService.cs,3,3,0,3,8,"write: openxml; read: eq, sp_xml_preparedocument, VLSResultFinalToday_TT, VLSSummaryToday_TM, VLSTransactionsToday_TR",false,
+dotnet-sample,clsAPIServiceNTI.cs,16,4,0,8,63,"write: TreasuryCustomer_TM, TreasuryCustomerLog_TH, edBy, edDate, Data; read: CFMAST_v, KodeKota_TR, TRSListChannelBonds_TR, TRSParameter_TR, TreasuryCustomer_TM",true,SQL_ACC;SQL_CIF;SQL_REPLICATE;SQL_SIBS
+dotnet-sample,clsAntasenaService.cs,3,3,0,3,9,"write: INTO, openxml; read: eq, sp_xml_preparedocument, VLSResultFinalToday_TT, VLSSummaryToday_TM, VLSTransactionsToday_TR",false,
 dotnet-sample,clsDataAccess1.cs,14,14,14,0,14,"exec: SBNSchedCreateLiveLog, SBNSchedGetDataStatusPemesanan, SBNSchedGetGeneralParam, SBNSchedLogORIPaymentDirect, SBNSchedPopulateNotif",false,
 dotnet-sample,clsDataAccess2.cs,44,44,44,0,41,"exec: TRSObliGetNotifAPIParam, TRSRetailCalculateFee, MXINTFCPYInLog, MXINTFDEALInLog, OMBranchingNTI",false,
 dotnet-sample,clsDatabase.cs,204,204,204,0,196,"exec: trs_ListColumnsTable, TRSProcessInsertSecurityTransactionCommit, TRSPopulateBlokirSwitchingTransaction, TRSProcessUploadDocsLink, UserGetToolbar",false,
-dotnet-sample,clsValasService.cs,96,93,1,65,28,"exec: VLSGenerateDataTrxNasabah; write: openxml, tm, VLSSummaryFXOption_TM, VLSSummary_TM, VLSTransactions_TR; read: sp_xml_preparedocument, summary_valas, VLSSummaryTodayFXOption_TM, VLSSummaryToday_TM, VLSTransactionsToday_TR",false,
-dotnet-sample,frmObligasiUpdateStatusTRX.cs,26,26,26,0,8,"exec: trs_UpdateStatusSecurityTransactionAfterMurex, TRSGetEmailForPushBack, TRSGetEmailLookUp, UserGetToolbarTree, UserGetTreeView",false,
+dotnet-sample,clsValasService.cs,96,90,0,37,28,"write: INTO, openxml, VLSSummaryFXOption_TM, VLSSummary_TM, VLSTransactions_TR; read: sp_xml_preparedocument, VLSTransactionsToday_TR, summary_valas, VLSSummaryTodayFXOption_TM, VLSSummaryToday_TM",false,
+dotnet-sample,frmObligasiUpdateStatusTRX.cs,26,26,26,4,9,"exec: trs_UpdateStatusSecurityTransactionAfterMurex, TRSGetEmailForPushBack, TRSGetEmailLookUp, UserGetToolbarTree, UserGetTreeView",false,

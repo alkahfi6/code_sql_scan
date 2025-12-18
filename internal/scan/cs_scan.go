@@ -25,6 +25,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	lines := strings.Split(src, "\n")
 	methodRanges := detectCsMethods(lines)
 	methodAtLine := indexCsMethodLines(methodRanges, len(lines))
+	sequentialMethodAtLine := buildSequentialMethodIndex(lines)
 	fallbackMethod := func(line int) *methodRange {
 		if len(methodRanges) == 0 {
 			return nil
@@ -172,6 +173,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			)
 			if line-1 >= 0 && line-1 < len(methodAtLine) {
 				funcRange = methodAtLine[line-1]
+			}
+			if funcRange == nil && line-1 >= 0 && line-1 < len(sequentialMethodAtLine) {
+				funcRange = sequentialMethodAtLine[line-1]
 			}
 			if funcRange == nil {
 				funcRange = fallbackMethod(line)
@@ -479,35 +483,131 @@ type methodRange struct {
 	Start, End int
 }
 
+func extractCsMethodName(trimmed string) string {
+	if strings.TrimSpace(trimmed) == "" {
+		return ""
+	}
+	if isCsControlKeyword(leadingToken(trimmed)) {
+		return ""
+	}
+	if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
+		return m[2]
+	}
+	if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+		candidate := m[1]
+		if isCsControlKeyword(strings.ToLower(candidate)) {
+			return ""
+		}
+		return candidate
+	}
+	return ""
+}
+
+func countBracesAndStringState(line string, inString bool, verbatim bool, escaped bool) (int, int, bool, bool, bool) {
+	open := 0
+	close := 0
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if inString {
+			if verbatim {
+				if c == '"' {
+					if i+1 < len(line) && line[i+1] == '"' {
+						i++
+						continue
+					}
+					inString = false
+					verbatim = false
+				}
+				continue
+			}
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			verbatim = i > 0 && line[i-1] == '@'
+			escaped = false
+			continue
+		}
+		if c == '{' {
+			open++
+			continue
+		}
+		if c == '}' {
+			close++
+		}
+	}
+	return open, close, inString, verbatim, escaped
+}
+
+func leadingToken(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return ""
+	}
+	token := fields[0]
+	token = strings.TrimLeft(token, "([{\t")
+	token = strings.TrimRight(token, "({")
+	return strings.ToLower(token)
+}
+
+func isCsControlKeyword(tok string) bool {
+	switch strings.ToLower(strings.TrimSpace(tok)) {
+	case "", "if", "for", "foreach", "while", "switch", "catch", "using", "lock", "else", "try", "do", "case", "default":
+		return tok != ""
+	default:
+		return false
+	}
+}
+
 func detectCsMethods(lines []string) []methodRange {
 	var methods []methodRange
 	var current *methodRange
 	braceDepth := 0
 	methodStarted := false
+	inString := false
+	verbatim := false
+	escaped := false
 
 	for i, line := range lines {
 		trimmed := strings.TrimSpace(line)
-		if current == nil && trimmed != "" {
-			name := ""
-			if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
-				name = m[2]
-			} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
-				candidate := m[1]
-				kw := strings.ToLower(candidate)
-				if kw != "if" && kw != "for" && kw != "foreach" && kw != "while" && kw != "switch" && kw != "catch" && kw != "using" && kw != "lock" {
-					name = candidate
+		name := ""
+		if !inString {
+			name = extractCsMethodName(trimmed)
+			if current != nil && name != "" {
+				if current.End < i {
+					current.End = i
 				}
+				methods = append(methods, *current)
+				current = nil
+				braceDepth = 0
+				methodStarted = false
 			}
-			if name != "" {
+			if current == nil && name != "" {
 				current = &methodRange{Name: name, Start: i + 1, End: i + 1}
 				braceDepth = 0
 				methodStarted = false
 			}
 		}
 
+		open, close, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(line, inString, verbatim, escaped)
+		inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
+
 		if current != nil {
-			open := strings.Count(line, "{")
-			close := strings.Count(line, "}")
 			if open > 0 {
 				methodStarted = true
 			}
@@ -557,6 +657,27 @@ func indexCsMethodLines(methods []methodRange, totalLines int) []*methodRange {
 	return methodAtLine
 }
 
+func buildSequentialMethodIndex(lines []string) []*methodRange {
+	methodAtLine := make([]*methodRange, len(lines))
+	var current *methodRange
+	inString := false
+	verbatim := false
+	escaped := false
+	for i, line := range lines {
+		if !inString {
+			if name := extractCsMethodName(strings.TrimSpace(line)); name != "" {
+				current = &methodRange{Name: name, Start: i + 1, End: i + 1}
+			}
+		}
+		_, _, inString, verbatim, escaped = countBracesAndStringState(line, inString, verbatim, escaped)
+		if current != nil {
+			current.End = i + 1
+			methodAtLine[i] = current
+		}
+	}
+	return methodAtLine
+}
+
 func scanBackwardForMethod(lines []string, line int) *methodRange {
 	if line < 1 {
 		line = 1
@@ -573,16 +694,7 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			continue
 		}
-		name := ""
-		if m := regexes.methodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
-			name = m[2]
-		} else if m := regexes.methodReNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
-			candidate := m[1]
-			kw := strings.ToLower(candidate)
-			if kw != "if" && kw != "for" && kw != "foreach" && kw != "while" && kw != "switch" && kw != "catch" && kw != "using" && kw != "lock" {
-				name = candidate
-			}
-		}
+		name := extractCsMethodName(trimmed)
 		if name != "" {
 			start := i + 1
 			end := line

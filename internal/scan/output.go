@@ -172,6 +172,9 @@ func generateSummaries(cfg *Config) error {
 		if err != nil {
 			return fmt.Errorf("build function summary: %w", err)
 		}
+		if err := summary.ValidateFunctionSummaryCounts(queries, rows); err != nil {
+			return fmt.Errorf("function summary validation: %w", err)
+		}
 		if err := summary.WriteFunctionSummary(cfg.OutSummaryFunc, rows); err != nil {
 			return fmt.Errorf("write function summary: %w", err)
 		}
