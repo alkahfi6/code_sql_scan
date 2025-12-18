@@ -184,6 +184,9 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		pseudoKind string
 		hasCross   bool
 		dbSet      map[string]struct{}
+		dmlSet     map[string]struct{}
+		baseName   string
+		fullName   string
 	}
 
 	normQueries := normalizeQueryFuncs(queries)
@@ -195,10 +198,23 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 	expected := make(map[string]*agg)
 	for _, o := range objects {
 		base := strings.TrimSpace(o.BaseName)
-		key := strings.Join([]string{o.AppName, base}, "|")
+		if shouldSkipObject(o) {
+			continue
+		}
+		fullName := chooseFullObjectName(o)
+		if strings.TrimSpace(fullName) == "" {
+			continue
+		}
+		key := objectSummaryKey(o.AppName, o.RelPath, fullName)
 		entry := expected[key]
 		if entry == nil {
-			entry = &agg{funcSet: make(map[string]struct{}), dbSet: make(map[string]struct{})}
+			entry = &agg{
+				funcSet:  make(map[string]struct{}),
+				dbSet:    make(map[string]struct{}),
+				dmlSet:   make(map[string]struct{}),
+				baseName: base,
+				fullName: fullName,
+			}
 			expected[key] = entry
 		}
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
@@ -223,11 +239,25 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		if flags.exec {
 			entry.execs++
 		}
-		if o.IsCrossDb {
+		if o.IsCrossDb || q.HasCrossDb {
 			entry.hasCross = true
 		}
 		if db := strings.TrimSpace(o.DbName); db != "" {
 			entry.dbSet[db] = struct{}{}
+		}
+		if db := strings.TrimSpace(q.ConnDb); db != "" {
+			entry.dbSet[db] = struct{}{}
+		}
+		for _, db := range q.DbList {
+			if db = strings.TrimSpace(db); db != "" {
+				entry.dbSet[db] = struct{}{}
+			}
+		}
+		if upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind)); upperDml != "" {
+			entry.dmlSet[upperDml] = struct{}{}
+		}
+		if upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind)); upperUsage != "" {
+			entry.dmlSet[upperUsage] = struct{}{}
 		}
 
 		isPseudoObj, kind := pseudoObjectInfo(base)
@@ -249,18 +279,14 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
-		key := strings.Join([]string{s.AppName, strings.TrimSpace(s.BaseName)}, "|")
+		key := objectSummaryKey(s.AppName, s.RelPath, strings.TrimSpace(s.FullObjectName))
 		summaryMap[key] = s
 	}
 
 	var mismatches []string
 	for key, raw := range expected {
 		summary, ok := summaryMap[key]
-		base := strings.SplitN(key, "|", 2)
-		baseName := ""
-		if len(base) == 2 {
-			baseName = base[1]
-		}
+		baseName := raw.baseName
 		if !ok {
 			mismatches = append(mismatches, fmt.Sprintf("object %s missing in summary (raw read=%d write=%d exec=%d funcs=%d)", baseName, raw.reads, raw.writes, raw.execs, len(raw.funcSet)))
 			continue
@@ -282,6 +308,10 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		expectedRoles := summarizeRoleCounts(raw.reads, raw.writes, raw.execs)
 		if strings.TrimSpace(summary.Roles) != expectedRoles {
 			diffs = append(diffs, fmt.Sprintf("roles raw=%s summary=%s", expectedRoles, summary.Roles))
+		}
+		expectedDml := strings.Join(setToSortedSlice(raw.dmlSet), ";")
+		if strings.TrimSpace(summary.DmlKinds) != expectedDml {
+			diffs = append(diffs, fmt.Sprintf("dml raw=%s summary=%s", expectedDml, summary.DmlKinds))
 		}
 		expectedPseudoKind := strings.TrimSpace(defaultPseudoKind(raw.pseudoKind))
 		if raw.isPseudo != summary.IsPseudoObject {
@@ -415,7 +445,7 @@ func LoadObjectSummary(path string) ([]ObjectSummaryRow, error) {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"AppName", "BaseName", "TotalReads", "TotalWrites", "TotalExec", "TotalFuncs"}
+	required := []string{"AppName", "RelPath", "FullObjectName", "BaseName", "TotalReads", "TotalWrites", "TotalExec", "TotalFuncs"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			return nil, fmt.Errorf("missing column %s in object summary", req)
@@ -432,18 +462,20 @@ func LoadObjectSummary(path string) ([]ObjectSummaryRow, error) {
 			return nil, err
 		}
 		row := ObjectSummaryRow{
-			AppName:     rec[idx["AppName"]],
-			BaseName:    rec[idx["BaseName"]],
-			TotalReads:  parseInt(rec[idx["TotalReads"]]),
-			TotalWrites: parseInt(rec[idx["TotalWrites"]]),
-			TotalExec:   parseInt(rec[idx["TotalExec"]]),
-			TotalFuncs:  parseInt(rec[idx["TotalFuncs"]]),
-		}
-		if col, ok := idx["FullObjectName"]; ok {
-			row.FullObjectName = rec[col]
+			AppName:        rec[idx["AppName"]],
+			RelPath:        rec[idx["RelPath"]],
+			FullObjectName: rec[idx["FullObjectName"]],
+			BaseName:       rec[idx["BaseName"]],
+			TotalReads:     parseInt(rec[idx["TotalReads"]]),
+			TotalWrites:    parseInt(rec[idx["TotalWrites"]]),
+			TotalExec:      parseInt(rec[idx["TotalExec"]]),
+			TotalFuncs:     parseInt(rec[idx["TotalFuncs"]]),
 		}
 		if col, ok := idx["Roles"]; ok {
 			row.Roles = rec[col]
+		}
+		if col, ok := idx["DmlKinds"]; ok {
+			row.DmlKinds = rec[col]
 		}
 		if col, ok := idx["ExampleFuncs"]; ok {
 			row.ExampleFuncs = rec[col]

@@ -1,10 +1,10 @@
-AppName,RelPath,File,TotalFunctionsWithDB,TotalQueries,TotalObjects,TotalExec,TotalWrite,TotalDynamic,DistinctObjectsUsed,HasCrossDb
-golang-sample,go1/destination.go,destination.go,12,24,26,18,21,0,22,false
-golang-sample,go1/query.go,query.go,1,17,17,0,10,5,7,true
-golang-sample,go1/source.go,source.go,8,8,1,1,1,7,1,false
-golang-sample,go2/impl.go,impl.go,6,7,7,0,0,0,7,false
-golang-sample,go2/query.go,query.go,1,5,5,0,0,0,5,false
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,18,34,46,4,8,0,5,true
-golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,3,4,6,0,4,0,3,false
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,2,2,32,0,1,0,30,true
-golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,2,2,2,2,2,0,1,false
+AppName,RelPath,File,TotalFunctionsWithDB,TotalQueries,TotalObjects,TotalExec,TotalWrite,TotalDynamic,DistinctObjectsUsed,HasDbAccess,HasCrossDb,DbList,TopObjects
+golang-sample,go1/destination.go,destination.go,12,24,26,21,18,0,22,true,false,,MK006-A_flatfile (exec); MK005-A_flatfile (exec); MK002-A (exec); MK002-A_detail (exec); MK002-A_flatfile (exec)
+golang-sample,go1/query.go,query.go,17,17,27,10,0,5,7,true,true,SQL_REPLICATE,mk006_a (write+read); confomk005_a (write); confomk006_a (write); mk005_a (write); mk006_a_actuate (write)
+golang-sample,go1/source.go,source.go,8,8,8,1,1,7,2,true,false,,MKValidateData (exec); <dynamic-sql> (read)
+golang-sample,go2/impl.go,impl.go,6,7,7,0,0,0,7,true,false,,CFMAST (read); control_table (read); SIBSCurrencyTable_TM (read); valas_mapping_parameter (read); VLSRate_TM (read)
+golang-sample,go2/query.go,query.go,5,5,5,0,0,0,5,true,false,,CFMAST (read); control_table (read); SIBSCurrencyTable_TM (read); VLSTransactions_TR (read); VLSTransactionsToday_TR (read)
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,34,34,50,8,4,0,7,true,true,SQL_Employee,BancaMTranAAJIAAUI_TT (exec+write+read); insert (exec); UPDATE (write); BancaNoAAUI_TM (read); BancaNoAAJI_TM (read)
+golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,4,4,24,4,0,0,12,true,false,,ActionType (write); BancaControlTable_TM (write); BancaDelete_TT (write); BatchId (write); DateOtor (write)
+golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,2,2,30,1,0,0,29,true,true,SQL_SIBS,a (write); bl (write); blt (write); edDate (write); SecurityTransaction_TT (write)
+golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,2,2,2,2,2,0,1,true,false,,BA_SelectRefundBilling (exec)

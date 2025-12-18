@@ -52,6 +52,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	}
 
 	for _, c := range cands {
+		funcName := summary.ResolveFuncName(summary.NormalizeFuncName(c.Func), c.RelPath, c.LineStart)
 		dbList := strings.Join(c.DbList, ";")
 
 		qRow := []string{
@@ -63,7 +64,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			c.CallSiteKind,
 			fmt.Sprintf("%d", c.LineStart),
 			fmt.Sprintf("%d", c.LineEnd),
-			c.Func,
+			funcName,
 			c.RawSql,
 			c.SqlClean,
 			c.UsageKind,
@@ -99,7 +100,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				c.SourceCat,
 				c.SourceKind,
 				fmt.Sprintf("%d", o.RepresentativeLine),
-				c.Func,
+				funcName,
 				c.QueryHash,
 				full,
 				o.DbName,
