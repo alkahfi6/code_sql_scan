@@ -273,20 +273,58 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		objectCounter := make(map[string]*objectRoleCounter)
 		dynamicSigCounts := make(map[string]dynamicSignatureInfo)
 		for _, q := range qRows {
-			switch strings.ToUpper(q.UsageKind) {
-			case "EXEC":
-				totalExec++
-			case "SELECT":
-				totalSelect++
-			case "INSERT":
-				totalInsert++
-			case "UPDATE":
-				totalUpdate++
-			case "DELETE":
-				totalDelete++
-			case "TRUNCATE":
-				totalTruncate++
+			baseKinds := make(map[string]struct{})
+			upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
+			if upperUsage != "" && upperUsage != "UNKNOWN" {
+				baseKinds[upperUsage] = struct{}{}
 			}
+
+			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+			for _, o := range objectsByQuery[qKey] {
+				for _, kind := range strings.Split(o.DmlKind, ";") {
+					kind = strings.ToUpper(strings.TrimSpace(kind))
+					if kind == "" || kind == "UNKNOWN" {
+						continue
+					}
+					baseKinds[kind] = struct{}{}
+				}
+			}
+
+			kindsForQuery := make(map[string]struct{}, len(baseKinds)+1)
+			for k := range baseKinds {
+				kindsForQuery[k] = struct{}{}
+			}
+			if _, hasTruncate := baseKinds["TRUNCATE"]; hasTruncate {
+				if _, hasDelete := baseKinds["DELETE"]; !hasDelete {
+					kindsForQuery["DELETE"] = struct{}{}
+				}
+			}
+
+			for kind := range kindsForQuery {
+				switch kind {
+				case "EXEC":
+					totalExec++
+				case "SELECT":
+					totalSelect++
+				case "INSERT":
+					totalInsert++
+				case "UPDATE":
+					totalUpdate++
+				case "DELETE":
+					totalDelete++
+				case "TRUNCATE":
+					totalTruncate++
+				}
+			}
+
+			writeKinds := 0
+			for k := range baseKinds {
+				switch k {
+				case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+					writeKinds++
+				}
+			}
+			totalWrite += writeKinds
 			if isDynamicQuery(q) {
 				totalDynamic++
 				sig := dynamicSignature(q)
@@ -322,7 +360,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 		}
 
-		totalWrite = totalInsert + totalUpdate + totalDelete + totalTruncate + totalExec
+		if totalWrite == 0 {
+			totalWrite = totalInsert + totalUpdate + totalDelete + totalTruncate + totalExec
+		}
 
 		objSet := make(map[string]struct{})
 		consumeObj := func(o ObjectRow) {
