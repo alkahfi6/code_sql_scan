@@ -327,10 +327,39 @@ func analyzeCandidate(c *SqlCandidate) {
 func updateCrossDbMetadata(c *SqlCandidate) {
 	dbSet := make(map[string]struct{})
 	hasCross := false
+	trimIdent := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.Trim(s, "[]")
+		s = strings.Trim(s, `"`)
+		return s
+	}
 
 	for i := range c.Objects {
 		obj := &c.Objects[i]
 		obj.DbName = strings.TrimSpace(obj.DbName)
+		obj.SchemaName = strings.TrimSpace(obj.SchemaName)
+		obj.BaseName = strings.TrimSpace(obj.BaseName)
+
+		if obj.DbName == "" {
+			full := strings.TrimSpace(obj.FullName)
+			if full == "" && obj.BaseName != "" {
+				full = buildFullName(obj.DbName, obj.SchemaName, obj.BaseName)
+			}
+			parts := strings.Split(full, ".")
+			if len(parts) == 3 {
+				dbCandidate := trimIdent(parts[0])
+				schemaCandidate := trimIdent(parts[1])
+				baseCandidate := trimIdent(parts[2])
+				if dbCandidate != "" && !strings.EqualFold(dbCandidate, "dbo") && schemaCandidate != "" && baseCandidate != "" {
+					obj.DbName = dbCandidate
+					obj.SchemaName = schemaCandidate
+					obj.BaseName = baseCandidate
+					obj.FullName = buildFullName(obj.DbName, obj.SchemaName, obj.BaseName)
+					obj.IsCrossDb = true
+				}
+			}
+		}
+
 		if obj.DbName != "" && obj.SchemaName == "" {
 			obj.SchemaName = "dbo"
 		}
@@ -490,6 +519,12 @@ func isWriteKind(kind string) bool {
 func findObjectTokens(sql string) []ObjectToken {
 	lower := strings.ToLower(sql)
 	var tokens []ObjectToken
+	trimIdent := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.Trim(s, "[]")
+		s = strings.Trim(s, `"`)
+		return strings.ToLower(s)
+	}
 
 	keywords := []string{
 		"from", "join", "update", "into",
@@ -555,6 +590,18 @@ func findObjectTokens(sql string) []ObjectToken {
 				IsLinkedServer:  isLinked,
 				IsObjectNameDyn: hasDynamicPlaceholder(objText),
 			}
+
+			baseKey := trimIdent(tok.BaseName)
+			if baseKey == "into" {
+				start = end
+				continue
+			}
+			if baseKey == "openxml" || baseKey == "sp_xml_preparedocument" {
+				tok.Role = "exec"
+				tok.DmlKind = "EXEC"
+				tok.IsWrite = true
+			}
+
 			tok = normalizeObjectToken(tok)
 			tokens = append(tokens, tok)
 			start = end
@@ -1347,6 +1394,21 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 
 		if tok.DbName != "" {
 			tok.IsCrossDb = true
+		}
+
+		if tok.DbName == "" && strings.Contains(objText, ".") && isDynamicObjectName(objText) {
+			prefix := objText[:strings.Index(objText, ".")]
+			prefix = strings.TrimSpace(prefix)
+			prefix = strings.Trim(prefix, "[]")
+			prefix = strings.Trim(prefix, `"`)
+			if prefix != "" {
+				tok.DbName = prefix
+				if strings.EqualFold(strings.TrimSpace(tok.SchemaName), strings.TrimSpace(prefix)) {
+					tok.SchemaName = ""
+				}
+				tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
+				tok.IsCrossDb = true
+			}
 		}
 
 		tokens = append(tokens, tok)
