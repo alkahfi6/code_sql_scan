@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	insertTargetRe = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([A-Za-z0-9_\[\]\.\"]+)`)
-	updateTargetRe = regexp.MustCompile(`(?is)update\s+([A-Za-z0-9_\[\]\.\"]+)\s+set\s+`)
-	deleteTargetRe = regexp.MustCompile(`(?is)delete\s+from\s+([A-Za-z0-9_\[\]\.\"]+)`)
+	insertTargetRe = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([A-Za-z0-9_\[\]\.\"#]+)`)
+	updateTargetRe = regexp.MustCompile(`(?is)update\s+([A-Za-z0-9_\[\]\.\"#]+)\s+set\s+`)
+	deleteTargetRe = regexp.MustCompile(`(?is)delete\s+from\s+([A-Za-z0-9_\[\]\.\"#]+)`)
 )
 
 // ------------------------------------------------------------
@@ -123,29 +123,137 @@ func analyzeCandidate(c *SqlCandidate) {
 	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
 		tokens = ensureDynamicSqlPseudo(tokens, c, "UNKNOWN")
 	}
+
 	insertTargetKeys := make(map[string]struct{})
+	addInsertKey := func(tok ObjectToken) bool {
+		key := strings.ToLower(buildFullName(tok.DbName, tok.SchemaName, tok.BaseName))
+		if key == "" {
+			key = strings.ToLower(strings.TrimSpace(tok.FullName))
+		}
+		if key == "" {
+			return false
+		}
+		if _, ok := insertTargetKeys[key]; ok {
+			return false
+		}
+		insertTargetKeys[key] = struct{}{}
+		return true
+	}
+	tokenKey := func(tok ObjectToken) string {
+		name := buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
+		if strings.TrimSpace(name) == "" {
+			name = strings.TrimSpace(tok.FullName)
+		}
+		dml := strings.ToUpper(strings.TrimSpace(tok.DmlKind))
+		return strings.ToLower(strings.TrimSpace(dml + "|" + name))
+	}
+
+	for _, tok := range tokens {
+		if strings.EqualFold(strings.TrimSpace(tok.DmlKind), "INSERT") {
+			addInsertKey(tok)
+		}
+	}
+
+	var heuristicTokens []ObjectToken
+	if c.IsDynamic {
+		seen := make(map[string]struct{})
+		for _, tok := range tokens {
+			if key := tokenKey(tok); key != "" {
+				seen[key] = struct{}{}
+			}
+		}
+
+		variants := []string{sqlClean}
+		if rawTrim := normalizeSqlWhitespace(StripSqlComments(c.RawSql)); rawTrim != "" && !strings.EqualFold(rawTrim, sqlClean) {
+			variants = append(variants, rawTrim)
+		}
+
+		for _, fragment := range variants {
+			frag := strings.TrimSpace(fragment)
+			if frag == "" || strings.EqualFold(frag, "<dynamic-sql>") {
+				continue
+			}
+			lowerFrag := strings.ToLower(frag)
+			var kinds []string
+			if strings.Contains(lowerFrag, "insert into") {
+				kinds = append(kinds, "INSERT")
+			}
+			if strings.Contains(lowerFrag, "update") {
+				kinds = append(kinds, "UPDATE")
+			}
+			if strings.Contains(lowerFrag, "delete from") {
+				kinds = append(kinds, "DELETE")
+			}
+			if len(kinds) == 0 {
+				continue
+			}
+
+			for _, kind := range kinds {
+				matched := detectDmlTargetsFromSql(fragment, kind, c.LineStart)
+				if len(matched) == 0 {
+					for _, tok := range detectDynamicObjectPlaceholders(fragment, kind, c.LineStart) {
+						if kind != "" && !strings.EqualFold(tok.DmlKind, kind) {
+							continue
+						}
+						matched = append(matched, tok)
+					}
+				}
+				if len(matched) == 0 {
+					matched = append(matched, ObjectToken{
+						BaseName:           "<dynamic-object>",
+						FullName:           "<dynamic-object>",
+						Role:               "target",
+						DmlKind:            strings.ToUpper(kind),
+						IsWrite:            true,
+						IsObjectNameDyn:    true,
+						IsPseudoObject:     true,
+						PseudoKind:         "dynamic-object",
+						RepresentativeLine: c.LineStart,
+					})
+				}
+				for _, tok := range matched {
+					if strings.EqualFold(tok.DmlKind, "INSERT") && !addInsertKey(tok) {
+						if key := tokenKey(tok); key != "" {
+							if _, ok := seen[key]; ok {
+								continue
+							}
+						}
+					}
+					if key := tokenKey(tok); key != "" {
+						if _, ok := seen[key]; ok {
+							continue
+						}
+						seen[key] = struct{}{}
+					}
+					heuristicTokens = append(heuristicTokens, tok)
+				}
+			}
+		}
+
+		if len(heuristicTokens) > 0 {
+			tokens = append(heuristicTokens, tokens...)
+			dmlTokens = append(heuristicTokens, dmlTokens...)
+		}
+	}
+
 	if usage == "INSERT" {
 		insertTargets := detectDmlTargetsFromSql(sqlClean, usage, c.LineStart)
 		insertTargets = append(insertTargets, collectInsertTargets(sqlClean, c.ConnDb, c.LineStart)...)
 		if tok, ok := parseLeadingInsertTarget(sqlClean, c.ConnDb, c.LineStart); ok {
 			insertTargets = append([]ObjectToken{tok}, insertTargets...)
 		}
+
+		var newInsertTargets []ObjectToken
 		for _, t := range insertTargets {
-			key := strings.ToLower(buildFullName(t.DbName, t.SchemaName, t.BaseName))
-			if key == "" {
-				key = strings.ToLower(strings.TrimSpace(t.FullName))
+			if addInsertKey(t) {
+				newInsertTargets = append(newInsertTargets, t)
 			}
-			insertTargetKeys[key] = struct{}{}
 		}
-		tokens = append(insertTargets, tokens...)
+		tokens = append(newInsertTargets, tokens...)
 	} else {
 		for _, t := range dmlTokens {
 			if strings.EqualFold(strings.TrimSpace(t.DmlKind), "INSERT") {
-				key := strings.ToLower(buildFullName(t.DbName, t.SchemaName, t.BaseName))
-				if key == "" {
-					key = strings.ToLower(strings.TrimSpace(t.FullName))
-				}
-				insertTargetKeys[key] = struct{}{}
+				addInsertKey(t)
 			}
 		}
 	}
@@ -158,6 +266,9 @@ func analyzeCandidate(c *SqlCandidate) {
 				key = strings.ToLower(strings.TrimSpace(c.Objects[i].FullName))
 			}
 			if _, ok := insertTargetKeys[key]; ok {
+				if strings.EqualFold(strings.TrimSpace(c.Objects[i].DmlKind), "DELETE") || strings.EqualFold(strings.TrimSpace(c.Objects[i].DmlKind), "UPDATE") {
+					continue
+				}
 				c.Objects[i].Role = "target"
 				c.Objects[i].DmlKind = "INSERT"
 				c.Objects[i].IsWrite = true
@@ -606,7 +717,7 @@ func isIdentChar(b byte) bool {
 	return (b >= '0' && b <= '9') ||
 		(b >= 'a' && b <= 'z') ||
 		(b >= 'A' && b <= 'Z') ||
-		b == '_' || b == '.' || b == '$' || b == '-' || b == '[' || b == ']'
+		b == '_' || b == '.' || b == '$' || b == '-' || b == '[' || b == ']' || b == '#'
 }
 
 func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) {
@@ -668,6 +779,12 @@ func normalizeObjectToken(tok ObjectToken) ObjectToken {
 	}
 	if tok.DbName != "" {
 		tok.IsCrossDb = true
+	}
+	if strings.HasPrefix(strings.TrimSpace(tok.BaseName), "#") {
+		tok.IsPseudoObject = true
+		if strings.TrimSpace(tok.PseudoKind) == "" {
+			tok.PseudoKind = "dynamic-object"
+		}
 	}
 	return tok
 }
@@ -930,6 +1047,10 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
 				}
 				if _, ok := targetKeys[key]; ok {
+					dmlUpper := strings.ToUpper(strings.TrimSpace(tokens[i].DmlKind))
+					if dmlUpper != "" && dmlUpper != "UNKNOWN" && dmlUpper != "INSERT" {
+						continue
+					}
 					tokens[i].Role = "target"
 					tokens[i].DmlKind = "INSERT"
 					tokens[i].IsWrite = true

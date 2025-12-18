@@ -71,14 +71,20 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 		return nil, fmt.Errorf("load object summary: %w", err)
 	}
 
-	funcMismatches := compareFunctionSummary(queries, funcSummaries)
+	funcMismatches := compareFunctionSummary(queries, objects, funcSummaries)
 	objMismatches := compareObjectSummary(queries, objects, objSummaries)
 
 	return &ConsistencyReport{FunctionMismatches: funcMismatches, ObjectMismatches: objMismatches}, nil
 }
 
-func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) []string {
+func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries []FunctionSummaryRow) []string {
 	normQueries := normalizeQueryFuncs(queries)
+	objectsByQuery := map[string][]ObjectRow{}
+	for _, o := range objects {
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		objectsByQuery[qKey] = append(objectsByQuery[qKey], o)
+	}
+
 	expected := make(map[string]*functionAgg)
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
@@ -88,27 +94,61 @@ func compareFunctionSummary(queries []QueryRow, summaries []FunctionSummaryRow) 
 			expected[key] = entry
 		}
 		entry.totalQueries++
-		switch strings.ToUpper(strings.TrimSpace(q.UsageKind)) {
-		case "SELECT":
-			entry.selectCount++
-		case "INSERT":
-			entry.insertCount++
-		case "UPDATE":
-			entry.updateCount++
-		case "DELETE":
-			entry.deleteCount++
-		case "TRUNCATE":
-			entry.truncateCount++
-		case "EXEC":
-			entry.execCount++
+
+		baseKinds := make(map[string]struct{})
+		if usage := strings.ToUpper(strings.TrimSpace(q.UsageKind)); usage != "" && usage != "UNKNOWN" {
+			baseKinds[usage] = struct{}{}
 		}
+		qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+		for _, o := range objectsByQuery[qKey] {
+			for _, kind := range strings.Split(o.DmlKind, ";") {
+				kind = strings.ToUpper(strings.TrimSpace(kind))
+				if kind == "" || kind == "UNKNOWN" {
+					continue
+				}
+				baseKinds[kind] = struct{}{}
+			}
+		}
+
+		kindsForQuery := make(map[string]struct{}, len(baseKinds)+1)
+		for k := range baseKinds {
+			kindsForQuery[k] = struct{}{}
+		}
+		if _, hasTruncate := baseKinds["TRUNCATE"]; hasTruncate {
+			if _, hasDelete := baseKinds["DELETE"]; !hasDelete {
+				kindsForQuery["DELETE"] = struct{}{}
+			}
+		}
+
+		for kind := range kindsForQuery {
+			switch kind {
+			case "SELECT":
+				entry.selectCount++
+			case "INSERT":
+				entry.insertCount++
+			case "UPDATE":
+				entry.updateCount++
+			case "DELETE":
+				entry.deleteCount++
+			case "TRUNCATE":
+				entry.truncateCount++
+			case "EXEC":
+				entry.execCount++
+			}
+		}
+
+		writeKinds := 0
+		for k := range baseKinds {
+			switch k {
+			case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+				writeKinds++
+			}
+		}
+		entry.writeCount += writeKinds
+
 		if isDynamicQuery(q) {
 			entry.dynamicCount++
 		}
-	}
-
-	for _, v := range expected {
-		v.writeCount = v.insertCount + v.updateCount + v.deleteCount + v.truncateCount + v.execCount
 	}
 
 	summaryMap := make(map[string]FunctionSummaryRow)
