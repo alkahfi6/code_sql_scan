@@ -159,6 +159,8 @@ func generateSummaries(cfg *Config) error {
 		return nil
 	}
 
+	summary.SetSourceRoot(cfg.Root)
+
 	queries, err := summary.LoadQueryUsage(cfg.OutQuery)
 	if err != nil {
 		return fmt.Errorf("load query usage: %w", err)
