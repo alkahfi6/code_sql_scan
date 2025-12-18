@@ -39,6 +39,7 @@ type ObjectRow struct {
 	RelPath         string
 	File            string
 	QueryHash       string
+	Func            string
 	ObjectName      string
 	DbName          string
 	SchemaName      string
@@ -235,6 +236,9 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 		}
 		if col, ok := idx["PseudoKind"]; ok {
 			row.PseudoKind = rec[col]
+		}
+		if col, ok := idx["Func"]; ok {
+			row.Func = rec[col]
 		}
 		rows = append(rows, row)
 	}
@@ -447,12 +451,6 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 }
 
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
-	normQueries := normalizeQueryFuncs(queries)
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range normQueries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
-
 	type agg struct {
 		appName        string
 		relPath        string
@@ -480,14 +478,37 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if strings.TrimSpace(fullName) == "" {
 			continue
 		}
-		key := objectSummaryKey(o.AppName, o.RelPath, fullName)
+		dbParsed, schemaParsed, parsedBase := splitFullObjectName(fullName)
+		baseName := strings.TrimSpace(o.BaseName)
+		if baseName == "" {
+			baseName = parsedBase
+		}
+		pseudoKind := defaultPseudoKind(o.PseudoKind)
+		isPseudoObj := o.IsPseudoObject
+		if detected, kind := pseudoObjectInfo(baseName); detected {
+			isPseudoObj = true
+			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
+		}
+		roleKey := "" // summary CSV does not carry raw role; keep empty for stable keying.
+		key := objectSummaryKeyDetailed(
+			o.AppName,
+			o.RelPath,
+			fullName,
+			baseName,
+			roleKey,
+			"",
+			isPseudoObj,
+			pseudoKind,
+			dbParsed,
+			schemaParsed,
+		)
 		entry := grouped[key]
 		if entry == nil {
 			entry = &agg{
 				appName:    o.AppName,
 				relPath:    o.RelPath,
 				fullName:   fullName,
-				baseName:   strings.TrimSpace(o.BaseName),
+				baseName:   baseName,
 				funcSet:    make(map[string]struct{}),
 				funcCounts: make(map[string]int),
 				dmlSet:     make(map[string]struct{}),
@@ -496,69 +517,40 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			grouped[key] = entry
 		}
 
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
-		q, hasQuery := queryByKey[qKey]
-		flags := classifyRoles(o)
-		if isDynamicBaseName(o.BaseName) {
-			flags = dynamicPseudoRoleFlags(o, q, hasQuery)
-		}
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
-		writeByUsage := upperUsage == "INSERT" || upperUsage == "UPDATE" || upperUsage == "DELETE" || upperUsage == "TRUNCATE" || upperUsage == "EXEC"
-		writeAllowed := upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE"
-		if isDynamicBaseName(o.BaseName) {
-			writeAllowed = writeAllowed || writeByUsage || q.IsWrite
-		}
+		role := strings.ToLower(strings.TrimSpace(o.Role))
+		isExec := role == "exec" || upperDml == "EXEC"
+		isWrite := o.IsWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE" || upperDml == "EXEC")
 
-		if flags.read {
-			entry.reads++
-		}
-		if flags.write && writeAllowed {
-			entry.writes++
-		}
-		if flags.exec {
+		if isExec {
 			entry.execs++
 		}
+		if isWrite {
+			entry.writes++
+		} else {
+			entry.reads++
+		}
 
-		if o.IsCrossDb || q.HasCrossDb {
+		if o.IsCrossDb {
 			entry.hasCross = true
 		}
-		if db := strings.TrimSpace(o.DbName); db != "" {
+		if db := strings.TrimSpace(dbParsed); db != "" {
 			entry.dbSet[db] = struct{}{}
-		}
-		if db := strings.TrimSpace(q.ConnDb); db != "" {
-			entry.dbSet[db] = struct{}{}
-		}
-		for _, db := range q.DbList {
-			if db = strings.TrimSpace(db); db != "" {
-				entry.dbSet[db] = struct{}{}
-			}
 		}
 		if upperDml != "" {
 			entry.dmlSet[upperDml] = struct{}{}
 		}
-		if upperUsage != "" {
-			entry.dmlSet[upperUsage] = struct{}{}
-		}
 
-		baseName := strings.TrimSpace(o.BaseName)
-		isPseudoObj, kind := pseudoObjectInfo(baseName)
-		if o.IsPseudoObject {
-			isPseudoObj = true
-			kind = choosePseudoKind(kind, defaultPseudoKind(o.PseudoKind))
-		}
 		if isPseudoObj {
 			entry.isPseudo = true
-			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(kind))
+			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, pseudoKind)
 			entry.hasPseudoLines = true
 		}
 
-		if hasQuery {
-			fn := strings.TrimSpace(q.Func)
-			if fn != "" {
-				entry.funcSet[fn] = struct{}{}
-				entry.funcCounts[fn]++
-			}
+		fn := strings.TrimSpace(o.Func)
+		if fn != "" {
+			entry.funcSet[fn] = struct{}{}
+			entry.funcCounts[fn]++
 		}
 	}
 
@@ -1493,6 +1485,22 @@ func objectSummaryKey(app, rel, full string) string {
 	return strings.Join([]string{app, rel, full}, "|")
 }
 
+func objectSummaryKeyDetailed(app, rel, full, base, role, dml string, isPseudo bool, pseudoKind, db, schema string) string {
+	parts := []string{
+		app,
+		rel,
+		full,
+		strings.TrimSpace(base),
+		strings.ToLower(strings.TrimSpace(role)),
+		strings.ToUpper(strings.TrimSpace(dml)),
+		boolToStr(isPseudo),
+		defaultPseudoKind(strings.TrimSpace(pseudoKind)),
+		strings.TrimSpace(db),
+		strings.TrimSpace(schema),
+	}
+	return strings.Join(parts, "|")
+}
+
 func boolToStr(b bool) string {
 	if b {
 		return "true"
@@ -1523,6 +1531,20 @@ func chooseFullObjectName(o ObjectRow) string {
 		return full
 	}
 	return strings.TrimSpace(o.BaseName)
+}
+
+func splitFullObjectName(full string) (db, schema, base string) {
+	parts := strings.Split(full, ".")
+	switch len(parts) {
+	case 0:
+		return "", "", ""
+	case 1:
+		return "", "", strings.TrimSpace(parts[0])
+	case 2:
+		return "", strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1])
+	default:
+		return strings.TrimSpace(parts[0]), strings.TrimSpace(parts[1]), strings.TrimSpace(parts[len(parts)-1])
+	}
 }
 
 func normalizeFuncName(raw string) string {

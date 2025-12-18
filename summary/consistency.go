@@ -189,15 +189,8 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		fullName   string
 	}
 
-	normQueries := normalizeQueryFuncs(queries)
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range normQueries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
-
 	expected := make(map[string]*agg)
 	for _, o := range objects {
-		base := strings.TrimSpace(o.BaseName)
 		if shouldSkipObject(o) {
 			continue
 		}
@@ -205,7 +198,29 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		if strings.TrimSpace(fullName) == "" {
 			continue
 		}
-		key := objectSummaryKey(o.AppName, o.RelPath, fullName)
+		dbParsed, schemaParsed, parsedBase := splitFullObjectName(fullName)
+		base := strings.TrimSpace(o.BaseName)
+		if base == "" {
+			base = parsedBase
+		}
+		pseudoKind := defaultPseudoKind(o.PseudoKind)
+		isPseudoObj := o.IsPseudoObject
+		if detected, kind := pseudoObjectInfo(base); detected {
+			isPseudoObj = true
+			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
+		}
+		key := objectSummaryKeyDetailed(
+			o.AppName,
+			o.RelPath,
+			fullName,
+			base,
+			"",
+			"",
+			isPseudoObj,
+			pseudoKind,
+			dbParsed,
+			schemaParsed,
+		)
 		entry := expected[key]
 		if entry == nil {
 			entry = &agg{
@@ -217,69 +232,53 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			}
 			expected[key] = entry
 		}
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
-		q, hasQuery := queryByKey[qKey]
-		flags := classifyRoles(o)
-		if isDynamicBaseName(o.BaseName) {
-			flags = dynamicPseudoRoleFlags(o, q, hasQuery)
-		}
 		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
-		writeByUsage := upperUsage == "INSERT" || upperUsage == "UPDATE" || upperUsage == "DELETE" || upperUsage == "TRUNCATE" || upperUsage == "EXEC"
-		writeAllowed := upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE"
-		if isDynamicBaseName(o.BaseName) {
-			writeAllowed = writeAllowed || writeByUsage || q.IsWrite
-		}
-		if flags.read {
-			entry.reads++
-		}
-		if flags.write && writeAllowed {
-			entry.writes++
-		}
-		if flags.exec {
+		if strings.ToLower(strings.TrimSpace(o.Role)) == "exec" || upperDml == "EXEC" {
 			entry.execs++
 		}
-		if o.IsCrossDb || q.HasCrossDb {
+		if o.IsWrite && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE" || upperDml == "EXEC") {
+			entry.writes++
+		} else {
+			entry.reads++
+		}
+		if o.IsCrossDb {
 			entry.hasCross = true
 		}
 		if db := strings.TrimSpace(o.DbName); db != "" {
 			entry.dbSet[db] = struct{}{}
 		}
-		if db := strings.TrimSpace(q.ConnDb); db != "" {
-			entry.dbSet[db] = struct{}{}
-		}
-		for _, db := range q.DbList {
-			if db = strings.TrimSpace(db); db != "" {
-				entry.dbSet[db] = struct{}{}
-			}
-		}
 		if upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind)); upperDml != "" {
 			entry.dmlSet[upperDml] = struct{}{}
 		}
-		if upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind)); upperUsage != "" {
-			entry.dmlSet[upperUsage] = struct{}{}
-		}
 
-		isPseudoObj, kind := pseudoObjectInfo(base)
-		if o.IsPseudoObject {
-			isPseudoObj = true
-			kind = choosePseudoKind(kind, defaultPseudoKind(o.PseudoKind))
-		}
 		if isPseudoObj {
 			entry.isPseudo = true
-			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(kind))
+			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, pseudoKind)
 		}
-		if q, ok := queryByKey[qKey]; ok {
-			fn := strings.TrimSpace(q.Func)
-			if fn != "" {
-				entry.funcSet[fn] = struct{}{}
-			}
+		if fn := strings.TrimSpace(o.Func); fn != "" {
+			entry.funcSet[fn] = struct{}{}
 		}
 	}
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
-		key := objectSummaryKey(s.AppName, s.RelPath, strings.TrimSpace(s.FullObjectName))
+		dbParsed, schemaParsed, parsedBase := splitFullObjectName(strings.TrimSpace(s.FullObjectName))
+		baseName := strings.TrimSpace(s.BaseName)
+		if baseName == "" {
+			baseName = parsedBase
+		}
+		key := objectSummaryKeyDetailed(
+			s.AppName,
+			s.RelPath,
+			strings.TrimSpace(s.FullObjectName),
+			baseName,
+			"",
+			"",
+			s.IsPseudoObject,
+			defaultPseudoKind(s.PseudoKind),
+			dbParsed,
+			schemaParsed,
+		)
 		summaryMap[key] = s
 	}
 
