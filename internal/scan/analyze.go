@@ -688,8 +688,20 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			})
 		}
 	}
+	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
 	for i := range tokens {
+		if applyDynamicRewrite && (hasDynamicPlaceholder(tokens[i].DbName) || hasDynamicPlaceholder(tokens[i].SchemaName)) {
+			tokens[i].IsObjectNameDyn = true
+		}
 		if tokens[i].IsObjectNameDyn {
+			if applyDynamicRewrite {
+				if hasDynamicPlaceholder(tokens[i].DbName) {
+					tokens[i].DbName = ""
+				}
+				if hasDynamicPlaceholder(tokens[i].SchemaName) {
+					tokens[i].SchemaName = ""
+				}
+			}
 			tokens[i].BaseName = "<dynamic-object>"
 			tokens[i].FullName = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
 		}
