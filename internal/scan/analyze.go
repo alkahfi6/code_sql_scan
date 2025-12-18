@@ -1129,10 +1129,23 @@ func hasDynamicPlaceholder(name string) bool {
 }
 
 func isDynamicObjectName(name string) bool {
-	if hasDynamicPlaceholder(name) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return false
+	}
+	if strings.Contains(name, "[[") || strings.Contains(name, "]]") {
 		return true
 	}
-	return strings.Contains(name, "+")
+	if strings.Contains(name, "+") {
+		return true
+	}
+	if strings.Contains(name, "${") || strings.Contains(name, "<expr>") || strings.Contains(name, "$\"") {
+		return true
+	}
+	if regexes.dynamicPlaceholder.MatchString(name) {
+		return true
+	}
+	return false
 }
 
 func detectDynamicObjectPlaceholders(sql string, usage string, line int) []ObjectToken {
@@ -1237,12 +1250,13 @@ func inferDynamicObjectFallbacks(sqlClean, rawSql, usage string, line int) []Obj
 
 	tok := ObjectToken{
 		BaseName:           "<dynamic-object>",
-		FullName:           "<dynamic-object>",
 		IsObjectNameDyn:    true,
 		IsPseudoObject:     true,
 		PseudoKind:         "dynamic-object",
 		RepresentativeLine: line,
 	}
+
+	tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
 
 	switch usage {
 	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
