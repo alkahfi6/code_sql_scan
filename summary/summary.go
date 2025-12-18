@@ -394,6 +394,56 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	return result, nil
 }
 
+// ValidateFunctionSummaryCounts ensures that the function summary aligns with the raw query rows.
+// It groups queries by (AppName, RelPath, Func) and checks TotalQueries and TotalDynamic against the summary rows.
+func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
+	normQueries := normalizeQueryFuncs(queries)
+	expectedTotals := make(map[string]int)
+	expectedDynamic := make(map[string]int)
+	for _, q := range normQueries {
+		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
+		expectedTotals[key]++
+		if isDynamicQuery(q) {
+			expectedDynamic[key]++
+		}
+	}
+
+	summaryTotals := make(map[string]FunctionSummaryRow)
+	for _, s := range summaries {
+		fn := resolveFuncName(s.Func, s.RelPath, s.LineStart)
+		key := strings.Join([]string{s.AppName, s.RelPath, fn}, "|")
+		summaryTotals[key] = s
+	}
+
+	var mismatches []string
+	for key, total := range expectedTotals {
+		sum, ok := summaryTotals[key]
+		rel, fn := splitKey(key)
+		if !ok {
+			mismatches = append(mismatches, fmt.Sprintf("%s/%s missing in summary (expected total=%d dyn=%d)", rel, fn, total, expectedDynamic[key]))
+			continue
+		}
+		if sum.TotalQueries != total || sum.TotalDynamic != expectedDynamic[key] {
+			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDynamic[key], sum.TotalQueries, sum.TotalDynamic))
+		}
+	}
+	for key, sum := range summaryTotals {
+		if _, ok := expectedTotals[key]; ok {
+			continue
+		}
+		rel, fn := splitKey(key)
+		mismatches = append(mismatches, fmt.Sprintf("%s/%s appears only in summary (total=%d dyn=%d)", rel, fn, sum.TotalQueries, sum.TotalDynamic))
+	}
+
+	if len(mismatches) == 0 {
+		return nil
+	}
+	if len(mismatches) > 5 {
+		mismatches = mismatches[:5]
+	}
+	return fmt.Errorf("function summary validation failed: %s", strings.Join(mismatches, "; "))
+}
+
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
 	queryByKey := make(map[string]QueryRow)
@@ -423,12 +473,23 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		fullNames := make(map[string]struct{})
 
 		for _, o := range objs {
+			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+			q, hasQuery := queryByKey[qKey]
 			flags := classifyRoles(o)
-			upperDml := strings.ToUpper(o.DmlKind)
+			if isDynamicBaseName(o.BaseName) {
+				flags = dynamicPseudoRoleFlags(o, q, hasQuery)
+			}
+			upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
+			upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
+			writeByUsage := upperUsage == "INSERT" || upperUsage == "UPDATE" || upperUsage == "DELETE" || upperUsage == "TRUNCATE" || upperUsage == "EXEC"
+			writeAllowed := upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE"
+			if isDynamicBaseName(o.BaseName) {
+				writeAllowed = writeAllowed || writeByUsage || q.IsWrite
+			}
 			if flags.read {
 				totalReads++
 			}
-			if flags.write && (upperDml == "INSERT" || upperDml == "UPDATE" || upperDml == "DELETE" || upperDml == "TRUNCATE") {
+			if flags.write && writeAllowed {
 				totalWrites++
 			}
 			if flags.exec {
@@ -445,7 +506,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 				isPseudo = true
 				pseudoKind = choosePseudoKind(pseudoKind, defaultPseudoKind(o.PseudoKind))
 			}
-			qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
 			if q, ok := queryByKey[qKey]; ok {
 				fn := strings.TrimSpace(q.Func)
 				if fn != "" {
@@ -457,7 +517,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			pseudoKind = "unknown"
 		}
 
-		usedIn := setToSortedSlice(funcSet)
+		usedIn := sortedFuncNames(funcSet)
 		fullNameList := setToSortedSlice(fullNames)
 		dbList := setToSortedSlice(dbSet)
 		exampleFuncs := usedIn
@@ -662,6 +722,26 @@ func classifyRoles(o ObjectRow) roleFlags {
 		read:  isRead,
 		write: isWrite,
 		exec:  isExec,
+	}
+}
+
+func dynamicPseudoRoleFlags(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
+	if !isDynamicBaseName(o.BaseName) {
+		return classifyRoles(o)
+	}
+	usage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
+	switch usage {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		return roleFlags{write: true}
+	case "EXEC":
+		return roleFlags{exec: true}
+	case "SELECT":
+		return roleFlags{read: true}
+	default:
+		if q.IsWrite || (!hasQuery && o.IsWrite) {
+			return roleFlags{write: true}
+		}
+		return roleFlags{read: true}
 	}
 }
 
@@ -1129,6 +1209,40 @@ func setToSortedSlice(m map[string]struct{}) []string {
 	}
 	sort.Strings(res)
 	return res
+}
+
+func sortedFuncNames(set map[string]struct{}) []string {
+	names := setToSortedSlice(set)
+	sort.Slice(names, func(i, j int) bool {
+		qi := funcNameQuality(names[i])
+		qj := funcNameQuality(names[j])
+		if qi != qj {
+			return qi < qj
+		}
+		return strings.ToLower(names[i]) < strings.ToLower(names[j])
+	})
+	return names
+}
+
+func funcNameQuality(name string) int {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return 4
+	}
+	lower := strings.ToLower(trimmed)
+	if strings.Contains(lower, "@l") {
+		return 3
+	}
+	if strings.HasPrefix(trimmed, "<") && strings.HasSuffix(trimmed, ">") {
+		return 3
+	}
+	if _, banned := forbiddenFuncNames()[lower]; banned {
+		return 2
+	}
+	if strings.ToUpper(trimmed) == trimmed {
+		return 2
+	}
+	return 0
 }
 
 func normalizeQueryFuncs(queries []QueryRow) []QueryRow {

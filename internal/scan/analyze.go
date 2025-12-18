@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	insertTargetRe = regexp.MustCompile(`(?is)insert\s+into\s+([A-Za-z0-9_\[\]\.\"]+)`)
+	insertTargetRe = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([A-Za-z0-9_\[\]\.\"]+)`)
 	updateTargetRe = regexp.MustCompile(`(?is)update\s+([A-Za-z0-9_\[\]\.\"]+)\s+set\s+`)
 	deleteTargetRe = regexp.MustCompile(`(?is)delete\s+from\s+([A-Za-z0-9_\[\]\.\"]+)`)
 )
@@ -120,6 +120,9 @@ func analyzeCandidate(c *SqlCandidate) {
 	tokens = append(tokens, findObjectTokens(sqlClean)...)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
 	tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
+	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
+		tokens = ensureDynamicSqlPseudo(tokens, c, "UNKNOWN")
+	}
 	insertTargetKeys := make(map[string]struct{})
 	if usage == "INSERT" {
 		insertTargets := detectDmlTargetsFromSql(sqlClean, usage, c.LineStart)
@@ -201,6 +204,9 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 	for i := range c.Objects {
 		obj := &c.Objects[i]
 		obj.DbName = strings.TrimSpace(obj.DbName)
+		if obj.DbName != "" && obj.SchemaName == "" {
+			obj.SchemaName = "dbo"
+		}
 		if obj.DbName != "" {
 			dbSet[obj.DbName] = struct{}{}
 			if !obj.IsCrossDb {
@@ -666,30 +672,57 @@ func normalizeObjectToken(tok ObjectToken) ObjectToken {
 	return tok
 }
 
+func hasDynamicToken(tokens []ObjectToken) bool {
+	for _, tok := range tokens {
+		if tok.IsPseudoObject || tok.IsObjectNameDyn {
+			return true
+		}
+		if strings.EqualFold(strings.TrimSpace(tok.BaseName), "<dynamic-sql>") {
+			return true
+		}
+	}
+	return false
+}
+
+func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) []ObjectToken {
+	for _, tok := range tokens {
+		if strings.EqualFold(strings.TrimSpace(tok.BaseName), "<dynamic-sql>") {
+			return tokens
+		}
+	}
+	tokens = append(tokens, ObjectToken{
+		BaseName:           "<dynamic-sql>",
+		FullName:           "<dynamic-sql>",
+		Role:               "mixed",
+		DmlKind:            dml,
+		IsWrite:            c.IsWrite,
+		IsObjectNameDyn:    false,
+		IsPseudoObject:     true,
+		PseudoKind:         "dynamic-sql",
+		RepresentativeLine: c.LineStart,
+	})
+	return tokens
+}
+
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
-	if c.IsDynamic {
-		hasPseudo := false
-		for _, tok := range tokens {
-			if tok.IsPseudoObject || tok.IsObjectNameDyn {
-				hasPseudo = true
-				break
-			}
+	if c.IsDynamic && !hasDynamicToken(tokens) {
+		dml := usageKind
+		if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
+			dml = "UNKNOWN"
 		}
-		if !hasPseudo {
-			tokens = append(tokens, ObjectToken{
-				BaseName:        "<dynamic-sql>",
-				FullName:        "<dynamic-sql>",
-				Role:            "mixed",
-				DmlKind:         usageKind,
-				IsWrite:         c.IsWrite,
-				IsObjectNameDyn: true,
-				IsPseudoObject:  true,
-				PseudoKind:      "dynamic-sql",
-			})
-		}
+		tokens = ensureDynamicSqlPseudo(tokens, c, dml)
 	}
 	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
 	for i := range tokens {
+		if strings.TrimSpace(tokens[i].BaseName) == "" {
+			tokens[i].BaseName = "<dynamic-object>"
+			tokens[i].IsObjectNameDyn = true
+			tokens[i].IsPseudoObject = true
+			if tokens[i].PseudoKind == "" {
+				tokens[i].PseudoKind = "dynamic-object"
+			}
+			tokens[i].FullName = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
+		}
 		if applyDynamicRewrite && (hasDynamicPlaceholder(tokens[i].DbName) || hasDynamicPlaceholder(tokens[i].SchemaName)) {
 			tokens[i].IsObjectNameDyn = true
 		}
@@ -1239,10 +1272,9 @@ func parseLeadingInsertTarget(sql string, connDb string, line int) (ObjectToken,
 
 	p := len("insert")
 	p = skipWS(lower, p)
-	if !strings.HasPrefix(lower[p:], "into") {
-		return ObjectToken{}, false
+	if strings.HasPrefix(lower[p:], "into") {
+		p = skipWS(lower, p+len("into"))
 	}
-	p = skipWS(lower, p+len("into"))
 	if p >= len(lower) {
 		return ObjectToken{}, false
 	}
@@ -1291,11 +1323,9 @@ func collectInsertTargets(sql string, connDb string, line int) []ObjectToken {
 		}
 		start := idx + pos + len("insert")
 		p := skipWS(lower, start)
-		if !strings.HasPrefix(lower[p:], "into") {
-			idx = start
-			continue
+		if strings.HasPrefix(lower[p:], "into") {
+			p = skipWS(lower, p+len("into"))
 		}
-		p = skipWS(lower, p+len("into"))
 		objText, _ := scanObjectName(cleaned, lower, p)
 		objText = strings.TrimSpace(objText)
 		if objText == "" {
