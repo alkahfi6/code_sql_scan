@@ -5,10 +5,25 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"unicode"
+)
+
+var (
+	csMethodRe     = regexp.MustCompile(`(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^\{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
+	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`)
+	atLinePattern  = regexp.MustCompile(`(?i)@l(\d+)$`)
+	fileScopeLabel = regexp.MustCompile(`(?i)<file-scope>`)
+)
+
+var (
+	sourceRoot   string
+	sourceRootMu sync.RWMutex
 )
 
 // QueryRow represents a row from QueryUsage.csv used for summaries.
@@ -83,6 +98,7 @@ type ObjectSummaryRow struct {
 	BaseName       string
 	FullObjectName string
 	Roles          string
+	RolesSummary   string
 	DmlKinds       string
 	TotalReads     int
 	TotalWrites    int
@@ -111,6 +127,155 @@ type FormSummaryRow struct {
 	DistinctObjectsUsed  int
 	TopObjects           string
 	DbList               string
+}
+
+type methodRange struct {
+	Name       string
+	Start, End int
+}
+
+type fileMethodIndex struct {
+	lines        []string
+	methodAtLine []*methodRange
+	loadErr      error
+}
+
+type fileScopeResolver struct {
+	root  string
+	cache map[string]*fileMethodIndex
+	mu    sync.Mutex
+}
+
+// SetSourceRoot configures the source root so that file-scope placeholders can be resolved.
+func SetSourceRoot(root string) {
+	sourceRootMu.Lock()
+	defer sourceRootMu.Unlock()
+	sourceRoot = strings.TrimSpace(root)
+}
+
+func getSourceRoot() string {
+	sourceRootMu.RLock()
+	defer sourceRootMu.RUnlock()
+	return sourceRoot
+}
+
+func newFileScopeResolver(root string) *fileScopeResolver {
+	return &fileScopeResolver{root: strings.TrimSpace(root), cache: make(map[string]*fileMethodIndex)}
+}
+
+func (r *fileScopeResolver) resolve(current, raw string, q QueryRow) string {
+	if !isFileScopePlaceholder(current, raw) {
+		return current
+	}
+	line := q.LineStart
+	if line == 0 {
+		line = extractLineNumberFromFunc(raw)
+	}
+	if line == 0 {
+		line = extractLineNumberFromFunc(current)
+	}
+	if line <= 0 {
+		return current
+	}
+	if method := r.lookupMethodName(q.RelPath, q.File, line); method != "" {
+		return method
+	}
+	return r.fallbackLabel(q, line)
+}
+
+func (r *fileScopeResolver) fallbackLabel(q QueryRow, line int) string {
+	label := strings.TrimSpace(q.RelPath)
+	if label == "" {
+		label = strings.TrimSpace(q.File)
+	}
+	if label == "" {
+		label = "<file-scope>"
+	}
+	if line <= 0 {
+		return label
+	}
+	return fmt.Sprintf("%s::%d", label, line)
+}
+
+func (r *fileScopeResolver) lookupMethodName(relPath, file string, line int) string {
+	for _, candidate := range r.candidatePaths(relPath, file) {
+		if candidate == "" {
+			continue
+		}
+		if method := r.methodAtLine(candidate, line); method != "" {
+			return method
+		}
+	}
+	return ""
+}
+
+func (r *fileScopeResolver) candidatePaths(relPath, file string) []string {
+	seen := make(map[string]struct{})
+	var paths []string
+	add := func(p string) {
+		p = strings.TrimSpace(p)
+		if p == "" {
+			return
+		}
+		if r.root != "" {
+			p = filepath.Join(r.root, p)
+		}
+		p = filepath.Clean(p)
+		if _, ok := seen[p]; ok {
+			return
+		}
+		seen[p] = struct{}{}
+		paths = append(paths, p)
+	}
+
+	add(relPath)
+	if file != relPath {
+		add(file)
+	}
+	if base := filepath.Base(relPath); base != "" && base != relPath {
+		add(base)
+	}
+	return paths
+}
+
+func (r *fileScopeResolver) methodAtLine(path string, line int) string {
+	info := r.loadFileIndex(path)
+	if info == nil || info.methodAtLine == nil {
+		return ""
+	}
+	idx := line - 1
+	if idx >= 0 && idx < len(info.methodAtLine) {
+		if mr := info.methodAtLine[idx]; mr != nil {
+			return mr.Name
+		}
+	}
+	if info.lines != nil {
+		if mr := scanBackwardForMethod(info.lines, line); mr != nil {
+			return mr.Name
+		}
+	}
+	return ""
+}
+
+func (r *fileScopeResolver) loadFileIndex(path string) *fileMethodIndex {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if info, ok := r.cache[path]; ok {
+		return info
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		info := &fileMethodIndex{loadErr: err}
+		r.cache[path] = info
+		return info
+	}
+	lines := strings.Split(string(data), "\n")
+	info := &fileMethodIndex{
+		lines:        lines,
+		methodAtLine: buildSequentialMethodIndex(lines),
+	}
+	r.cache[path] = info
+	return info
 }
 
 func LoadQueryUsage(path string) ([]QueryRow, error) {
@@ -615,6 +780,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		}
 
 		roleSummary := summarizeRoleCounts(entry.reads, entry.writes, entry.execs)
+		roleSummaryCompact := summarizeRoleCountsCompact(entry.reads, entry.writes, entry.execs)
 		dmlKinds := setToSortedSlice(entry.dmlSet)
 
 		result = append(result, ObjectSummaryRow{
@@ -623,6 +789,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			BaseName:       entry.baseName,
 			FullObjectName: entry.fullName,
 			Roles:          roleSummary,
+			RolesSummary:   roleSummaryCompact,
 			DmlKinds:       strings.Join(dmlKinds, ";"),
 			TotalReads:     entry.reads,
 			TotalWrites:    entry.writes,
@@ -1003,22 +1170,24 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 		return ""
 	}
 	type top struct {
-		name   string
-		score  int
-		roles  *objectRoleCounter
-		hasAny bool
+		name  string
+		total int
+		roles *objectRoleCounter
 	}
 	tops := make([]top, 0, len(stats))
 	for name, counter := range stats {
-		score := objectDisplayScore(counter)
-		if score == 0 && !(counter.HasExec || counter.HasWrite || counter.HasRead) {
+		total := counter.ExecCount + counter.WriteCount + counter.ReadCount
+		if total == 0 && !(counter.HasExec || counter.HasWrite || counter.HasRead) {
 			continue
 		}
-		tops = append(tops, top{name: name, score: score, roles: counter, hasAny: counter.HasExec || counter.HasWrite || counter.HasRead})
+		if total == 0 {
+			total = 1
+		}
+		tops = append(tops, top{name: name, total: total, roles: counter})
 	}
 	sort.Slice(tops, func(i, j int) bool {
-		if tops[i].score != tops[j].score {
-			return tops[i].score > tops[j].score
+		if tops[i].total != tops[j].total {
+			return tops[i].total > tops[j].total
 		}
 		return strings.ToLower(tops[i].name) < strings.ToLower(tops[j].name)
 	})
@@ -1027,10 +1196,10 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	}
 	parts := make([]string, 0, len(tops))
 	for _, t := range tops {
-		roleLabel := describeRolesOrdered(t.roles)
+		roleLabel := describeRoleCountsDetailed(t.roles)
 		parts = append(parts, fmt.Sprintf("%s (%s)", t.name, roleLabel))
 	}
-	return strings.Join(parts, ", ")
+	return strings.Join(parts, "; ")
 }
 
 func objectDisplayScore(counter *objectRoleCounter) int {
@@ -1076,8 +1245,32 @@ func describeRolesOrdered(counter *objectRoleCounter) string {
 	return strings.Join(roles, "+")
 }
 
+func describeRoleCountsDetailed(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "mixed"
+	}
+	parts := []string{}
+	if counter.ReadCount > 0 {
+		parts = append(parts, fmt.Sprintf("read:%d", counter.ReadCount))
+	}
+	if counter.WriteCount > 0 {
+		parts = append(parts, fmt.Sprintf("write:%d", counter.WriteCount))
+	}
+	if counter.ExecCount > 0 {
+		parts = append(parts, fmt.Sprintf("exec:%d", counter.ExecCount))
+	}
+	if len(parts) == 0 {
+		return "mixed"
+	}
+	return strings.Join(parts, ", ")
+}
+
 func summarizeRoleCounts(reads, writes, execs int) string {
 	return fmt.Sprintf("read=%d; write=%d; exec=%d", reads, writes, execs)
+}
+
+func summarizeRoleCountsCompact(reads, writes, execs int) string {
+	return fmt.Sprintf("reads:%d,writes:%d,execs:%d", reads, writes, execs)
 }
 
 func buildTopObjects(stats map[string]*objectRoleCounter) string {
@@ -1274,7 +1467,7 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "FullObjectName", "BaseName", "Roles", "DmlKinds", "TotalReads", "TotalWrites", "TotalExec", "TotalFuncs", "ExampleFuncs", "IsPseudoObject", "PseudoKind", "HasCrossDb", "DbList"}
+	header := []string{"AppName", "RelPath", "FullObjectName", "BaseName", "Roles", "RolesSummary", "DmlKinds", "TotalReads", "TotalWrites", "TotalExec", "TotalFuncs", "ExampleFuncs", "IsPseudoObject", "PseudoKind", "HasCrossDb", "DbList"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -1285,6 +1478,7 @@ func WriteObjectSummary(path string, rows []ObjectSummaryRow) error {
 			r.FullObjectName,
 			r.BaseName,
 			r.Roles,
+			r.RolesSummary,
 			r.DmlKinds,
 			fmt.Sprintf("%d", r.TotalReads),
 			fmt.Sprintf("%d", r.TotalWrites),
@@ -1392,6 +1586,176 @@ func setToSortedSlice(m map[string]struct{}) []string {
 	return res
 }
 
+func isFileScopePlaceholder(current, raw string) bool {
+	cur := strings.ToLower(strings.TrimSpace(current))
+	rawLower := strings.ToLower(strings.TrimSpace(raw))
+	if fileScopeLabel.MatchString(rawLower) || fileScopeLabel.MatchString(cur) {
+		return true
+	}
+	if !strings.Contains(cur, "@l") && !strings.Contains(rawLower, "@l") {
+		return false
+	}
+	if atLinePattern.MatchString(cur) || atLinePattern.MatchString(rawLower) {
+		return true
+	}
+	if strings.Contains(cur, ".cs@l") || strings.Contains(cur, ".vb@l") || strings.Contains(cur, ".fs@l") {
+		return true
+	}
+	return false
+}
+
+func extractLineNumberFromFunc(name string) int {
+	if name == "" {
+		return 0
+	}
+	m := atLinePattern.FindStringSubmatch(strings.ToLower(strings.TrimSpace(name)))
+	if len(m) != 2 {
+		return 0
+	}
+	return parseInt(m[1])
+}
+
+func buildSequentialMethodIndex(lines []string) []*methodRange {
+	methodAtLine := make([]*methodRange, len(lines))
+	var current *methodRange
+	inString := false
+	verbatim := false
+	escaped := false
+	for i, line := range lines {
+		if !inString {
+			if name := extractCsMethodName(strings.TrimSpace(line)); name != "" {
+				current = &methodRange{Name: name, Start: i + 1, End: i + 1}
+			}
+		}
+		_, _, inString, verbatim, escaped = countBracesAndStringState(line, inString, verbatim, escaped)
+		if current != nil {
+			current.End = i + 1
+			methodAtLine[i] = current
+		}
+	}
+	return methodAtLine
+}
+
+func scanBackwardForMethod(lines []string, line int) *methodRange {
+	if line < 1 {
+		line = 1
+	}
+	limit := line - 200
+	if limit < 0 {
+		limit = 0
+	}
+	for i := line - 1; i >= limit && i < len(lines); i-- {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
+			continue
+		}
+		name := extractCsMethodName(trimmed)
+		if name != "" {
+			start := i + 1
+			end := line
+			if end < start {
+				end = start
+			}
+			return &methodRange{Name: name, Start: start, End: end}
+		}
+	}
+	return nil
+}
+
+func extractCsMethodName(trimmed string) string {
+	if strings.TrimSpace(trimmed) == "" {
+		return ""
+	}
+	if isCsControlKeyword(leadingToken(trimmed)) {
+		return ""
+	}
+	if m := csMethodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
+		return m[2]
+	}
+	if m := csMethodNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+		candidate := m[1]
+		if isCsControlKeyword(strings.ToLower(candidate)) {
+			return ""
+		}
+		return candidate
+	}
+	return ""
+}
+
+func countBracesAndStringState(line string, inString bool, verbatim bool, escaped bool) (int, int, bool, bool, bool) {
+	open := 0
+	close := 0
+	for i := 0; i < len(line); i++ {
+		c := line[i]
+		if inString {
+			if verbatim {
+				if c == '"' {
+					if i+1 < len(line) && line[i+1] == '"' {
+						i++
+						continue
+					}
+					inString = false
+					verbatim = false
+				}
+				continue
+			}
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		if c == '"' {
+			inString = true
+			verbatim = i > 0 && line[i-1] == '@'
+			escaped = false
+			continue
+		}
+		if c == '{' {
+			open++
+			continue
+		}
+		if c == '}' {
+			close++
+		}
+	}
+	return open, close, inString, verbatim, escaped
+}
+
+func leadingToken(line string) string {
+	line = strings.TrimSpace(line)
+	if line == "" {
+		return ""
+	}
+	fields := strings.Fields(line)
+	if len(fields) == 0 {
+		return ""
+	}
+	token := fields[0]
+	token = strings.TrimLeft(token, "([{\t")
+	token = strings.TrimRight(token, "({")
+	return strings.ToLower(token)
+}
+
+func isCsControlKeyword(tok string) bool {
+	switch strings.ToLower(strings.TrimSpace(tok)) {
+	case "", "if", "for", "foreach", "while", "switch", "catch", "using", "lock", "else", "try", "do", "case", "default":
+		return tok != ""
+	default:
+		return false
+	}
+}
+
 func sortedFuncNames(set map[string]struct{}) []string {
 	names := setToSortedSlice(set)
 	sort.Slice(names, func(i, j int) bool {
@@ -1462,10 +1826,13 @@ func normalizeQueryFuncs(queries []QueryRow) []QueryRow {
 	if len(queries) == 0 {
 		return nil
 	}
+	resolver := newFileScopeResolver(getSourceRoot())
 	res := make([]QueryRow, len(queries))
 	for i, q := range queries {
-		normalized := normalizeFuncName(q.Func)
-		q.Func = resolveFuncName(normalized, q.RelPath, q.LineStart)
+		rawFunc := q.Func
+		normalized := normalizeFuncName(rawFunc)
+		resolved := resolveFuncName(normalized, q.RelPath, q.LineStart)
+		q.Func = resolver.resolve(resolved, rawFunc, q)
 		res[i] = q
 	}
 	return res

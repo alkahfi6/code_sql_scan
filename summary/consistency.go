@@ -520,6 +520,9 @@ func LoadObjectSummary(path string) ([]ObjectSummaryRow, error) {
 		if col, ok := idx["Roles"]; ok {
 			row.Roles = rec[col]
 		}
+		if col, ok := idx["RolesSummary"]; ok {
+			row.RolesSummary = rec[col]
+		}
 		if col, ok := idx["DmlKinds"]; ok {
 			row.DmlKinds = rec[col]
 		}
