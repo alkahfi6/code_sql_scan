@@ -163,9 +163,25 @@ func analyzeCandidate(c *SqlCandidate) {
 			}
 		}
 
-		variants := []string{sqlClean}
-		if rawTrim := normalizeSqlWhitespace(StripSqlComments(c.RawSql)); rawTrim != "" && !strings.EqualFold(rawTrim, sqlClean) {
-			variants = append(variants, rawTrim)
+		variantSet := make(map[string]struct{})
+		var variants []string
+		addVariant := func(v string) {
+			v = strings.TrimSpace(v)
+			if v == "" {
+				return
+			}
+			if _, ok := variantSet[v]; ok {
+				return
+			}
+			variantSet[v] = struct{}{}
+			variants = append(variants, v)
+		}
+		addVariant(sqlClean)
+		if rawTrim := normalizeSqlWhitespace(StripSqlComments(c.RawSql)); rawTrim != "" {
+			addVariant(rawTrim)
+		}
+		if rawLiteral := strings.TrimSpace(c.RawSql); rawLiteral != "" {
+			addVariant(rawLiteral)
 		}
 
 		for _, fragment := range variants {
@@ -175,13 +191,13 @@ func analyzeCandidate(c *SqlCandidate) {
 			}
 			lowerFrag := strings.ToLower(frag)
 			var kinds []string
-			if strings.Contains(lowerFrag, "insert into") {
+			if strings.Contains(lowerFrag, "insert into") || insertTargetRe.MatchString(frag) {
 				kinds = append(kinds, "INSERT")
 			}
-			if strings.Contains(lowerFrag, "update") {
+			if strings.Contains(lowerFrag, "update") || updateTargetRe.MatchString(frag) {
 				kinds = append(kinds, "UPDATE")
 			}
-			if strings.Contains(lowerFrag, "delete from") {
+			if strings.Contains(lowerFrag, "delete from") || deleteTargetRe.MatchString(frag) {
 				kinds = append(kinds, "DELETE")
 			}
 			if len(kinds) == 0 {
