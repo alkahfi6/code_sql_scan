@@ -1,85 +1,100 @@
-AppName,RelPath,File,DbName,SchemaName,BaseName,FullObjectName,UsedInFuncs,DmlKinds,Roles,TotalReads,TotalWrites,IsCrossDb,IsDynamicObject,DynamicKind,IsPseudoObject,PseudoKind
-golang-sample,go1/destination.go,destination.go,,,OBOXGetPrevDate_v,OBOXGetPrevDate_v,GetOboxPreviousWorkingDate,SELECT,source,1,0,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,,confomk005_a,confomk005_a,DeleteDuplicateConfo,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,,confomk006_a,confomk006_a,DeleteDuplicateConfo,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,,mk005_a,mk005_a,DeleteDuplicateDataMK,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,,mk006_a,mk006_a,DeleteDuplicateDataMK;GetNamaSSB,DELETE;SELECT,source;target,1,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,,mk006_a_actuate,mk006_a_actuate,DeleteAvgPrice,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK002-A,dbo.MK002-A,ExecSPMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK002-A_detail,dbo.MK002-A_detail,ExecSPMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK002-A_flatfile,dbo.MK002-A_flatfile,GetFlatFileData,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK002UN-A_flatfile,dbo.MK002UN-A_flatfile,GetFlatFileUnstructuredData,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK005-A,dbo.MK005-A,ExecSPMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK005-A_UpdateJumlah,dbo.MK005-A_UpdateJumlah,UpdateTableMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK005-A_flatfile,dbo.MK005-A_flatfile,GetFlatFileData,EXEC,exec,0,2,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK005UN-A_flatfile,dbo.MK005UN-A_flatfile,GetFlatFileUnstructuredData,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK006-A,dbo.MK006-A,ExecSPMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK006-A_UpdateValue,dbo.MK006-A_UpdateValue,UpdateTableMK,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK006-A_flatfile,dbo.MK006-A_flatfile,GetFlatFileData,EXEC,exec,0,3,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,MK006UN-A_flatfile,dbo.MK006UN-A_flatfile,GetFlatFileUnstructuredData,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,TConfoMK005_A,dbo.TConfoMK005_A,ExecuteSPMurexTConfo,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,TConfoMK006_A,dbo.TConfoMK006_A,ExecuteSPMurexTConfo,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,UpdateControlTableResikoPasar,dbo.UpdateControlTableResikoPasar,UpdateControlTableResikoPasar,EXEC,exec,0,1,false,false,,false,
-golang-sample,go1/destination.go,destination.go,,dbo,control_table_resiko_pasar,dbo.control_table_resiko_pasar,GetTableRetry,SELECT,source,1,0,false,false,,false,
-golang-sample,go1/query.go,query.go,,,OBOXGetPrevDate_v,OBOXGetPrevDate_v,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go1/query.go,query.go,,,[schema,[schema,<unknown-func>,SELECT,source,5,0,false,false,,false,
-golang-sample,go1/query.go,query.go,,,confomk005_a,confomk005_a,<unknown-func>,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/query.go,query.go,,,confomk006_a,confomk006_a,<unknown-func>,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/query.go,query.go,,,mk005_a,mk005_a,<unknown-func>,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/query.go,query.go,,,mk006_a,mk006_a,<unknown-func>,DELETE;SELECT,source;target,1,1,false,false,,false,
-golang-sample,go1/query.go,query.go,,,mk006_a_actuate,mk006_a_actuate,<unknown-func>,DELETE,target,0,1,false,false,,false,
-golang-sample,go1/query.go,query.go,,dbo,mk006_a_actuate,dbo.mk006_a_actuate,<unknown-func>,INSERT,target,0,1,false,false,,false,
-golang-sample,go1/query.go,query.go,SQL_REPLICATE,dbo,confomk005_a,SQL_REPLICATE.dbo.confomk005_a,<unknown-func>,INSERT,target,0,1,true,false,,false,
-golang-sample,go1/query.go,query.go,SQL_REPLICATE,dbo,confomk006_a,SQL_REPLICATE.dbo.confomk006_a,<unknown-func>,INSERT,target,0,1,true,false,,false,
-golang-sample,go1/query.go,query.go,SQL_REPLICATE,dbo,mk005_a,SQL_REPLICATE.dbo.mk005_a,<unknown-func>,INSERT,target,0,1,true,false,,false,
-golang-sample,go1/query.go,query.go,SQL_REPLICATE,dbo,mk006_a,SQL_REPLICATE.dbo.mk006_a,<unknown-func>,INSERT,target,0,1,true,false,,false,
-golang-sample,go1/source.go,source.go,,dbo,MKValidateData,dbo.MKValidateData,ValidateMKData,EXEC,exec,0,1,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,CFMAST,dbo.CFMAST,GetCFCOUN,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,SIBSCurrencyTable_TM,dbo.SIBSCurrencyTable_TM,GetBIRates,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,VLSRate_TM,dbo.VLSRate_TM,GetVlsRate,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,VLSTransactionsToday_TR,dbo.VLSTransactionsToday_TR,GetVlsTransaction,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,VLSTransactions_TR,dbo.VLSTransactions_TR,GetVlsTransaction,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,control_table,dbo.control_table,GetCurrWorkingDate,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/impl.go,impl.go,,dbo,valas_mapping_parameter,dbo.valas_mapping_parameter,GetValasMappingParameter,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/query.go,query.go,,dbo,CFMAST,dbo.CFMAST,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/query.go,query.go,,dbo,SIBSCurrencyTable_TM,dbo.SIBSCurrencyTable_TM,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/query.go,query.go,,dbo,VLSTransactionsToday_TR,dbo.VLSTransactionsToday_TR,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/query.go,query.go,,dbo,VLSTransactions_TR,dbo.VLSTransactions_TR,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go2/query.go,query.go,,dbo,control_table,dbo.control_table,<unknown-func>,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,,,BancaMTranAAJIAAUI_TT,BancaMTranAAJIAAUI_TT,CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT;DeleteBatchIdFromBancaMTranAAJIAAUITT;GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus;GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus;GetLastInsertedBatchId;InsertBancaMTranAAJIAAUITT;UpdateBatchCode,DELETE;EXEC;SELECT;UPDATE,exec;source;target,6,8,false,false,,false,
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,,,BancaNoAAJI_TM,BancaNoAAJI_TM,GetBancaNoAAJITMByDate;GetBancaNoAAJITMByNIKDate;GetDataFromAAJITM;GetDataFromAAUITM;GetNIKFromBancaNoAAUITMByAAJIANDNIK;PopulateDataFromBancaNoAAUITMAndBancaNoAAUITM,SELECT,source,12,0,false,false,,false,
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,,,BancaNoAAUI_TM,BancaNoAAUI_TM,CheckNIKIsRegisterFromBancaNoAAJITM;GetBancaNoAAJITMByDate;GetBancaNoAAJITMByNIKDate;GetDataFromAAJITM;GetDataFromAAUITM;GetNIKFromBancaNoAAJITMByAAUIANDNIK;PopulateDataFromBancaNoAAUITMAndBancaNoAAUITM,SELECT,source,14,0,false,false,,false,
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,,,PSEmployee_v,PSEmployee_v,CheckNIKIfNotRegisterOnPeopleSoftFromPSEmployeev,SELECT,source,2,0,false,false,,false,
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,SQL_Employee,dbo,PSEmployee_v,SQL_Employee.dbo.PSEmployee_v,GetNameAndJobTitleByNIK,SELECT,source,2,0,true,false,,false,
-golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,,,BancaControlTable_TM,BancaControlTable_TM,GetBancaControlTableTMLastId,UPDATE,target,0,2,false,false,,false,
-golang-sample,go3/bancaQueries_manual.sql.go,bancaQueries_manual.sql.go,,,BancaDelete_TT,BancaDelete_TT,InsertDeleteTT,INSERT,target,0,2,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,DATA,DATA,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,SecurityReplaceTrxLelang_TT,SecurityReplaceTrxLelang_TT,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,a,a,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,bl,bl,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,blt,blt,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,,tmp,tmp,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,,dbo,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,EACustomerFlagging_TM_v,dbo.EACustomerFlagging_TM_v,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,MISOfficeInformationEODFull_v,dbo.MISOfficeInformationEODFull_v,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,PBCustomerFlagging_TM_v,dbo.PBCustomerFlagging_TM_v,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,RMMSecurityTransaction_TT,dbo.RMMSecurityTransaction_TT,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SIBSCurrencyTable_TM_v,dbo.SIBSCurrencyTable_TM_v,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityBatchResult_TR,dbo.SecurityBatchResult_TR,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityMaster_TM,dbo.SecurityMaster_TM,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityParamLelang_TR,dbo.SecurityParamLelang_TR,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityReplaceTrxLelang_TT,dbo.SecurityReplaceTrxLelang_TT,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTransactionLink_TR,dbo.SecurityTransactionLink_TR,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTransactionStatus_TM,dbo.SecurityTransactionStatus_TM,GetSecondaryTransactionBlotter;GetSecondaryTransactionStatus,SELECT,source,2,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTransaction_TR,dbo.SecurityTransaction_TR,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTransaction_TT,dbo.SecurityTransaction_TT,GetSecondaryTransactionBlotter,INSERT,target,0,1,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTranscationLink_TL,dbo.SecurityTranscationLink_TL,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,SecurityTrxLelang_TT,dbo.SecurityTrxLelang_TT,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,TRSHasilRevenue_TM,dbo.TRSHasilRevenue_TM,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,TRSListTransactionSourceOfFund_TH,dbo.TRSListTransactionSourceOfFund_TH,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,TRSListTransactionSourceOfFund_TT,dbo.TRSListTransactionSourceOfFund_TT,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,TRSParameter_TR,dbo.TRSParameter_TR,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,TreasuryCustomer_TM,dbo.TreasuryCustomer_TM,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,,dbo,user_nisp_v,dbo.user_nisp_v,GetSecondaryTransactionBlotter,SELECT,source,1,0,false,false,,false,
-golang-sample,go3/bond_transaction_repository.go,bond_transaction_repository.go,SQL_SIBS,dbo,SIBSCurrencyTable_EOD,SQL_SIBS.dbo.SIBSCurrencyTable_EOD,GetSecondaryTransactionBlotter,SELECT,source,1,0,true,false,,false,
-golang-sample,go3/refundBillingQueries_manual.sql.go,refundBillingQueries_manual.sql.go,,,BA_SelectRefundBilling,BA_SelectRefundBilling,ExecBASelectRefundBilling,EXEC,exec,0,2,false,false,,false,
+AppName,RelPath,FullObjectName,BaseName,Roles,DmlKinds,TotalReads,TotalWrites,TotalExec,TotalFuncs,ExampleFuncs,IsPseudoObject,PseudoKind,HasCrossDb,DbList
+golang-sample,go1/query.go,<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go1/source.go,<dynamic-sql>,<dynamic-sql>,read=7; write=0; exec=0,UNKNOWN,7,0,0,1,GetMK005A,true,dynamic-sql,false,
+golang-sample,go3/aajiQueries.sql.go,SQL_Employee.dbo.PSEmployee_v,PSEmployee_v,read=2; write=0; exec=0,SELECT,2,0,0,1,GetNameAndJobTitleByNIK,false,,true,SQL_Employee
+golang-sample,go1/query.go,SQL_REPLICATE.dbo.confomk005_a,confomk005_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L55,false,,true,SQL_REPLICATE
+golang-sample,go1/query.go,SQL_REPLICATE.dbo.confomk006_a,confomk006_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L33,false,,true,SQL_REPLICATE
+golang-sample,go1/query.go,SQL_REPLICATE.dbo.mk005_a,mk005_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L121,false,,true,SQL_REPLICATE
+golang-sample,go1/query.go,SQL_REPLICATE.dbo.mk006_a,mk006_a,read=0; write=1; exec=0,INSERT,0,1,0,1,go1/query.go@L103,false,,true,SQL_REPLICATE
+golang-sample,go3/bond_transaction_repository.go,SQL_SIBS.dbo.SIBSCurrencyTable_EOD,SIBSCurrencyTable_EOD,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go1/query.go,[[schema]].<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go1/destination.go,[dbo].[MK002-A],MK002-A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK002-A_detail],MK002-A_detail,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK002-A_flatfile],MK002-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileData,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK002UN-A_flatfile],MK002UN-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileUnstructuredData,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK005-A],MK005-A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK005-A_UpdateJumlah],MK005-A_UpdateJumlah,read=0; write=0; exec=1,EXEC,0,0,1,1,UpdateTableMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK005-A_flatfile],MK005-A_flatfile,read=0; write=0; exec=2,EXEC,0,0,2,1,GetFlatFileData,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK005UN-A_flatfile],MK005UN-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileUnstructuredData,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK006-A],MK006-A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecSPMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK006-A_UpdateValue],MK006-A_UpdateValue,read=0; write=0; exec=1,EXEC,0,0,1,1,UpdateTableMK,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK006-A_flatfile],MK006-A_flatfile,read=0; write=0; exec=3,EXEC,0,0,3,1,GetFlatFileData,false,,false,
+golang-sample,go1/destination.go,[dbo].[MK006UN-A_flatfile],MK006UN-A_flatfile,read=0; write=0; exec=1,EXEC,0,0,1,1,GetFlatFileUnstructuredData,false,,false,
+golang-sample,go1/source.go,[dbo].[MKValidateData],MKValidateData,read=0; write=0; exec=1,EXEC,0,0,1,1,ValidateMKData,false,,false,
+golang-sample,go1/destination.go,[dbo].[UpdateControlTableResikoPasar],UpdateControlTableResikoPasar,read=0; write=0; exec=1,EXEC,0,0,1,1,UpdateControlTableResikoPasar,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.<dynamic-object>,<dynamic-object>,read=0; write=2; exec=0,INSERT;SELECT,0,2,0,1,InsertDeleteTT,true,dynamic-sql,false,
+golang-sample,go1/query.go,dbo.<dynamic-object>,<dynamic-object>,read=5; write=0; exec=0,SELECT,5,0,0,5,go1/query.go@L10;go1/query.go@L157;go1/query.go@L22;go1/query.go@L82;go1/query.go@L91,true,dynamic-sql,false,
+golang-sample,go3/refundBillingQueries_manual.sql.go,dbo.BA_SelectRefundBilling,BA_SelectRefundBilling,read=0; write=0; exec=2,EXEC,0,0,2,1,ExecBASelectRefundBilling,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.BancaControlTable_TM,BancaControlTable_TM,read=0; write=0; exec=0,SELECT;UPDATE;UPDATE,0,0,0,1,GetBancaControlTableTMLastId,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.BancaDelete_TT,BancaDelete_TT,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/aajiQueries.sql.go,dbo.BancaMTranAAJIAAUI_TT,BancaMTranAAJIAAUI_TT,read=6; write=2; exec=2,DELETE;EXEC;EXEC;INSERT;SELECT;SELECT;UPDATE;UPDATE,6,2,2,7,CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT;DeleteBatchIdFromBancaMTranAAJIAAUITT;GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus;GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus;GetLastInsertedBatchId,false,,false,
+golang-sample,go3/aajiQueries.sql.go,dbo.BancaNoAAJI_TM,BancaNoAAJI_TM,read=12; write=0; exec=0,SELECT,12,0,0,6,GetBancaNoAAJITMByDate;GetBancaNoAAJITMByNIKDate;GetDataFromAAJITM;GetDataFromAAUITM;GetNIKFromBancaNoAAUITMByAAJIANDNIK,false,,false,
+golang-sample,go3/aajiQueries.sql.go,dbo.BancaNoAAUI_TM,BancaNoAAUI_TM,read=14; write=0; exec=0,SELECT,14,0,0,7,CheckNIKIsRegisterFromBancaNoAAJITM;GetBancaNoAAJITMByDate;GetBancaNoAAJITMByNIKDate;GetDataFromAAJITM;GetDataFromAAUITM,false,,false,
+golang-sample,go2/impl.go,dbo.CFMAST,CFMAST,read=1; write=0; exec=0,SELECT,1,0,0,1,GetCFCOUN,false,,false,
+golang-sample,go2/query.go,dbo.CFMAST,CFMAST,read=1; write=0; exec=0,SELECT,1,0,0,1,go2/query.go@L8,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.DATA,DATA,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.DeleteTT,DeleteTT,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.EACustomerFlagging_TM_v,EACustomerFlagging_TM_v,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.MISOfficeInformationEODFull_v,MISOfficeInformationEODFull_v,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go1/destination.go,dbo.OBOXGetPrevDate_v,OBOXGetPrevDate_v,read=1; write=0; exec=0,SELECT,1,0,0,1,GetOboxPreviousWorkingDate,false,,false,
+golang-sample,go1/query.go,dbo.OBOXGetPrevDate_v,OBOXGetPrevDate_v,read=1; write=0; exec=0,SELECT,1,0,0,1,go1/query.go@L3,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.PBCustomerFlagging_TM_v,PBCustomerFlagging_TM_v,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/aajiQueries.sql.go,dbo.PSEmployee_v,PSEmployee_v,read=2; write=0; exec=0,SELECT,2,0,0,1,CheckNIKIfNotRegisterOnPeopleSoftFromPSEmployeev,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.RMMSecurityTransaction_TT,RMMSecurityTransaction_TT,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go2/impl.go,dbo.SIBSCurrencyTable_TM,SIBSCurrencyTable_TM,read=1; write=0; exec=0,SELECT,1,0,0,1,GetBIRates,false,,false,
+golang-sample,go2/query.go,dbo.SIBSCurrencyTable_TM,SIBSCurrencyTable_TM,read=1; write=0; exec=0,SELECT,1,0,0,1,go2/query.go@L14,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.SIBSCurrencyTable_TM_v,SIBSCurrencyTable_TM_v,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityBatchResult_TR,SecurityBatchResult_TR,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityMaster_TM,SecurityMaster_TM,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityParamLelang_TR,SecurityParamLelang_TR,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityReplaceTrxLelang_TT,SecurityReplaceTrxLelang_TT,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTransactionLink_TR,SecurityTransactionLink_TR,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTransactionStatus_TM,SecurityTransactionStatus_TM,read=2; write=0; exec=0,INSERT;SELECT,2,0,0,2,GetSecondaryTransactionBlotter;GetSecondaryTransactionStatus,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTransaction_TR,SecurityTransaction_TR,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTransaction_TT,SecurityTransaction_TT,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTranscationLink_TL,SecurityTranscationLink_TL,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTrxLelang_TT,SecurityTrxLelang_TT,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.SecurityTrxResultLelang_TT,SecurityTrxResultLelang_TT,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go1/destination.go,dbo.TConfoMK005_A,TConfoMK005_A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecuteSPMurexTConfo,false,,false,
+golang-sample,go1/destination.go,dbo.TConfoMK006_A,TConfoMK006_A,read=0; write=0; exec=1,EXEC,0,0,1,1,ExecuteSPMurexTConfo,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.TRSHasilRevenue_TM,TRSHasilRevenue_TM,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.TRSListTransactionSourceOfFund_TH,TRSListTransactionSourceOfFund_TH,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.TRSListTransactionSourceOfFund_TT,TRSListTransactionSourceOfFund_TT,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.TRSParameter_TR,TRSParameter_TR,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.TreasuryCustomer_TM,TreasuryCustomer_TM,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/aajiQueries.sql.go,dbo.UPDATE,UPDATE,read=0; write=2; exec=0,UPDATE,0,2,0,1,UpdateBatchCode,false,,false,
+golang-sample,go2/impl.go,dbo.VLSRate_TM,VLSRate_TM,read=1; write=0; exec=0,SELECT,1,0,0,1,GetVlsRate,false,,false,
+golang-sample,go2/impl.go,dbo.VLSTransactionsToday_TR,VLSTransactionsToday_TR,read=1; write=0; exec=0,SELECT,1,0,0,1,GetVlsTransaction,false,,false,
+golang-sample,go2/query.go,dbo.VLSTransactionsToday_TR,VLSTransactionsToday_TR,read=1; write=0; exec=0,SELECT,1,0,0,1,go2/query.go@L36,false,,false,
+golang-sample,go2/impl.go,dbo.VLSTransactions_TR,VLSTransactions_TR,read=1; write=0; exec=0,SELECT,1,0,0,1,GetVlsTransaction,false,,false,
+golang-sample,go2/query.go,dbo.VLSTransactions_TR,VLSTransactions_TR,read=1; write=0; exec=0,SELECT,1,0,0,1,go2/query.go@L20,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.a,a,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.bl,bl,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.blt,blt,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go1/destination.go,dbo.confomk005_a,confomk005_a,read=0; write=1; exec=0,DELETE,0,1,0,1,DeleteDuplicateConfo,false,,false,
+golang-sample,go1/query.go,dbo.confomk005_a,confomk005_a,read=0; write=1; exec=0,DELETE,0,1,0,1,go1/query.go@L5,false,,false,
+golang-sample,go1/destination.go,dbo.confomk006_a,confomk006_a,read=0; write=1; exec=0,DELETE,0,1,0,1,DeleteDuplicateConfo,false,,false,
+golang-sample,go1/query.go,dbo.confomk006_a,confomk006_a,read=0; write=1; exec=0,DELETE,0,1,0,1,go1/query.go@L7,false,,false,
+golang-sample,go2/impl.go,dbo.control_table,control_table,read=1; write=0; exec=0,SELECT,1,0,0,1,GetCurrWorkingDate,false,,false,
+golang-sample,go2/query.go,dbo.control_table,control_table,read=1; write=0; exec=0,SELECT,1,0,0,1,go2/query.go@L3,false,,false,
+golang-sample,go1/destination.go,dbo.control_table_resiko_pasar,control_table_resiko_pasar,read=1; write=0; exec=0,SELECT,1,0,0,1,GetTableRetry,false,,false,
+golang-sample,go3/aajiQueries.sql.go,dbo.delete,delete,read=2; write=0; exec=0,DELETE;SELECT,2,0,0,1,DeleteBatchIdFromBancaMTranAAJIAAUITT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.edData,edData,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.edDate,edDate,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/aajiQueries.sql.go,dbo.insert,insert,read=0; write=0; exec=2,EXEC,0,0,2,1,InsertBancaMTranAAJIAAUITT,false,,false,
+golang-sample,go1/destination.go,dbo.mk005_a,mk005_a,read=0; write=1; exec=0,DELETE,0,1,0,1,DeleteDuplicateDataMK,false,,false,
+golang-sample,go1/query.go,dbo.mk005_a,mk005_a,read=0; write=1; exec=0,DELETE,0,1,0,1,go1/query.go@L77,false,,false,
+golang-sample,go1/destination.go,dbo.mk006_a,mk006_a,read=1; write=1; exec=0,DELETE;SELECT,1,1,0,2,DeleteDuplicateDataMK;GetNamaSSB,false,,false,
+golang-sample,go1/query.go,dbo.mk006_a,mk006_a,read=1; write=1; exec=0,DELETE;SELECT,1,1,0,2,go1/query.go@L137;go1/query.go@L79,false,,false,
+golang-sample,go1/query.go,dbo.mk006_a_actuate,mk006_a_actuate,read=0; write=2; exec=0,DELETE;INSERT,0,2,0,2,go1/query.go@L150;go1/query.go@L171,false,,false,
+golang-sample,go1/destination.go,dbo.mk006_a_actuate,mk006_a_actuate,read=0; write=1; exec=0,DELETE,0,1,0,1,DeleteAvgPrice,false,,false,
+golang-sample,go3/bond_transaction_repository.go,dbo.tmp,tmp,read=0; write=1; exec=0,INSERT,0,1,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go3/bond_transaction_repository.go,dbo.user_nisp_v,user_nisp_v,read=1; write=0; exec=0,INSERT;SELECT,1,0,0,1,GetSecondaryTransactionBlotter,false,,true,SQL_SIBS
+golang-sample,go2/impl.go,dbo.valas_mapping_parameter,valas_mapping_parameter,read=1; write=0; exec=0,SELECT,1,0,0,1,GetValasMappingParameter,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.ActionType,ActionType,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.BatchId,BatchId,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.DateOtor,DateOtor,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.Jenis,Jenis,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.StatusOtor,StatusOtor,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.UserInput,UserInput,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
+golang-sample,go3/bancaQueries_manual.sql.go,ed.UserOtor,UserOtor,read=0; write=2; exec=0,INSERT,0,2,0,1,InsertDeleteTT,false,,false,
