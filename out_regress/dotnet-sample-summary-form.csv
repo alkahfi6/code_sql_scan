@@ -8,5 +8,5 @@ dotnet-sample,clsAntasenaService.cs,3,3,0,3,8,"write: openxml; read: eq, sp_xml_
 dotnet-sample,clsDataAccess1.cs,14,14,14,0,14,"exec: SBNSchedCreateLiveLog, SBNSchedGetDataStatusPemesanan, SBNSchedGetGeneralParam, SBNSchedLogORIPaymentDirect, SBNSchedPopulateNotif",false,
 dotnet-sample,clsDataAccess2.cs,44,44,44,0,41,"exec: TRSObliGetNotifAPIParam, TRSRetailCalculateFee, MXINTFCPYInLog, MXINTFDEALInLog, OMBranchingNTI",false,
 dotnet-sample,clsDatabase.cs,204,204,204,0,196,"exec: trs_ListColumnsTable, TRSProcessInsertSecurityTransactionCommit, TRSPopulateBlokirSwitchingTransaction, TRSProcessUploadDocsLink, UserGetToolbar",false,
-dotnet-sample,clsValasService.cs,96,93,0,68,27,"write: openxml, tm, VLSSummaryFXOption_TM, VLSSummary_TM, VLSTransactions_TR; read: sp_xml_preparedocument, VLSTransactionsToday_TR, summary_valas, VLSSummaryTodayFXOption_TM, VLSSummaryToday_TM",false,
+dotnet-sample,clsValasService.cs,96,93,1,65,28,"exec: VLSGenerateDataTrxNasabah; write: openxml, tm, VLSSummaryFXOption_TM, VLSSummary_TM, VLSTransactions_TR; read: sp_xml_preparedocument, summary_valas, VLSSummaryTodayFXOption_TM, VLSSummaryToday_TM, VLSTransactionsToday_TR",false,
 dotnet-sample,frmObligasiUpdateStatusTRX.cs,26,26,26,0,8,"exec: trs_UpdateStatusSecurityTransactionAfterMurex, TRSGetEmailForPushBack, TRSGetEmailLookUp, UserGetToolbarTree, UserGetTreeView",false,
