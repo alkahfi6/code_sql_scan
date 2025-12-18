@@ -28,6 +28,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 
 	qw := csv.NewWriter(qf)
 	ow := csv.NewWriter(of)
+	resolver := summary.NewFuncResolver(cfg.Root)
 
 	qHeader := []string{
 		"AppName", "RelPath", "File", "SourceCategory", "SourceKind", "CallSiteKind",
@@ -52,7 +53,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	}
 
 	for _, c := range cands {
-		funcName := summary.ResolveFuncName(summary.NormalizeFuncName(c.Func), c.RelPath, c.LineStart)
+		funcName := resolver.Resolve(c.Func, c.RelPath, c.File, c.LineStart)
 		dbList := strings.Join(c.DbList, ";")
 
 		qRow := []string{

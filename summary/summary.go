@@ -146,6 +146,41 @@ type fileScopeResolver struct {
 	mu    sync.Mutex
 }
 
+// NewFuncResolver constructs a resolver that can translate placeholder
+// function names to concrete method identifiers using the provided source
+// root. If root is empty, the currently configured source root is used.
+func NewFuncResolver(root string) *FuncResolver {
+	trimmed := strings.TrimSpace(root)
+	if trimmed != "" {
+		SetSourceRoot(trimmed)
+	}
+	return &FuncResolver{fileScope: newFileScopeResolver(getSourceRoot())}
+}
+
+// Resolve normalizes and resolves a raw function name using file-scope
+// heuristics. When a meaningful method name cannot be determined, the
+// placeholder input is returned.
+func (r *FuncResolver) Resolve(rawFunc, relPath, file string, lineStart int) string {
+	if r == nil {
+		return resolveFuncName(normalizeFuncName(rawFunc), relPath, lineStart)
+	}
+	if r.fileScope == nil {
+		r.fileScope = newFileScopeResolver(getSourceRoot())
+	}
+	normalized := normalizeFuncName(rawFunc)
+	resolved := resolveFuncName(normalized, relPath, lineStart)
+	return r.fileScope.resolve(resolved, rawFunc, QueryRow{RelPath: relPath, File: file, LineStart: lineStart, Func: rawFunc})
+}
+
+// FuncResolver resolves function names using file-scope heuristics.
+// It maps placeholder values (e.g., <unknown-func>, path@L123) to the closest
+// method name found in source files under the configured root. When a
+// reasonable method name cannot be determined, the current placeholder is
+// returned unchanged.
+type FuncResolver struct {
+	fileScope *fileScopeResolver
+}
+
 // SetSourceRoot configures the source root so that file-scope placeholders can be resolved.
 func SetSourceRoot(root string) {
 	sourceRootMu.Lock()
@@ -178,7 +213,12 @@ func (r *fileScopeResolver) resolve(current, raw string, q QueryRow) string {
 		return current
 	}
 	if method := r.lookupMethodName(q.RelPath, q.File, line); method != "" {
-		return method
+		if normalizeFuncName(method) != "<unknown-func>" {
+			return method
+		}
+	}
+	if strings.TrimSpace(current) != "" {
+		return current
 	}
 	return r.fallbackLabel(q, line)
 }
@@ -1826,13 +1866,10 @@ func normalizeQueryFuncs(queries []QueryRow) []QueryRow {
 	if len(queries) == 0 {
 		return nil
 	}
-	resolver := newFileScopeResolver(getSourceRoot())
+	resolver := NewFuncResolver(getSourceRoot())
 	res := make([]QueryRow, len(queries))
 	for i, q := range queries {
-		rawFunc := q.Func
-		normalized := normalizeFuncName(rawFunc)
-		resolved := resolveFuncName(normalized, q.RelPath, q.LineStart)
-		q.Func = resolver.resolve(resolved, rawFunc, q)
+		q.Func = resolver.Resolve(q.Func, q.RelPath, q.File, q.LineStart)
 		res[i] = q
 	}
 	return res
