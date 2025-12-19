@@ -85,6 +85,7 @@ type FunctionSummaryRow struct {
 	DynamicSig    string
 	TotalWrite    int
 	TotalObjects  int
+	TopObjects    string
 	ObjectsUsed   string
 	HasCrossDb    bool
 	DbList        string
@@ -454,6 +455,7 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 
 func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
+	objects = normalizeObjectRows(objects)
 	grouped := make(map[string][]QueryRow)
 	queryByKey := make(map[string]QueryRow)
 
@@ -605,7 +607,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				consumeObj(o)
 			}
 		}
-		objectsUsed := buildTopObjectSummary(objectCounter, 10)
+		topObjects := buildTopObjectSummary(objectCounter, 5)
 		dbList := setToSortedSlice(dbListSet)
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		if maxLine == 0 && minLine > 0 {
@@ -630,7 +632,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			DynamicSig:    dynamicSig,
 			TotalWrite:    totalWrite,
 			TotalObjects:  len(objSet),
-			ObjectsUsed:   objectsUsed,
+			TopObjects:    topObjects,
+			ObjectsUsed:   topObjects,
 			HasCrossDb:    hasCross,
 			DbList:        strings.Join(dbList, ";"),
 			LineStart:     minLine,
@@ -729,6 +732,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		hasPseudoLines bool
 	}
 
+	objects = normalizeObjectRows(objects)
+
 	grouped := make(map[string]*agg)
 	queryByKey := make(map[string]QueryRow)
 	for _, q := range queries {
@@ -747,11 +752,13 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if baseName == "" {
 			baseName = parsedBase
 		}
-		pseudoKind := defaultPseudoKind(o.PseudoKind)
+		pseudoKind := strings.TrimSpace(o.PseudoKind)
 		isPseudoObj := o.IsPseudoObject
 		if detected, kind := pseudoObjectInfo(baseName, pseudoKind); detected {
 			isPseudoObj = true
 			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
+		} else if isPseudoObj {
+			pseudoKind = defaultPseudoKind(pseudoKind)
 		}
 		roleKey := "" // summary CSV does not carry raw role; keep empty for stable keying.
 		key := objectSummaryKeyDetailed(
@@ -878,6 +885,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 
 func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
+	objects = normalizeObjectRows(objects)
 	groupQueries := make(map[string][]QueryRow)
 	objectSetByForm := make(map[string]map[string]struct{})
 	objectCountByForm := make(map[string]int)
@@ -1248,13 +1256,20 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 		}
 		return strings.ToLower(tops[i].name) < strings.ToLower(tops[j].name)
 	})
-	if len(tops) > limit {
-		tops = tops[:limit]
+	if len(tops) == 0 {
+		return ""
 	}
-	parts := make([]string, 0, len(tops))
-	for _, t := range tops {
+	display := tops
+	if len(display) > limit {
+		display = display[:limit]
+	}
+	parts := make([]string, 0, len(display)+1)
+	for _, t := range display {
 		roleLabel := describeRoleCountsDetailed(t.roles)
 		parts = append(parts, fmt.Sprintf("%s (%s)", t.name, roleLabel))
+	}
+	if remaining := len(tops) - len(display); remaining > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", remaining))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -1482,7 +1497,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "ObjectsUsed", "HasCrossDb", "DbList"}
+	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "TopObjects", "ObjectsUsed", "HasCrossDb", "DbList"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -1504,6 +1519,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalDynamic),
 			r.DynamicSig,
 			fmt.Sprintf("%d", r.TotalObjects),
+			r.TopObjects,
 			r.ObjectsUsed,
 			boolToStr(r.HasCrossDb),
 			r.DbList,
@@ -1996,6 +2012,72 @@ func buildFullName(db, schema, base string) string {
 		parts = append(parts, base)
 	}
 	return strings.Join(parts, ".")
+}
+
+func normalizeObjectRows(objects []ObjectRow) []ObjectRow {
+	if len(objects) == 0 {
+		return objects
+	}
+	norm := make([]ObjectRow, 0, len(objects))
+	for _, o := range objects {
+		norm = append(norm, normalizeObjectRow(o))
+	}
+	return norm
+}
+
+func normalizeObjectRow(o ObjectRow) ObjectRow {
+	o.ObjectName = normalizeFullObjectName(o.ObjectName)
+	o.DbName = cleanIdentifier(o.DbName)
+	o.SchemaName = cleanIdentifier(o.SchemaName)
+	o.BaseName = cleanIdentifier(o.BaseName)
+
+	if o.ObjectName != "" {
+		parts := strings.Split(o.ObjectName, ".")
+		if len(parts) > 0 && strings.TrimSpace(o.BaseName) == "" {
+			o.BaseName = cleanIdentifier(parts[len(parts)-1])
+		}
+		if len(parts) >= 2 && strings.TrimSpace(o.SchemaName) == "" {
+			o.SchemaName = cleanIdentifier(parts[len(parts)-2])
+		}
+		if len(parts) >= 3 && strings.TrimSpace(o.DbName) == "" {
+			o.DbName = cleanIdentifier(parts[0])
+		}
+	}
+
+	if strings.TrimSpace(o.DbName) == "" && strings.TrimSpace(o.SchemaName) == "" {
+		o.SchemaName = "dbo"
+	}
+
+	if !o.IsPseudoObject {
+		o.PseudoKind = ""
+	} else {
+		o.PseudoKind = defaultPseudoKind(o.PseudoKind)
+	}
+
+	// Rebuild object name with normalized parts to ensure consistency.
+	o.ObjectName = normalizeFullObjectName(buildFullName(o.DbName, o.SchemaName, o.BaseName))
+	return o
+}
+
+func normalizeFullObjectName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, ".")
+	cleaned := make([]string, 0, len(parts))
+	for _, p := range parts {
+		segment := cleanIdentifier(p)
+		if segment == "" {
+			continue
+		}
+		cleaned = append(cleaned, segment)
+	}
+	return strings.Join(cleaned, ".")
+}
+
+func cleanIdentifier(raw string) string {
+	return strings.Trim(strings.TrimSpace(raw), "[]\"")
 }
 
 func chooseFullObjectName(o ObjectRow) string {
