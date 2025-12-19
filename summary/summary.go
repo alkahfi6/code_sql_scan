@@ -34,6 +34,7 @@ type QueryRow struct {
 	SourceCat  string
 	SourceKind string
 	CallSite   string
+	DynamicSig string
 	Func       string
 	RawSql     string
 	SqlClean   string
@@ -357,6 +358,7 @@ func LoadQueryUsage(path string) ([]QueryRow, error) {
 			SourceCat:  pick(rec, idx, "SourceCategory"),
 			SourceKind: pick(rec, idx, "SourceKind"),
 			CallSite:   pick(rec, idx, "CallSiteKind"),
+			DynamicSig: pick(rec, idx, "DynamicSignature"),
 			RawSql:     pick(rec, idx, "RawSql"),
 			SqlClean:   pick(rec, idx, "SqlClean"),
 			Func:       rec[idx["Func"]],
@@ -531,8 +533,10 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 			totalWrite += writeKinds
 			if isDynamicQuery(q) {
-				totalDynamic++
 				sig := dynamicSignature(q)
+				if sig == "" {
+					sig = q.QueryHash
+				}
 				if sig != "" {
 					entry := dynamicSigCounts[sig]
 					entry.count++
@@ -568,6 +572,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		if totalWrite == 0 {
 			totalWrite = totalInsert + totalUpdate + totalDelete + totalTruncate + totalExec
 		}
+
+		totalDynamic = len(dynamicSigCounts)
 
 		objSet := make(map[string]struct{})
 		consumeObj := func(o ObjectRow) {
@@ -651,12 +657,19 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
 	expectedTotals := make(map[string]int)
-	expectedDynamic := make(map[string]int)
+	expectedDynamic := make(map[string]map[string]struct{})
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		expectedTotals[key]++
 		if isDynamicQuery(q) {
-			expectedDynamic[key]++
+			sig := dynamicSignature(q)
+			if sig == "" {
+				sig = q.QueryHash
+			}
+			if expectedDynamic[key] == nil {
+				expectedDynamic[key] = make(map[string]struct{})
+			}
+			expectedDynamic[key][sig] = struct{}{}
 		}
 	}
 
@@ -675,8 +688,9 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s missing in summary (expected total=%d dyn=%d)", rel, fn, total, expectedDynamic[key]))
 			continue
 		}
-		if sum.TotalQueries != total || sum.TotalDynamic != expectedDynamic[key] {
-			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDynamic[key], sum.TotalQueries, sum.TotalDynamic))
+		expectedDyn := len(expectedDynamic[key])
+		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn {
+			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDyn, sum.TotalQueries, sum.TotalDynamic))
 		}
 	}
 	for key, sum := range summaryTotals {
@@ -1118,6 +1132,9 @@ func normalizeRoleFlags(flags roleFlags) roleFlags {
 }
 
 func dynamicSignature(q QueryRow) string {
+	if trimmed := strings.TrimSpace(q.DynamicSig); trimmed != "" {
+		return trimmed
+	}
 	if q.LineStart == 0 {
 		return ""
 	}
