@@ -24,30 +24,35 @@ func Run(cfg *Config) ([]string, error) {
 	fileCount := <-countCh
 	log.Printf("[INFO] total files to scan: %d", fileCount)
 
+	var analyzed []SqlCandidate
 	for i := range cands {
-		analyzeCandidate(&cands[i])
-		dedupeObjectTokens(&cands[i])
-		if len(cands[i].Objects) > 1 {
-			sort.Slice(cands[i].Objects, func(a, b int) bool {
-				oa, ob := cands[i].Objects[a], cands[i].Objects[b]
-				if oa.DbName != ob.DbName {
-					return oa.DbName < ob.DbName
-				}
-				if oa.SchemaName != ob.SchemaName {
-					return oa.SchemaName < ob.SchemaName
-				}
-				if oa.BaseName != ob.BaseName {
-					return oa.BaseName < ob.BaseName
-				}
-				if oa.Role != ob.Role {
-					return oa.Role < ob.Role
-				}
-				return oa.DmlKind < ob.DmlKind
-			})
+		parts := expandMultiStatementCandidate(cands[i])
+		for j := range parts {
+			analyzeCandidate(&parts[j])
+			dedupeObjectTokens(&parts[j])
+			if len(parts[j].Objects) > 1 {
+				sort.Slice(parts[j].Objects, func(a, b int) bool {
+					oa, ob := parts[j].Objects[a], parts[j].Objects[b]
+					if oa.DbName != ob.DbName {
+						return oa.DbName < ob.DbName
+					}
+					if oa.SchemaName != ob.SchemaName {
+						return oa.SchemaName < ob.SchemaName
+					}
+					if oa.BaseName != ob.BaseName {
+						return oa.BaseName < ob.BaseName
+					}
+					if oa.Role != ob.Role {
+						return oa.Role < ob.Role
+					}
+					return oa.DmlKind < ob.DmlKind
+				})
+			}
+			analyzed = append(analyzed, parts[j])
 		}
 	}
 
-	cands = dedupeCandidates(cands)
+	cands = dedupeCandidates(analyzed)
 
 	sort.Slice(cands, func(i, j int) bool {
 		a, b := cands[i], cands[j]

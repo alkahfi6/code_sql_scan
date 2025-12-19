@@ -324,6 +324,123 @@ func analyzeCandidate(c *SqlCandidate) {
 	c.RiskLevel = classifyRisk(c)
 }
 
+func expandMultiStatementCandidate(c SqlCandidate) []SqlCandidate {
+	sqlClean := StripSqlComments(c.RawSql)
+	sqlClean = normalizeSqlWhitespace(sqlClean)
+	parts := splitSqlStatements(sqlClean)
+	if len(parts) <= 1 {
+		return []SqlCandidate{c}
+	}
+
+	var out []SqlCandidate
+	for _, part := range parts {
+		clone := c
+		clone.RawSql = part
+		clone.SqlClean = ""
+		out = append(out, clone)
+	}
+	return out
+}
+
+func splitSqlStatements(sql string) []string {
+	sql = strings.TrimSpace(sql)
+	if sql == "" {
+		return nil
+	}
+
+	lower := strings.ToLower(sql)
+	var parts []string
+	var buf strings.Builder
+	inSingle, inDouble := false, false
+	parenDepth := 0
+
+	flush := func() {
+		part := strings.TrimSpace(buf.String())
+		if part != "" {
+			parts = append(parts, part)
+		}
+		buf.Reset()
+	}
+
+	isBoundary := func(r rune) bool {
+		return unicode.IsSpace(r) || strings.ContainsRune(";,()", r)
+	}
+
+	matchKeyword := func(idx int, kw string) bool {
+		if idx < 0 || idx+len(kw) > len(lower) {
+			return false
+		}
+		if lower[idx:idx+len(kw)] != kw {
+			return false
+		}
+		beforeBoundary := idx == 0 || isBoundary(rune(lower[idx-1]))
+		afterIdx := idx + len(kw)
+		afterBoundary := afterIdx >= len(lower) || isBoundary(rune(lower[afterIdx]))
+		return beforeBoundary && afterBoundary
+	}
+
+	for i := 0; i < len(sql); {
+		ch := sql[i]
+
+		if ch == '\'' && !inDouble {
+			if inSingle && i+1 < len(sql) && sql[i+1] == '\'' {
+				buf.WriteByte(ch)
+				buf.WriteByte(sql[i+1])
+				i += 2
+				continue
+			}
+			inSingle = !inSingle
+			buf.WriteByte(ch)
+			i++
+			continue
+		}
+		if ch == '"' && !inSingle {
+			if inDouble && i+1 < len(sql) && sql[i+1] == '"' {
+				buf.WriteByte(ch)
+				buf.WriteByte(sql[i+1])
+				i += 2
+				continue
+			}
+			inDouble = !inDouble
+			buf.WriteByte(ch)
+			i++
+			continue
+		}
+
+		if !inSingle && !inDouble {
+			if ch == '(' {
+				parenDepth++
+			}
+			if ch == ')' {
+				if parenDepth > 0 {
+					parenDepth--
+				}
+			}
+
+			if ch == ';' && parenDepth == 0 {
+				flush()
+				i++
+				continue
+			}
+
+			if parenDepth == 0 {
+				if matchKeyword(i, "insert into") || matchKeyword(i, "update") || matchKeyword(i, "delete from") || matchKeyword(i, "truncate table") {
+					if strings.TrimSpace(buf.String()) != "" {
+						flush()
+						continue
+					}
+				}
+			}
+		}
+
+		buf.WriteByte(ch)
+		i++
+	}
+
+	flush()
+	return parts
+}
+
 func updateCrossDbMetadata(c *SqlCandidate) {
 	dbSet := make(map[string]struct{})
 	hasCross := false
