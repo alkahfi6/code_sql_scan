@@ -174,6 +174,285 @@ func boolToStr(b bool) string {
 	return "false"
 }
 
+func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.ObjectRow, funcSummary []summary.FunctionSummaryRow, objectSummary []summary.ObjectSummaryRow) error {
+	validateFuncs := len(funcSummary) > 0
+	validateObjects := len(objectSummary) > 0
+	if !validateFuncs && !validateObjects {
+		return nil
+	}
+
+	resolver := summary.NewFuncResolver(cfg.Root)
+
+	type funcCounts struct {
+		total    int
+		selectQ  int
+		insert   int
+		update   int
+		deleteQ  int
+		truncate int
+		exec     int
+		write    int
+		dynamic  int
+	}
+
+	var errors []string
+	if validateFuncs {
+		queryCounts := make(map[string]funcCounts)
+		for _, q := range queries {
+			fn := resolver.Resolve(q.Func, q.RelPath, q.File, q.LineStart)
+			key := strings.Join([]string{q.AppName, q.RelPath, fn}, "|")
+			counts := queryCounts[key]
+
+			switch strings.ToUpper(strings.TrimSpace(q.UsageKind)) {
+			case "SELECT":
+				counts.selectQ++
+			case "INSERT":
+				counts.insert++
+			case "UPDATE":
+				counts.update++
+			case "DELETE":
+				counts.deleteQ++
+			case "TRUNCATE":
+				counts.truncate++
+			case "EXEC":
+				counts.exec++
+			}
+
+			if q.IsWrite {
+				counts.write++
+			}
+			if q.IsDynamic {
+				counts.dynamic++
+			}
+			counts.total++
+			queryCounts[key] = counts
+		}
+
+		funcSummaryMap := make(map[string]summary.FunctionSummaryRow)
+		for _, row := range funcSummary {
+			key := strings.Join([]string{row.AppName, row.RelPath, row.Func}, "|")
+			funcSummaryMap[key] = row
+		}
+
+		for key, expected := range queryCounts {
+			sum, ok := funcSummaryMap[key]
+			if !ok {
+				parts := strings.SplitN(key, "|", 3)
+				errors = append(errors, fmt.Sprintf("function %s/%s missing in summary (expected total=%d write=%d dynamic=%d)", parts[1], parts[2], expected.total, expected.write, expected.dynamic))
+				continue
+			}
+			if sum.TotalQueries != expected.total || sum.TotalSelect != expected.selectQ || sum.TotalInsert != expected.insert || sum.TotalUpdate != expected.update || sum.TotalDelete != expected.deleteQ || sum.TotalTruncate != expected.truncate || sum.TotalExec != expected.exec || sum.TotalWrite != expected.write || sum.TotalDynamic != expected.dynamic {
+				errors = append(errors, fmt.Sprintf(
+					"function %s/%s count mismatch (expected total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d, summary total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d)",
+					sum.RelPath,
+					sum.Func,
+					expected.total, expected.selectQ, expected.insert, expected.update, expected.deleteQ, expected.truncate, expected.exec, expected.write, expected.dynamic,
+					sum.TotalQueries, sum.TotalSelect, sum.TotalInsert, sum.TotalUpdate, sum.TotalDelete, sum.TotalTruncate, sum.TotalExec, sum.TotalWrite, sum.TotalDynamic,
+				))
+			}
+		}
+
+		for key, sum := range funcSummaryMap {
+			if _, ok := queryCounts[key]; ok {
+				continue
+			}
+			errors = append(errors, fmt.Sprintf("function %s/%s appears only in summary (total=%d)", sum.RelPath, sum.Func, sum.TotalQueries))
+		}
+	}
+
+	if len(objectSummary) > 0 {
+		objectCounts := aggregateObjectCounts(queries, objects)
+		objectSummaryMap := make(map[string]summary.ObjectSummaryRow)
+		for _, row := range objectSummary {
+			key := strings.Join([]string{row.AppName, row.RelPath, row.FullObjectName}, "|")
+			objectSummaryMap[key] = row
+		}
+
+		for key, expected := range objectCounts {
+			sum, ok := objectSummaryMap[key]
+			if !ok {
+				parts := strings.SplitN(key, "|", 3)
+				errors = append(errors, fmt.Sprintf("object %s/%s missing in summary (expected reads=%d writes=%d exec=%d)", parts[1], parts[2], expected.Reads, expected.Writes, expected.Execs))
+				continue
+			}
+			if sum.TotalReads != expected.Reads || sum.TotalWrites != expected.Writes || sum.TotalExec != expected.Execs {
+				errors = append(errors, fmt.Sprintf(
+					"object %s/%s count mismatch (expected reads=%d writes=%d exec=%d, summary reads=%d writes=%d exec=%d)",
+					sum.RelPath,
+					sum.FullObjectName,
+					expected.Reads, expected.Writes, expected.Execs,
+					sum.TotalReads, sum.TotalWrites, sum.TotalExec,
+				))
+			}
+		}
+
+		for key, sum := range objectSummaryMap {
+			if _, ok := objectCounts[key]; ok {
+				continue
+			}
+			errors = append(errors, fmt.Sprintf("object %s/%s appears only in summary (reads=%d writes=%d exec=%d)", sum.RelPath, sum.FullObjectName, sum.TotalReads, sum.TotalWrites, sum.TotalExec))
+		}
+	}
+
+	if len(errors) == 0 {
+		return nil
+	}
+
+	for _, msg := range errors {
+		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", msg)
+	}
+
+	if len(errors) > 5 {
+		errors = errors[:5]
+	}
+	return fmt.Errorf("summary validation failed: %s", strings.Join(errors, "; "))
+}
+
+type objectCount struct {
+	Reads  int
+	Writes int
+	Execs  int
+}
+
+func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectRow) map[string]objectCount {
+	queryByKey := make(map[string]summary.QueryRow)
+	for _, q := range queries {
+		key := strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")
+		queryByKey[key] = q
+	}
+
+	counts := make(map[string]objectCount)
+	for _, o := range objects {
+		if shouldSkipObjectForValidation(o) {
+			continue
+		}
+		fullName := strings.TrimSpace(summary.ChooseFullObjectName(o))
+		if fullName == "" {
+			continue
+		}
+		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
+
+		qKey := strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")
+		qRow, hasQuery := queryByKey[qKey]
+		flags := normalizeRoleFlags(classifyObjectRole(o, qRow, hasQuery))
+
+		agg := counts[key]
+		switch {
+		case flags.exec:
+			agg.Execs++
+		case flags.write:
+			agg.Writes++
+		default:
+			agg.Reads++
+		}
+		counts[key] = agg
+	}
+
+	return counts
+}
+
+type roleFlags struct {
+	read  bool
+	write bool
+	exec  bool
+}
+
+func classifyObjectRole(o summary.ObjectRow, q summary.QueryRow, hasQuery bool) roleFlags {
+	if !isDynamicBaseName(strings.TrimSpace(o.BaseName)) {
+		return classifyRoles(o)
+	}
+
+	usage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
+	switch usage {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		return roleFlags{write: true}
+	case "EXEC":
+		return roleFlags{exec: true}
+	case "SELECT":
+		return roleFlags{read: true}
+	default:
+		if q.IsWrite || (!hasQuery && o.IsWrite) {
+			return roleFlags{write: true}
+		}
+		return roleFlags{read: true}
+	}
+}
+
+func normalizeRoleFlags(flags roleFlags) roleFlags {
+	if flags.exec {
+		return roleFlags{exec: true}
+	}
+	if flags.write {
+		return roleFlags{write: true}
+	}
+	if flags.read {
+		return roleFlags{read: true}
+	}
+	return roleFlags{read: true}
+}
+
+func classifyRoles(o summary.ObjectRow) roleFlags {
+	role := strings.ToLower(strings.TrimSpace(o.Role))
+	upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
+	parts := strings.Split(o.DmlKind, ";")
+	hasExec := role == "exec"
+	hasWrite := o.IsWrite || role == "target"
+	for _, p := range parts {
+		upper := strings.ToUpper(strings.TrimSpace(p))
+		if upper == "EXEC" {
+			hasExec = true
+		}
+		if isWriteDml(upper) {
+			hasWrite = true
+		}
+	}
+
+	isExec := hasExec || upperDml == "EXEC"
+	isWrite := (!isExec && hasWrite)
+	isRead := role == "source" || (!isExec && !isWrite && upperDml == "SELECT")
+
+	return roleFlags{
+		read:  isRead,
+		write: isWrite,
+		exec:  isExec,
+	}
+}
+
+func isWriteDml(dml string) bool {
+	switch strings.ToUpper(strings.TrimSpace(dml)) {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		return true
+	default:
+		return false
+	}
+}
+
+func isDynamicBaseName(base string) bool {
+	trimmed := strings.ToLower(strings.TrimSpace(base))
+	if trimmed == "<dynamic-sql>" {
+		return true
+	}
+	return strings.HasPrefix(trimmed, "<dynamic-object")
+}
+
+func shouldSkipObjectForValidation(o summary.ObjectRow) bool {
+	base := strings.TrimSpace(o.BaseName)
+	if isDynamicBaseName(base) {
+		return false
+	}
+	if base == "" {
+		return true
+	}
+	lower := strings.ToLower(base)
+	if lower == "eq" || lower == "dbo" || lower == "dbo." {
+		return true
+	}
+	if strings.HasSuffix(base, ".") {
+		return true
+	}
+	return false
+}
+
 func generateSummaries(cfg *Config) error {
 	if cfg.OutSummaryFunc == "" && cfg.OutSummaryObject == "" && cfg.OutSummaryForm == "" {
 		return nil
@@ -190,25 +469,37 @@ func generateSummaries(cfg *Config) error {
 		return fmt.Errorf("load object usage: %w", err)
 	}
 
+	var funcSummaryRows []summary.FunctionSummaryRow
 	if cfg.OutSummaryFunc != "" {
-		rows, err := summary.BuildFunctionSummary(queries, objects)
+		funcSummaryRows, err = summary.BuildFunctionSummary(queries, objects)
 		if err != nil {
 			return fmt.Errorf("build function summary: %w", err)
 		}
-		if err := summary.ValidateFunctionSummaryCounts(queries, rows); err != nil {
+		if err := summary.ValidateFunctionSummaryCounts(queries, funcSummaryRows); err != nil {
 			return fmt.Errorf("function summary validation: %w", err)
 		}
-		if err := summary.WriteFunctionSummary(cfg.OutSummaryFunc, rows); err != nil {
+	}
+
+	var objectSummaryRows []summary.ObjectSummaryRow
+	if cfg.OutSummaryObject != "" {
+		objectSummaryRows, err = summary.BuildObjectSummary(queries, objects)
+		if err != nil {
+			return fmt.Errorf("build object summary: %w", err)
+		}
+	}
+
+	if err := validateSummary(cfg, queries, objects, funcSummaryRows, objectSummaryRows); err != nil {
+		return err
+	}
+
+	if cfg.OutSummaryFunc != "" {
+		if err := summary.WriteFunctionSummary(cfg.OutSummaryFunc, funcSummaryRows); err != nil {
 			return fmt.Errorf("write function summary: %w", err)
 		}
 	}
 
 	if cfg.OutSummaryObject != "" {
-		rows, err := summary.BuildObjectSummary(queries, objects)
-		if err != nil {
-			return fmt.Errorf("build object summary: %w", err)
-		}
-		if err := summary.WriteObjectSummary(cfg.OutSummaryObject, rows); err != nil {
+		if err := summary.WriteObjectSummary(cfg.OutSummaryObject, objectSummaryRows); err != nil {
 			return fmt.Errorf("write object summary: %w", err)
 		}
 	}
