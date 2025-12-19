@@ -45,7 +45,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		escaped := false
 
 		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
-			open, close, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[i], inString, verbatim, escaped)
+			open, _, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[i], inString, verbatim, escaped)
 			inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
 			if open > 0 && strings.Contains(lines[i], "{") {
 				trimmed := strings.TrimSpace(lines[i])

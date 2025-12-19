@@ -99,25 +99,22 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 		if usage := strings.ToUpper(strings.TrimSpace(q.UsageKind)); usage != "" && usage != "UNKNOWN" {
 			baseKinds[usage] = struct{}{}
 		}
-		qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
-		for _, o := range objectsByQuery[qKey] {
-			for _, kind := range strings.Split(o.DmlKind, ";") {
-				kind = strings.ToUpper(strings.TrimSpace(kind))
-				if kind == "" || kind == "UNKNOWN" {
-					continue
+		if len(baseKinds) == 0 {
+			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+			for _, o := range objectsByQuery[qKey] {
+				for _, kind := range strings.Split(o.DmlKind, ";") {
+					kind = strings.ToUpper(strings.TrimSpace(kind))
+					if kind == "" || kind == "UNKNOWN" {
+						continue
+					}
+					baseKinds[kind] = struct{}{}
 				}
-				baseKinds[kind] = struct{}{}
 			}
 		}
 
-		kindsForQuery := make(map[string]struct{}, len(baseKinds)+1)
+		kindsForQuery := make(map[string]struct{}, len(baseKinds))
 		for k := range baseKinds {
 			kindsForQuery[k] = struct{}{}
-		}
-		if _, hasTruncate := baseKinds["TRUNCATE"]; hasTruncate {
-			if _, hasDelete := baseKinds["DELETE"]; !hasDelete {
-				kindsForQuery["DELETE"] = struct{}{}
-			}
 		}
 
 		for kind := range kindsForQuery {
