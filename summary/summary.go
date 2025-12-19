@@ -488,25 +488,22 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				baseKinds[upperUsage] = struct{}{}
 			}
 
-			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
-			for _, o := range objectsByQuery[qKey] {
-				for _, kind := range strings.Split(o.DmlKind, ";") {
-					kind = strings.ToUpper(strings.TrimSpace(kind))
-					if kind == "" || kind == "UNKNOWN" {
-						continue
+			if len(baseKinds) == 0 {
+				qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+				for _, o := range objectsByQuery[qKey] {
+					for _, kind := range strings.Split(o.DmlKind, ";") {
+						kind = strings.ToUpper(strings.TrimSpace(kind))
+						if kind == "" || kind == "UNKNOWN" {
+							continue
+						}
+						baseKinds[kind] = struct{}{}
 					}
-					baseKinds[kind] = struct{}{}
 				}
 			}
 
-			kindsForQuery := make(map[string]struct{}, len(baseKinds)+1)
+			kindsForQuery := make(map[string]struct{}, len(baseKinds))
 			for k := range baseKinds {
 				kindsForQuery[k] = struct{}{}
-			}
-			if _, hasTruncate := baseKinds["TRUNCATE"]; hasTruncate {
-				if _, hasDelete := baseKinds["DELETE"]; !hasDelete {
-					kindsForQuery["DELETE"] = struct{}{}
-				}
 			}
 
 			for kind := range kindsForQuery {
@@ -534,7 +531,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				}
 			}
 			totalWrite += writeKinds
-			if isDynamicQuery(q) {
+			if q.IsDynamic {
 				sig := dynamicSignature(q)
 				if sig == "" {
 					sig = q.QueryHash
@@ -609,6 +606,10 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		}
 		topObjects := buildTopObjectSummary(objectCounter, 5)
 		dbList := setToSortedSlice(dbListSet)
+		totalDynamic = 0
+		for _, info := range dynamicSigCounts {
+			totalDynamic += info.count
+		}
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		if maxLine == 0 && minLine > 0 {
 			maxLine = minLine
@@ -660,19 +661,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
 	expectedTotals := make(map[string]int)
-	expectedDynamic := make(map[string]map[string]struct{})
+	expectedDynamic := make(map[string]int)
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		expectedTotals[key]++
-		if isDynamicQuery(q) {
-			sig := dynamicSignature(q)
-			if sig == "" {
-				sig = q.QueryHash
-			}
-			if expectedDynamic[key] == nil {
-				expectedDynamic[key] = make(map[string]struct{})
-			}
-			expectedDynamic[key][sig] = struct{}{}
+		if q.IsDynamic {
+			expectedDynamic[key]++
 		}
 	}
 
@@ -691,7 +685,7 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s missing in summary (expected total=%d dyn=%d)", rel, fn, total, expectedDynamic[key]))
 			continue
 		}
-		expectedDyn := len(expectedDynamic[key])
+		expectedDyn := expectedDynamic[key]
 		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn {
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDyn, sum.TotalQueries, sum.TotalDynamic))
 		}
@@ -1090,9 +1084,38 @@ func (c *objectRoleCounter) Register(o ObjectRow, q QueryRow, hasQuery bool) {
 func classifyRoles(o ObjectRow) roleFlags {
 	role := strings.ToLower(strings.TrimSpace(o.Role))
 	upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-	isExec := role == "exec" || upperDml == "EXEC"
-	isWrite := (!isExec && (o.IsWrite || isWriteDml(upperDml) || role == "target"))
-	isRead := role == "source" || (!isExec && !isWrite && upperDml == "SELECT")
+	parts := strings.FieldsFunc(upperDml, func(r rune) bool { return r == ';' })
+	hasExec := role == "exec"
+	hasWrite := role == "target"
+	hasRead := role == "source"
+	for _, p := range parts {
+		part := strings.TrimSpace(p)
+		if part == "" {
+			continue
+		}
+		switch part {
+		case "EXEC":
+			hasExec = true
+		case "SELECT":
+			hasRead = true
+		default:
+			if isWriteDml(part) {
+				hasWrite = true
+			}
+		}
+	}
+	if !hasExec {
+		hasExec = strings.TrimSpace(role) == "exec"
+	}
+	if !hasWrite {
+		hasWrite = o.IsWrite
+	}
+	if !hasRead && !hasExec && !hasWrite && strings.TrimSpace(upperDml) == "SELECT" {
+		hasRead = true
+	}
+	isExec := hasExec
+	isWrite := (!isExec && hasWrite)
+	isRead := hasRead || (!isExec && !isWrite)
 
 	return roleFlags{
 		read:  isRead,
@@ -2074,6 +2097,12 @@ func normalizeFullObjectName(name string) string {
 		cleaned = append(cleaned, segment)
 	}
 	return strings.Join(cleaned, ".")
+}
+
+// ChooseFullObjectName exposes the full object name selection logic for
+// external packages while preserving the existing internal helper.
+func ChooseFullObjectName(o ObjectRow) string {
+	return chooseFullObjectName(o)
 }
 
 func cleanIdentifier(raw string) string {
