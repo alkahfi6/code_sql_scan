@@ -31,7 +31,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	resolver := summary.NewFuncResolver(cfg.Root)
 
 	qHeader := []string{
-		"AppName", "RelPath", "File", "SourceCategory", "SourceKind", "CallSiteKind",
+		"AppName", "RelPath", "File", "SourceCategory", "SourceKind", "CallSiteKind", "DynamicSignature",
 		"LineStart", "LineEnd", "Func", "RawSql", "SqlClean",
 		"UsageKind", "IsWrite", "HasCrossDb", "DbList", "ObjectCount",
 		"IsDynamic", "ConnName", "ConnDb", "QueryHash", "RiskLevel",
@@ -52,6 +52,8 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		return err
 	}
 
+	pseudoWritten := make(map[string]struct{})
+
 	for _, c := range cands {
 		funcName := resolver.Resolve(c.Func, c.RelPath, c.File, c.LineStart)
 		dbList := strings.Join(c.DbList, ";")
@@ -63,6 +65,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			c.SourceCat,
 			c.SourceKind,
 			c.CallSiteKind,
+			c.DynamicSignature,
 			fmt.Sprintf("%d", c.LineStart),
 			fmt.Sprintf("%d", c.LineEnd),
 			funcName,
@@ -86,6 +89,18 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		}
 
 		for _, o := range c.Objects {
+			if o.IsPseudoObject && (o.PseudoKind == "dynamic-sql" || o.PseudoKind == "dynamic-object") {
+				sig := strings.TrimSpace(c.DynamicSignature)
+				if sig == "" {
+					sig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
+				}
+				key := strings.Join([]string{c.AppName, funcName, sig, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
+				if _, ok := pseudoWritten[key]; ok {
+					continue
+				}
+				pseudoWritten[key] = struct{}{}
+			}
+
 			full := o.FullName
 			if full == "" {
 				full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
@@ -93,6 +108,10 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			pseudoKind := o.PseudoKind
 			if o.IsPseudoObject && strings.TrimSpace(pseudoKind) == "" {
 				pseudoKind = "unknown"
+			}
+			role := o.Role
+			if o.PseudoKind == "dynamic-sql" && strings.TrimSpace(role) == "" {
+				role = "mixed"
 			}
 			oRow := []string{
 				c.AppName,
@@ -109,7 +128,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				o.BaseName,
 				boolToStr(o.IsCrossDb),
 				boolToStr(o.IsLinkedServer),
-				o.Role,
+				role,
 				o.DmlKind,
 				boolToStr(o.IsWrite),
 				boolToStr(o.IsObjectNameDyn),

@@ -275,6 +275,8 @@ func analyzeCandidate(c *SqlCandidate) {
 	}
 	classifyObjects(c, usage, tokens)
 
+	c.DynamicSignature = buildDynamicSignature(c)
+
 	if usage == "INSERT" && len(insertTargetKeys) > 0 {
 		for i := range c.Objects {
 			key := strings.ToLower(buildFullName(c.Objects[i].DbName, c.Objects[i].SchemaName, c.Objects[i].BaseName))
@@ -979,6 +981,44 @@ func hasDynamicToken(tokens []ObjectToken) bool {
 		}
 	}
 	return false
+}
+
+func buildDynamicSignature(c *SqlCandidate) string {
+	if !c.IsDynamic {
+		return ""
+	}
+
+	raw := strings.TrimSpace(c.RawSql)
+	sqlClean := strings.TrimSpace(c.SqlClean)
+	isDynamicPlaceholder := strings.EqualFold(raw, "<dynamic-sql>") || strings.EqualFold(sqlClean, "<dynamic-sql>")
+	hasPseudo := isDynamicPlaceholder
+	if !hasPseudo {
+		for _, obj := range c.Objects {
+			if !obj.IsPseudoObject {
+				continue
+			}
+			if obj.PseudoKind == "dynamic-sql" || obj.PseudoKind == "dynamic-object" {
+				hasPseudo = true
+				break
+			}
+		}
+	}
+
+	if !hasPseudo {
+		return ""
+	}
+
+	callKind := canonicalCallSiteKind(c.CallSiteKind)
+	if callKind == "" {
+		callKind = canonicalCallSiteKind(c.SourceKind)
+	}
+	if callKind == "" {
+		callKind = "unknown"
+	}
+
+	relPath := strings.TrimSpace(c.RelPath)
+	funcName := strings.TrimSpace(c.Func)
+	return fmt.Sprintf("%s|%s|%s@%d", relPath, funcName, callKind, c.LineStart)
 }
 
 func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) []ObjectToken {
