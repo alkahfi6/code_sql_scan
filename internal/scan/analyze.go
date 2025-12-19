@@ -447,23 +447,21 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 	dbSet := make(map[string]struct{})
 	hasCross := false
 	trimIdent := func(s string) string {
-		s = strings.TrimSpace(s)
-		s = strings.Trim(s, "[]")
-		s = strings.Trim(s, `"`)
-		return s
+		return cleanIdentifier(s)
 	}
 
 	for i := range c.Objects {
 		obj := &c.Objects[i]
-		obj.DbName = strings.TrimSpace(obj.DbName)
-		obj.SchemaName = strings.TrimSpace(obj.SchemaName)
-		obj.BaseName = strings.TrimSpace(obj.BaseName)
+		obj.DbName = trimIdent(obj.DbName)
+		obj.SchemaName = trimIdent(obj.SchemaName)
+		obj.BaseName = trimIdent(obj.BaseName)
 
 		if obj.DbName == "" {
 			full := strings.TrimSpace(obj.FullName)
 			if full == "" && obj.BaseName != "" {
 				full = buildFullName(obj.DbName, obj.SchemaName, obj.BaseName)
 			}
+			full = normalizeFullObjectName(full)
 			parts := strings.Split(full, ".")
 			if len(parts) == 3 {
 				dbCandidate := trimIdent(parts[0])
@@ -482,6 +480,11 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 		if obj.DbName != "" && obj.SchemaName == "" {
 			obj.SchemaName = "dbo"
 		}
+		if obj.DbName == "" && strings.TrimSpace(obj.SchemaName) == "" {
+			obj.SchemaName = "dbo"
+		}
+		obj.FullName = normalizeFullObjectName(buildFullName(obj.DbName, obj.SchemaName, obj.BaseName))
+
 		if obj.DbName != "" {
 			dbSet[obj.DbName] = struct{}{}
 			if !obj.IsCrossDb {
@@ -1051,6 +1054,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	}
 	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
 	for i := range tokens {
+		originalFull := tokens[i].FullName
 		if strings.TrimSpace(tokens[i].BaseName) == "" {
 			tokens[i].BaseName = "<dynamic-object>"
 			tokens[i].IsObjectNameDyn = true
@@ -1086,7 +1090,44 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 					tokens[i].PseudoKind = "unknown"
 				}
 			}
+		} else {
+			tokens[i].PseudoKind = ""
 		}
+
+		rawFull := strings.TrimSpace(originalFull)
+		if rawFull == "" {
+			rawFull = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
+		}
+		if strings.TrimSpace(tokens[i].PseudoKind) == "dynamic-object" {
+			tokens[i].IsObjectNameDyn = true
+		}
+		if strings.TrimSpace(tokens[i].PseudoKind) != "" {
+			tokens[i].IsPseudoObject = true
+		} else {
+			tokens[i].IsPseudoObject = false
+		}
+		tokens[i].IsObjectNameDyn = tokens[i].IsPseudoObject && tokens[i].PseudoKind == "dynamic-object"
+
+		rawFull = strings.TrimSpace(rawFull)
+		if rawFull == "" {
+			rawFull = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
+		}
+
+		if tokens[i].IsObjectNameDyn || hasDynamicPlaceholder(rawFull) {
+			tokens[i].IsPseudoObject = true
+			if tokens[i].PseudoKind == "" {
+				tokens[i].PseudoKind = "dynamic-object"
+			}
+			tokens[i].IsObjectNameDyn = true
+		}
+
+		tokens[i].DbName = cleanIdentifier(tokens[i].DbName)
+		tokens[i].SchemaName = cleanIdentifier(tokens[i].SchemaName)
+		tokens[i].BaseName = cleanIdentifier(tokens[i].BaseName)
+		if strings.TrimSpace(tokens[i].DbName) == "" && strings.TrimSpace(tokens[i].SchemaName) == "" {
+			tokens[i].SchemaName = "dbo"
+		}
+		tokens[i].FullName = normalizeFullObjectName(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
 	}
 	preserveRole := make([]bool, len(tokens))
 	// Determine cross-DB for each token first
@@ -1467,6 +1508,27 @@ func hasDynamicPlaceholder(name string) bool {
 		return true
 	}
 	return regexes.dynamicPlaceholder.MatchString(name)
+}
+
+func cleanIdentifier(raw string) string {
+	return strings.Trim(strings.TrimSpace(raw), "[]\"")
+}
+
+func normalizeFullObjectName(name string) string {
+	trimmed := strings.TrimSpace(name)
+	if trimmed == "" {
+		return ""
+	}
+	parts := strings.Split(trimmed, ".")
+	cleaned := make([]string, 0, len(parts))
+	for _, p := range parts {
+		segment := cleanIdentifier(p)
+		if segment == "" {
+			continue
+		}
+		cleaned = append(cleaned, segment)
+	}
+	return strings.Join(cleaned, ".")
 }
 
 func isDynamicObjectName(name string) bool {
