@@ -33,6 +33,38 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		if line < 1 {
 			line = 1
 		}
+
+		const maxSearch = 300
+		startIdx := line - 1
+		if startIdx >= len(lines) {
+			startIdx = len(lines) - 1
+		}
+
+		inString := false
+		verbatim := false
+		escaped := false
+
+		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
+			open, close, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[i], inString, verbatim, escaped)
+			inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
+			if open > 0 && strings.Contains(lines[i], "{") {
+				trimmed := strings.TrimSpace(lines[i])
+				name := extractCsMethodName(trimmed)
+				if name == "" && i > 0 {
+					combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
+					name = extractCsMethodName(combined)
+				}
+				if name != "" {
+					start := i + 1
+					end := line
+					if end < start {
+						end = start
+					}
+					return &methodRange{Name: name, Start: start, End: end}
+				}
+			}
+		}
+
 		var best *methodRange
 		for i := range methodRanges {
 			mr := &methodRanges[i]
@@ -45,8 +77,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 		if best != nil {
-			const maxGap = 200
-			if line-best.End <= maxGap {
+			if line-best.End <= maxSearch {
 				return best
 			}
 		}
@@ -85,6 +116,16 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		if line-1 >= 0 && line-1 < len(methodAtLine) {
 			if methodAtLine[line-1] != nil {
 				funcName = methodAtLine[line-1].Name
+			}
+		}
+		if funcName == "" && line-1 >= 0 && line-1 < len(sequentialMethodAtLine) {
+			if sequentialMethodAtLine[line-1] != nil {
+				funcName = sequentialMethodAtLine[line-1].Name
+			}
+		}
+		if funcName == "" {
+			if mr := fallbackMethod(line); mr != nil {
+				funcName = mr.Name
 			}
 		}
 		if funcName == "" {
@@ -588,6 +629,10 @@ func detectCsMethods(lines []string) []methodRange {
 		name := ""
 		if !inString {
 			name = extractCsMethodName(trimmed)
+			if name == "" && strings.Contains(trimmed, "{") && i > 0 {
+				combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
+				name = extractCsMethodName(combined)
+			}
 			if current != nil && name != "" {
 				if current.End < i {
 					current.End = i
@@ -682,11 +727,21 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 	if line < 1 {
 		line = 1
 	}
-	limit := line - 200
+
+	const maxSearch = 300
+	limit := line - maxSearch
 	if limit < 0 {
 		limit = 0
 	}
+
+	inString := false
+	verbatim := false
+	escaped := false
+
 	for i := line - 1; i >= limit && i < len(lines); i-- {
+		open, _, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[i], inString, verbatim, escaped)
+		inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
+
 		trimmed := strings.TrimSpace(lines[i])
 		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
 			continue
@@ -694,7 +749,16 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			continue
 		}
+
+		if open == 0 || !strings.Contains(trimmed, "{") {
+			continue
+		}
+
 		name := extractCsMethodName(trimmed)
+		if name == "" && i > 0 {
+			combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
+			name = extractCsMethodName(combined)
+		}
 		if name != "" {
 			start := i + 1
 			end := line
