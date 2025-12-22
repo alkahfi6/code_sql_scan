@@ -32,22 +32,18 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	resolver := summary.NewFuncResolver(cfg.Root)
 
 	qHeader := []string{
-		"AppName", "RelPath", "File", "SourceCategory", "SourceKind", "CallSiteKind", "DynamicSignature",
-		"LineStart", "LineEnd", "Func", "RawSql", "SqlClean",
-		"UsageKind", "IsWrite", "HasCrossDb", "DbList", "ObjectCount",
-		"IsDynamic", "ConnName", "ConnDb", "QueryHash", "RiskLevel",
-		"DefinedInRelPath", "DefinedInLine",
+		"AppName", "RelPath", "File", "Func", "LineStart", "LineEnd", "RawSql", "SqlClean", "UsageKind", "IsWrite",
+		"IsDynamic", "HasCrossDb", "DbList", "ObjectCount", "QueryHash", "SourceCategory", "SourceKind", "CallSiteKind",
+		"DynamicSignature", "ConnName", "ConnDb", "RiskLevel", "DefinedInRelPath", "DefinedInLine",
 	}
 	if err := qw.Write(qHeader); err != nil {
 		return err
 	}
 
 	oHeader := []string{
-		"AppName", "RelPath", "File", "SourceCategory", "SourceKind",
-		"Line", "Func", "QueryHash", "ObjectName",
-		"DbName", "SchemaName", "BaseName",
-		"IsCrossDb", "IsLinkedServer", "Role", "DmlKind",
-		"IsWrite", "IsObjectNameDynamic", "IsPseudoObject", "PseudoKind",
+		"AppName", "RelPath", "File", "Func", "QueryHash", "FullObjectName", "DbName", "SchemaName", "BaseName", "Role",
+		"DmlKind", "IsWrite", "IsCrossDb", "IsPseudoObject", "PseudoKind", "SourceCategory", "SourceKind", "Line",
+		"IsLinkedServer", "IsObjectNameDynamic",
 	}
 	if err := ow.Write(oHeader); err != nil {
 		return err
@@ -82,24 +78,24 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			c.AppName,
 			c.RelPath,
 			c.File,
-			c.SourceCat,
-			c.SourceKind,
-			c.CallSiteKind,
-			dynSig,
+			funcName,
 			fmt.Sprintf("%d", c.LineStart),
 			fmt.Sprintf("%d", c.LineEnd),
-			funcName,
 			c.RawSql,
 			c.SqlClean,
 			c.UsageKind,
 			boolToStr(c.IsWrite),
+			boolToStr(c.IsDynamic),
 			boolToStr(c.HasCrossDb),
 			dbList,
 			fmt.Sprintf("%d", len(c.Objects)),
-			boolToStr(c.IsDynamic),
+			c.QueryHash,
+			c.SourceCat,
+			c.SourceKind,
+			c.CallSiteKind,
+			dynSig,
 			c.ConnName,
 			c.ConnDb,
-			c.QueryHash,
 			c.RiskLevel,
 			c.DefinedPath,
 			fmt.Sprintf("%d", c.DefinedLine),
@@ -137,23 +133,23 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				c.AppName,
 				c.RelPath,
 				c.File,
-				c.SourceCat,
-				c.SourceKind,
-				fmt.Sprintf("%d", o.RepresentativeLine),
 				funcName,
 				c.QueryHash,
 				full,
 				o.DbName,
 				o.SchemaName,
 				o.BaseName,
-				boolToStr(o.IsCrossDb),
-				boolToStr(o.IsLinkedServer),
 				role,
 				o.DmlKind,
 				boolToStr(o.IsWrite),
-				boolToStr(o.IsObjectNameDyn),
+				boolToStr(o.IsCrossDb),
 				boolToStr(o.IsPseudoObject),
 				pseudoKind,
+				c.SourceCat,
+				c.SourceKind,
+				fmt.Sprintf("%d", o.RepresentativeLine),
+				boolToStr(o.IsLinkedServer),
+				boolToStr(o.IsObjectNameDyn),
 			}
 			objectRows = append(objectRows, oRow)
 		}
@@ -163,10 +159,10 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		if objectRows[i][1] != objectRows[j][1] {
 			return objectRows[i][1] < objectRows[j][1]
 		}
-		if objectRows[i][5] != objectRows[j][5] {
-			return objectRows[i][5] < objectRows[j][5]
+		if objectRows[i][17] != objectRows[j][17] {
+			return objectRows[i][17] < objectRows[j][17]
 		}
-		return objectRows[i][11] < objectRows[j][11]
+		return objectRows[i][8] < objectRows[j][8]
 	})
 
 	for _, row := range objectRows {

@@ -404,7 +404,7 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"AppName", "RelPath", "File", "QueryHash", "DbName", "SchemaName", "BaseName", "Role", "DmlKind", "IsWrite", "IsCrossDb"}
+	required := []string{"AppName", "RelPath", "File", "Func", "QueryHash", "FullObjectName", "DbName", "SchemaName", "BaseName", "Role", "DmlKind", "IsWrite", "IsCrossDb", "IsPseudoObject", "PseudoKind", "IsObjectNameDynamic"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			return nil, fmt.Errorf("missing column %s in object usage", req)
@@ -421,32 +421,22 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 			return nil, err
 		}
 		row := ObjectRow{
-			AppName:    rec[idx["AppName"]],
-			RelPath:    rec[idx["RelPath"]],
-			File:       rec[idx["File"]],
-			QueryHash:  rec[idx["QueryHash"]],
-			DbName:     rec[idx["DbName"]],
-			SchemaName: rec[idx["SchemaName"]],
-			BaseName:   rec[idx["BaseName"]],
-			Role:       rec[idx["Role"]],
-			DmlKind:    rec[idx["DmlKind"]],
-			IsWrite:    parseBool(rec[idx["IsWrite"]]),
-			IsCrossDb:  parseBool(rec[idx["IsCrossDb"]]),
-		}
-		if col, ok := idx["ObjectName"]; ok {
-			row.ObjectName = rec[col]
-		}
-		if col, ok := idx["IsObjectNameDynamic"]; ok {
-			row.IsObjectNameDyn = parseBool(rec[col])
-		}
-		if col, ok := idx["IsPseudoObject"]; ok {
-			row.IsPseudoObject = parseBool(rec[col])
-		}
-		if col, ok := idx["PseudoKind"]; ok {
-			row.PseudoKind = rec[col]
-		}
-		if col, ok := idx["Func"]; ok {
-			row.Func = rec[col]
+			AppName:         rec[idx["AppName"]],
+			RelPath:         rec[idx["RelPath"]],
+			File:            rec[idx["File"]],
+			Func:            rec[idx["Func"]],
+			QueryHash:       rec[idx["QueryHash"]],
+			ObjectName:      rec[idx["FullObjectName"]],
+			DbName:          rec[idx["DbName"]],
+			SchemaName:      rec[idx["SchemaName"]],
+			BaseName:        rec[idx["BaseName"]],
+			Role:            rec[idx["Role"]],
+			DmlKind:         rec[idx["DmlKind"]],
+			IsWrite:         parseBool(rec[idx["IsWrite"]]),
+			IsCrossDb:       parseBool(rec[idx["IsCrossDb"]]),
+			IsObjectNameDyn: parseBool(rec[idx["IsObjectNameDynamic"]]),
+			IsPseudoObject:  parseBool(rec[idx["IsPseudoObject"]]),
+			PseudoKind:      rec[idx["PseudoKind"]],
 		}
 		rows = append(rows, row)
 	}
