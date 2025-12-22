@@ -5,6 +5,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io/fs"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -49,19 +51,28 @@ func init() {
 // buildGoSymtabForDir parses all Go files in the given directory to construct
 // a package-wide symbol table of constant string definitions.
 // Only simple literal concatenations are resolved; dynamic expressions are skipped.
-func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
+func buildGoSymtabForDir(dir, root string, maxFileSize int64) map[string]SqlSymbol {
 	if cached, ok := goSymtabStore.load(dir); ok {
 		return cached
 	}
 
 	symtab := make(map[string]SqlSymbol)
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, nil, parser.ParseComments)
+	filter := func(info fs.FileInfo) bool {
+		if info == nil {
+			return false
+		}
+		if maxFileSize > 0 && info.Size() > maxFileSize {
+			return false
+		}
+		return true
+	}
+	pkgs, err := parser.ParseDir(fset, dir, filter, parser.ParseComments)
 	if err != nil {
 		goSymtabStore.store(dir, symtab)
 		return symtab
 	}
-	for _, pkg := range pkgs {
+	for pkgName, pkg := range pkgs {
 		for fileName, f := range pkg.Files {
 			absPath := fileName
 			if !filepath.IsAbs(fileName) {
@@ -97,6 +108,13 @@ func buildGoSymtabForDir(dir, root string) map[string]SqlSymbol {
 				return true
 			})
 		}
+		relDir := ensureRelPath(root, dir)
+		dirKey := filepath.ToSlash(relDir)
+		goPkgSymtabStore.store(dirKey, symtab)
+		if pkgName != "" {
+			pkgKey := filepath.ToSlash(filepath.Join(relDir, pkgName))
+			goPkgSymtabStore.store(pkgKey, symtab)
+		}
 	}
 	goSymtabStore.store(dir, symtab)
 	return symtab
@@ -112,7 +130,63 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		return nil, fmt.Errorf("stage=parse-go lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	dir := filepath.Dir(path)
-	pkgSymtab := buildGoSymtabForDir(dir, cfg.Root)
+	pkgSymtab := buildGoSymtabForDir(dir, cfg.Root, cfg.MaxFileSize)
+
+	importAliases := make(map[string]string)
+	for _, imp := range fileAst.Imports {
+		if imp.Path == nil {
+			continue
+		}
+		pathVal, err := strconv.Unquote(imp.Path.Value)
+		if err != nil {
+			pathVal = strings.Trim(imp.Path.Value, "\"")
+		}
+		if imp.Name != nil && imp.Name.Name == "_" {
+			continue
+		}
+		if imp.Name != nil && imp.Name.Name == "." {
+			continue
+		}
+		alias := filepath.Base(pathVal)
+		if imp.Name != nil && imp.Name.Name != "" {
+			alias = imp.Name.Name
+		}
+		importAliases[alias] = pathVal
+	}
+
+	loadImportedSymtab := func(pkgPath string) map[string]SqlSymbol {
+		if pkgPath == "" {
+			return nil
+		}
+		key := filepath.ToSlash(pkgPath)
+		if sym, ok := goPkgSymtabStore.load(key); ok {
+			return sym
+		}
+		importDir := filepath.Join(cfg.Root, filepath.FromSlash(pkgPath))
+		if sym, ok := goPkgSymtabStore.load(filepath.ToSlash(ensureRelPath(cfg.Root, importDir))); ok {
+			return sym
+		}
+		if info, err := os.Stat(importDir); err == nil && info.IsDir() {
+			sym := buildGoSymtabForDir(importDir, cfg.Root, cfg.MaxFileSize)
+			goPkgSymtabStore.store(key, sym)
+			return sym
+		}
+		return nil
+	}
+
+	lookupImported := func(pkgAlias, name string) (SqlSymbol, bool) {
+		pkgPath, ok := importAliases[pkgAlias]
+		if !ok {
+			return SqlSymbol{}, false
+		}
+		if symtab := loadImportedSymtab(pkgPath); symtab != nil {
+			if sym, ok := symtab[name]; ok && sym.IsComplete {
+				sym.RelPath = ensureRelPath(cfg.Root, sym.RelPath)
+				return sym, true
+			}
+		}
+		return SqlSymbol{}, false
+	}
 
 	var cands []SqlCandidate
 
@@ -184,6 +258,13 @@ func scanGoFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					return combined, false, relPath, 0
 				}
 			}
+		case *ast.SelectorExpr:
+			if pkgIdent, ok := v.X.(*ast.Ident); ok {
+				if sym, ok := lookupImported(pkgIdent.Name, v.Sel.Name); ok {
+					return sym.Value, false, normalizeDef(sym.RelPath), sym.Line
+				}
+			}
+			return "", true, relPath, 0
 		case *ast.Ident:
 			name := v.Name
 			if localSymtab != nil {

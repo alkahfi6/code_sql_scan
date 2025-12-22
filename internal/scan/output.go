@@ -105,7 +105,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		}
 
 		for _, o := range c.Objects {
-			isPseudo := o.IsPseudoObject
+			isPseudo := o.IsPseudoObject || strings.TrimSpace(o.PseudoKind) != ""
 			if !isPseudo {
 				if strings.TrimSpace(o.PseudoKind) != "" || isDynamicBaseName(o.BaseName) {
 					isPseudo = true

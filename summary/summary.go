@@ -476,6 +476,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 		}
 		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalWrite int
+		dynamicCount := 0
 		hasCross := false
 		minLine := 0
 		maxLine := 0
@@ -536,6 +537,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 			totalWrite += writeKinds
 			if q.IsDynamic {
+				dynamicCount++
 				sig := dynamicSignature(q)
 				if sig == "" {
 					sig = q.QueryHash
@@ -631,7 +633,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		topObjectsShort := buildTopObjectSummary(objectCounter, 5)
 		objectsUsed := buildObjectsUsedDetailed(objectCounter)
 		dbList := setToSortedSlice(dbListSet)
-		totalDynamic = len(dynamicSigCounts)
+		totalDynamic = dynamicCount
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		dynamicPseudoSummary := summarizePseudoKindCounts(dynamicPseudoKinds)
 		dynamicExampleSummary := summarizeDynamicExamples(dynamicExampleCounts, 3)
@@ -685,21 +687,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
 	expectedTotals := make(map[string]int)
-	expectedDynamic := make(map[string]map[string]struct{})
+	expectedDynamic := make(map[string]int)
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		expectedTotals[key]++
 		if q.IsDynamic {
-			sig := dynamicSignature(q)
-			if sig == "" {
-				sig = q.QueryHash
-			}
-			if _, ok := expectedDynamic[key]; !ok {
-				expectedDynamic[key] = make(map[string]struct{})
-			}
-			if sig != "" {
-				expectedDynamic[key][sig] = struct{}{}
-			}
+			expectedDynamic[key]++
 		}
 	}
 
@@ -718,7 +711,7 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s missing in summary (expected total=%d dyn=%d)", rel, fn, total, expectedDynamic[key]))
 			continue
 		}
-		expectedDyn := len(expectedDynamic[key])
+		expectedDyn := expectedDynamic[key]
 		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn {
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDyn, sum.TotalQueries, sum.TotalDynamic))
 		}

@@ -59,4 +59,28 @@ func (c *goSymtabCache) store(dir string, symtab map[string]SqlSymbol) {
 }
 
 var goSymtabStore = newGoSymtabCache()
+
+type goPkgSymtabCache struct {
+	mu   sync.RWMutex
+	data map[string]map[string]SqlSymbol
+}
+
+func newGoPkgSymtabCache() *goPkgSymtabCache {
+	return &goPkgSymtabCache{data: make(map[string]map[string]SqlSymbol)}
+}
+
+func (c *goPkgSymtabCache) load(key string) (map[string]SqlSymbol, bool) {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	sym, ok := c.data[key]
+	return sym, ok
+}
+
+func (c *goPkgSymtabCache) store(key string, symtab map[string]SqlSymbol) {
+	c.mu.Lock()
+	c.data[key] = symtab
+	c.mu.Unlock()
+}
+
+var goPkgSymtabStore = newGoPkgSymtabCache()
 var connStore = newConnRegistry()

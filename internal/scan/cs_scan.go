@@ -27,9 +27,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	methodAtLine := indexCsMethodLines(methodRanges, len(lines))
 	sequentialMethodAtLine := buildSequentialMethodIndex(lines)
 	fallbackMethod := func(line int) *methodRange {
-		if len(methodRanges) == 0 {
-			return nil
-		}
 		if line < 1 {
 			line = 1
 		}
@@ -40,7 +37,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			startIdx = len(lines) - 1
 		}
 
-		// Prefer an explicit method signature above the current line that opens a block.
 		tryExtract := func(idx int) string {
 			trimmed := strings.TrimSpace(lines[idx])
 			if trimmed == "" {
@@ -64,6 +60,18 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			return ""
 		}
 
+		for lookback := 0; lookback <= 8 && startIdx-lookback >= 0; lookback++ {
+			idx := startIdx - lookback
+			if name := tryExtract(idx); name != "" {
+				start := idx + 1
+				end := line
+				if end < start {
+					end = start
+				}
+				return &methodRange{Name: name, Start: start, End: end}
+			}
+		}
+
 		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
 			trimmed := strings.TrimSpace(lines[i])
 			if !strings.Contains(trimmed, "{") {
@@ -79,7 +87,26 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 
-		// Otherwise choose the closest indexed range within the window (before or after).
+		braceIdx := -1
+		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
+			if strings.Contains(lines[i], "{") {
+				braceIdx = i
+				break
+			}
+		}
+		if braceIdx >= 0 {
+			for i := braceIdx; i >= 0 && braceIdx-i <= 5; i-- {
+				if name := tryExtract(i); name != "" {
+					start := i + 1
+					end := line
+					if end < start {
+						end = start
+					}
+					return &methodRange{Name: name, Start: start, End: end}
+				}
+			}
+		}
+
 		var candidate *methodRange
 		bestDist := maxSearch + 1
 		for i := range methodRanges {
