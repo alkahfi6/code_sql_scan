@@ -73,6 +73,10 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	for _, c := range cands {
 		funcName := resolver.Resolve(c.Func, c.RelPath, c.File, c.LineStart)
 		dbList := strings.Join(c.DbList, ";")
+		dynSig := strings.TrimSpace(c.DynamicSignature)
+		if dynSig == "" && c.IsDynamic {
+			dynSig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
+		}
 
 		qRow := []string{
 			c.AppName,
@@ -81,7 +85,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			c.SourceCat,
 			c.SourceKind,
 			c.CallSiteKind,
-			c.DynamicSignature,
+			dynSig,
 			fmt.Sprintf("%d", c.LineStart),
 			fmt.Sprintf("%d", c.LineEnd),
 			funcName,
@@ -106,11 +110,11 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 
 		for _, o := range c.Objects {
 			if o.IsPseudoObject && (o.PseudoKind == "dynamic-sql" || o.PseudoKind == "dynamic-object") {
-				sig := strings.TrimSpace(c.DynamicSignature)
+				sig := dynSig
 				if sig == "" {
 					sig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
 				}
-				key := strings.Join([]string{c.AppName, funcName, sig, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
+				key := strings.Join([]string{c.AppName, c.RelPath, funcName, sig, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
 				if _, ok := pseudoWritten[key]; ok {
 					continue
 				}

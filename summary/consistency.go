@@ -240,7 +240,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		if strings.TrimSpace(fullName) == "" {
 			continue
 		}
-		dbParsed, schemaParsed, parsedBase := splitFullObjectName(fullName)
+		_, _, parsedBase := splitFullObjectName(fullName)
 		base := strings.TrimSpace(o.BaseName)
 		if base == "" {
 			base = parsedBase
@@ -251,18 +251,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			isPseudoObj = true
 			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
 		}
-		key := objectSummaryKeyDetailed(
-			o.AppName,
-			o.RelPath,
-			fullName,
-			base,
-			"",
-			"",
-			isPseudoObj,
-			pseudoKind,
-			dbParsed,
-			schemaParsed,
-		)
+		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
 		entry := expected[key]
 		if entry == nil {
 			entry = &agg{
@@ -292,7 +281,13 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			entry.dbSet[db] = struct{}{}
 		}
 		if upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind)); upperDml != "" {
-			entry.dmlSet[upperDml] = struct{}{}
+			for _, part := range strings.Split(upperDml, ";") {
+				trimmed := strings.TrimSpace(part)
+				if trimmed == "" {
+					continue
+				}
+				entry.dmlSet[trimmed] = struct{}{}
+			}
 		}
 
 		if isPseudoObj {
@@ -306,23 +301,12 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
-		dbParsed, schemaParsed, parsedBase := splitFullObjectName(strings.TrimSpace(s.FullObjectName))
+		_, _, parsedBase := splitFullObjectName(strings.TrimSpace(s.FullObjectName))
 		baseName := strings.TrimSpace(s.BaseName)
 		if baseName == "" {
 			baseName = parsedBase
 		}
-		key := objectSummaryKeyDetailed(
-			s.AppName,
-			s.RelPath,
-			strings.TrimSpace(s.FullObjectName),
-			baseName,
-			"",
-			"",
-			s.IsPseudoObject,
-			defaultPseudoKind(s.PseudoKind),
-			dbParsed,
-			schemaParsed,
-		)
+		key := strings.Join([]string{s.AppName, s.RelPath, strings.TrimSpace(s.FullObjectName)}, "|")
 		summaryMap[key] = s
 	}
 

@@ -258,7 +258,7 @@ func TestParseProcNameSpecDropsParamsAndFlagsDynamics(t *testing.T) {
 		{
 			name:       "dynamic schema placeholder",
 			spec:       "[[schema]].sp_mk006_a(:1);",
-			wantSchema: "[schema]",
+			wantSchema: "[[schema]]",
 			wantBase:   "sp_mk006_a",
 			dyn:        true,
 		},
