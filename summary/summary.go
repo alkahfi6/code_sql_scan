@@ -464,6 +464,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	var result []FunctionSummaryRow
 	for key, qRows := range grouped {
 		app, rel, fn := splitFunctionKey(key)
+		if strings.EqualFold(strings.TrimSpace(fn), "<unknown-func>") {
+			continue
+		}
 		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalWrite int
 		hasCross := false
 		minLine := 0
@@ -646,12 +649,21 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
 	expectedTotals := make(map[string]int)
-	expectedDynamic := make(map[string]int)
+	expectedDynamic := make(map[string]map[string]struct{})
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		expectedTotals[key]++
 		if q.IsDynamic {
-			expectedDynamic[key]++
+			sig := dynamicSignature(q)
+			if sig == "" {
+				sig = q.QueryHash
+			}
+			if _, ok := expectedDynamic[key]; !ok {
+				expectedDynamic[key] = make(map[string]struct{})
+			}
+			if sig != "" {
+				expectedDynamic[key][sig] = struct{}{}
+			}
 		}
 	}
 
@@ -670,7 +682,7 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s missing in summary (expected total=%d dyn=%d)", rel, fn, total, expectedDynamic[key]))
 			continue
 		}
-		expectedDyn := expectedDynamic[key]
+		expectedDyn := len(expectedDynamic[key])
 		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn {
 			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d, summary total=%d dyn=%d)", rel, fn, total, expectedDyn, sum.TotalQueries, sum.TotalDynamic))
 		}
@@ -812,6 +824,12 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			if len(exampleFuncs) > 5 {
 				exampleFuncs = exampleFuncs[:5]
 			}
+		}
+		if len(exampleFuncs) == 0 && entry.firstFunc != "" {
+			exampleFuncs = []string{entry.firstFunc}
+		}
+		if len(exampleFuncs) == 0 {
+			exampleFuncs = []string{"<unknown-func>"}
 		}
 		if entry.firstFunc != "" {
 			present := false
@@ -1232,9 +1250,10 @@ func summarizeDynamicSignatures(counts map[string]dynamicSignatureInfo) string {
 	})
 	display := list
 	overflow := 0
-	if len(display) > 3 {
-		overflow = len(display) - 3
-		display = display[:3]
+	limit := 5
+	if len(display) > limit {
+		overflow = len(display) - limit
+		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, item := range display {
@@ -1290,20 +1309,20 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, t := range display {
-		roleParts := []string{}
-		if t.roles.ReadCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("read:%d", t.roles.ReadCount))
+		roleLabel := describeRolesOrdered(t.roles)
+		roleCount := 0
+		switch roleLabel {
+		case "exec":
+			roleCount = t.roles.ExecCount
+		case "write":
+			roleCount = t.roles.WriteCount
+		case "read":
+			roleCount = t.roles.ReadCount
+		default:
+			roleLabel = "mixed"
+			roleCount = t.roles.ExecCount + t.roles.WriteCount + t.roles.ReadCount
 		}
-		if t.roles.WriteCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("write:%d", t.roles.WriteCount))
-		}
-		if t.roles.ExecCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("exec:%d", t.roles.ExecCount))
-		}
-		if len(roleParts) == 0 {
-			roleParts = append(roleParts, "mixed")
-		}
-		parts = append(parts, fmt.Sprintf("%s (%s)", t.name, strings.Join(roleParts, ",")))
+		parts = append(parts, fmt.Sprintf("%s(%s=%d)", t.name, roleLabel, roleCount))
 	}
 	if len(tops) > len(display) {
 		parts = append(parts, "...")
@@ -1407,27 +1426,27 @@ func buildTopObjects(stats map[string]*objectRoleCounter) string {
 	})
 	display := entries
 	overflow := 0
-	limit := 10
+	limit := 8
 	if len(display) > limit {
 		overflow = len(display) - limit
 		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, e := range display {
-		roleParts := []string{}
-		if e.role.ReadCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("read:%d", e.role.ReadCount))
+		roleLabel := describeRolesOrdered(e.role)
+		roleCount := 0
+		switch roleLabel {
+		case "exec":
+			roleCount = e.role.ExecCount
+		case "write":
+			roleCount = e.role.WriteCount
+		case "read":
+			roleCount = e.role.ReadCount
+		default:
+			roleCount = e.role.ExecCount + e.role.WriteCount + e.role.ReadCount
+			roleLabel = "mixed"
 		}
-		if e.role.WriteCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("write:%d", e.role.WriteCount))
-		}
-		if e.role.ExecCount > 0 {
-			roleParts = append(roleParts, fmt.Sprintf("exec:%d", e.role.ExecCount))
-		}
-		if len(roleParts) == 0 {
-			roleParts = append(roleParts, describeRolesOrdered(e.role))
-		}
-		parts = append(parts, fmt.Sprintf("%s (%s)", e.name, strings.Join(roleParts, ",")))
+		parts = append(parts, fmt.Sprintf("%s(%s=%d)", e.name, roleLabel, roleCount))
 	}
 	if overflow > 0 {
 		parts = append(parts, "...")

@@ -103,14 +103,19 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]SqlSymbol)
+	globalLiterals := make(map[string]SqlSymbol)
 	recordLiteral := func(method, name, val string, line int) {
-		if method == "" || name == "" {
+		if name == "" {
 			return
 		}
-		if _, ok := literalInMethod[method]; !ok {
-			literalInMethod[method] = make(map[string]SqlSymbol)
+		target := globalLiterals
+		if method != "" {
+			if _, ok := literalInMethod[method]; !ok {
+				literalInMethod[method] = make(map[string]SqlSymbol)
+			}
+			target = literalInMethod[method]
 		}
-		literalInMethod[method][name] = SqlSymbol{
+		target[name] = SqlSymbol{
 			Name:       name,
 			Value:      val,
 			RelPath:    relPath,
@@ -119,7 +124,24 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		}
 	}
 
+	lookupLiteral := func(method, name string) (SqlSymbol, bool) {
+		if method != "" {
+			if vals, ok := literalInMethod[method]; ok {
+				if val, ok := vals[name]; ok {
+					return val, true
+				}
+			}
+		}
+		if val, ok := globalLiterals[name]; ok {
+			return val, true
+		}
+		return SqlSymbol{}, false
+	}
+
 	lookupLiteralAnyMethod := func(name string) (SqlSymbol, bool) {
+		if val, ok := globalLiterals[name]; ok {
+			return val, true
+		}
 		for _, m := range literalInMethod {
 			if val, ok := m[name]; ok {
 				return val, true
@@ -145,9 +167,6 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				funcName = mr.Name
 			}
 		}
-		if funcName == "" {
-			continue
-		}
 		name := cleanedGroup(clean, m, 1)
 		val := decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), true)
 		recordLiteral(funcName, name, val, line)
@@ -157,8 +176,13 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		if i < len(methodAtLine) && methodAtLine[i] != nil {
 			method = methodAtLine[i].Name
 		}
+		if method == "" && i < len(sequentialMethodAtLine) && sequentialMethodAtLine[i] != nil {
+			method = sequentialMethodAtLine[i].Name
+		}
 		if method == "" {
-			continue
+			if mr := fallbackMethod(i + 1); mr != nil {
+				method = mr.Name
+			}
 		}
 		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
 			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1)
@@ -291,8 +315,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			case regexes.newCmdIdent:
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
-				if funcName != "" && regexes.identRe.MatchString(raw) {
-					if lit, ok := literalInMethod[funcName][raw]; ok {
+				if regexes.identRe.MatchString(raw) {
+					if lit, ok := lookupLiteral(funcName, raw); ok {
 						raw = lit.Value
 						defPath = lit.RelPath
 						defLine = lit.Line
@@ -311,8 +335,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
-				if funcName != "" && regexes.identRe.MatchString(rawArg) {
-					if lit, ok := literalInMethod[funcName][rawArg]; ok {
+				if regexes.identRe.MatchString(rawArg) {
+					if lit, ok := lookupLiteral(funcName, rawArg); ok {
 						raw = lit.Value
 						isDyn = false
 						isExecStub = true
@@ -326,8 +350,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				expr := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = expr
 				rawLiteral = false
-				if funcName != "" && regexes.identRe.MatchString(expr) {
-					if lit, ok := literalInMethod[funcName][expr]; ok {
+				if regexes.identRe.MatchString(expr) {
+					if lit, ok := lookupLiteral(funcName, expr); ok {
 						raw = lit.Value
 						defPath = lit.RelPath
 						defLine = lit.Line
@@ -377,8 +401,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					expr := strings.TrimSpace(raw)
 					rawLiteral = false
 					raw = expr
-					if funcName != "" && regexes.identRe.MatchString(expr) {
-						if lit, ok := literalInMethod[funcName][expr]; ok {
+					if regexes.identRe.MatchString(expr) {
+						if lit, ok := lookupLiteral(funcName, expr); ok {
 							raw = lit.Value
 							defPath = lit.RelPath
 							defLine = lit.Line
