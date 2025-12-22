@@ -1066,6 +1066,8 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 	tokens = append(tokens, ObjectToken{
 		BaseName:           "<dynamic-sql>",
 		FullName:           "<dynamic-sql>",
+		DbName:             "",
+		SchemaName:         "",
 		Role:               "mixed",
 		DmlKind:            dml,
 		IsWrite:            c.IsWrite,
@@ -1080,7 +1082,7 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	if c.IsDynamic && !hasDynamicToken(tokens) {
 		dml := usageKind
-		if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
+		if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && !strings.EqualFold(strings.TrimSpace(usageKind), "EXEC") {
 			dml = "UNKNOWN"
 		}
 		tokens = ensureDynamicSqlPseudo(tokens, c, dml)
@@ -1157,10 +1159,16 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens[i].DbName = cleanIdentifier(tokens[i].DbName)
 		tokens[i].SchemaName = cleanIdentifier(tokens[i].SchemaName)
 		tokens[i].BaseName = cleanIdentifier(tokens[i].BaseName)
-		if strings.TrimSpace(tokens[i].DbName) == "" && strings.TrimSpace(tokens[i].SchemaName) == "" {
-			tokens[i].SchemaName = "dbo"
+		if tokens[i].IsPseudoObject {
+			tokens[i].DbName = ""
+			tokens[i].SchemaName = ""
+			tokens[i].FullName = strings.TrimSpace(tokens[i].BaseName)
+		} else {
+			if strings.TrimSpace(tokens[i].DbName) == "" && strings.TrimSpace(tokens[i].SchemaName) == "" {
+				tokens[i].SchemaName = "dbo"
+			}
+			tokens[i].FullName = normalizeFullObjectName(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
 		}
-		tokens[i].FullName = normalizeFullObjectName(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
 	}
 	preserveRole := make([]bool, len(tokens))
 	// Determine cross-DB for each token first
@@ -1168,6 +1176,12 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens[i].IsCrossDb = tokens[i].DbName != ""
 		if tokens[i].RepresentativeLine == 0 {
 			tokens[i].RepresentativeLine = c.LineStart
+		}
+		if tokens[i].IsPseudoObject && strings.EqualFold(strings.TrimSpace(tokens[i].BaseName), "<dynamic-sql>") {
+			preserveRole[i] = false
+			tokens[i].IsWrite = false
+			tokens[i].Role = strings.TrimSpace(tokens[i].Role)
+			continue
 		}
 		if strings.TrimSpace(tokens[i].Role) != "" || strings.TrimSpace(tokens[i].DmlKind) != "" || tokens[i].IsWrite {
 			preserveRole[i] = true
