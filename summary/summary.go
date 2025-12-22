@@ -536,6 +536,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				if sig == "" {
 					sig = q.QueryHash
 				}
+				if sig == "" && q.LineStart > 0 {
+					sig = fmt.Sprintf("%s@%d", strings.TrimSpace(q.RelPath), q.LineStart)
+				}
 				if sig != "" {
 					entry := dynamicSigCounts[sig]
 					entry.count++
@@ -602,12 +605,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				consumeObj(o)
 			}
 		}
-		topObjects := buildTopObjectSummary(objectCounter, 5)
+		topObjects := buildTopObjectSummary(objectCounter, 10)
 		dbList := setToSortedSlice(dbListSet)
-		totalDynamic = 0
-		for _, info := range dynamicSigCounts {
-			totalDynamic += info.count
-		}
+		totalDynamic = len(dynamicSigCounts)
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		if maxLine == 0 && minLine > 0 {
 			maxLine = minLine
@@ -710,6 +710,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		baseName       string
 		funcSet        map[string]struct{}
 		funcCounts     map[string]int
+		firstFunc      string
 		reads          int
 		writes         int
 		execs          int
@@ -736,7 +737,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if strings.TrimSpace(fullName) == "" {
 			continue
 		}
-		dbParsed, schemaParsed, parsedBase := splitFullObjectName(fullName)
+		dbParsed, _, parsedBase := splitFullObjectName(fullName)
 		baseName := strings.TrimSpace(o.BaseName)
 		if baseName == "" {
 			baseName = parsedBase
@@ -749,19 +750,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		} else if isPseudoObj {
 			pseudoKind = defaultPseudoKind(pseudoKind)
 		}
-		roleKey := "" // summary CSV does not carry raw role; keep empty for stable keying.
-		key := objectSummaryKeyDetailed(
-			o.AppName,
-			o.RelPath,
-			fullName,
-			baseName,
-			roleKey,
-			"",
-			isPseudoObj,
-			pseudoKind,
-			dbParsed,
-			schemaParsed,
-		)
+		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
 		entry := grouped[key]
 		if entry == nil {
 			entry = &agg{
@@ -775,6 +764,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 				dbSet:      make(map[string]struct{}),
 			}
 			grouped[key] = entry
+		} else if entry.baseName == "" {
+			entry.baseName = baseName
 		}
 
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
@@ -797,7 +788,13 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			entry.dbSet[db] = struct{}{}
 		}
 		if upperDml != "" {
-			entry.dmlSet[upperDml] = struct{}{}
+			for _, part := range strings.Split(upperDml, ";") {
+				trimmed := strings.TrimSpace(part)
+				if trimmed == "" {
+					continue
+				}
+				entry.dmlSet[trimmed] = struct{}{}
+			}
 		}
 
 		if isPseudoObj {
@@ -810,6 +807,9 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if fn != "" {
 			entry.funcSet[fn] = struct{}{}
 			entry.funcCounts[fn]++
+			if entry.firstFunc == "" {
+				entry.firstFunc = fn
+			}
 		}
 	}
 
@@ -821,6 +821,21 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			exampleFuncs = funcs
 			if len(exampleFuncs) > 5 {
 				exampleFuncs = exampleFuncs[:5]
+			}
+		}
+		if entry.firstFunc != "" {
+			present := false
+			for _, ex := range exampleFuncs {
+				if ex == entry.firstFunc {
+					present = true
+					break
+				}
+			}
+			if !present {
+				exampleFuncs = append([]string{entry.firstFunc}, exampleFuncs...)
+				if len(exampleFuncs) > 5 {
+					exampleFuncs = exampleFuncs[:5]
+				}
 			}
 		}
 
@@ -1402,9 +1417,10 @@ func buildTopObjects(stats map[string]*objectRoleCounter) string {
 	})
 	display := entries
 	overflow := 0
-	if len(display) > 5 {
-		overflow = len(display) - 5
-		display = display[:5]
+	limit := 10
+	if len(display) > limit {
+		overflow = len(display) - limit
+		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, e := range display {
