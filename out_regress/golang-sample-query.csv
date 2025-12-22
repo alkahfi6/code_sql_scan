@@ -197,7 +197,7 @@ select distinct trim(SECID) from [[schema]].BOND_JOURNAL where TDPRINTAMT > 0
 and TRIM(SECID) IN ([[param]])
 group by SECID
 ","SELECT TRIM(SECID) as SECID, ABS(ROUND(SUM(BOOK_VALUE)/SUM(TDPRINTAMT), 17)) AS AVGPRICE FROM [[schema]].BOND_JOURNAL a where TRIM(SECID) IN ([[param]]) and TDPRINTAMT > 0 group by SECID UNION select TRIM(SECID) as SECID, ABS(ROUND(AVG(PRICE), 17)) AS AVGPRICE from [[schema]].BOND_DETAIL where trim(SECID) not in ( select distinct trim(SECID) from [[schema]].BOND_JOURNAL where TDPRINTAMT > 0 ) and TRIM(SECID) IN ([[param]]) group by SECID",SELECT,false,true,false,,1,4fef1d702248e13c3ae0a6184db4516f47931f63,code,go,go,go1/query.go||go@157,,,LOW,go1/query.go,157
-golang-sample,go1/query.go,query.go,go1/query.go@L171,171,171,"
+golang-sample,go1/query.go,query.go,TRIM,171,171,"
 INSERT INTO [dbo].[mk006_a_actuate] (secid,avg_price,ProcessDate)
 SELECT ?,?,?
 ","INSERT INTO [dbo].[mk006_a_actuate] (secid,avg_price,ProcessDate) SELECT ?,?,?",INSERT,true,false,false,,1,1b9b4d6cd9afddcfe3be7e14a760f10cbbdc7d09,code,go,go,,,,MEDIUM,go1/query.go,171
@@ -432,31 +432,31 @@ select EMPLID from PSEmployee_v where EMPLID = @p1
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,CheckNIKIfNotRegisterOnPeopleSoftFromPSEmployeev,229,229,"-- name: CheckNIKIfNotRegisterOnPeopleSoftFromPSEmployeev :many
 select EMPLID from PSEmployee_v where EMPLID = @p1
 ",select EMPLID from PSEmployee_v where EMPLID = @p1,SELECT,false,false,false,,1,4b9a303582b4b4c3d18e0003684205396626dc65,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,224
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,251,251,"-- name: CheckNIKIsRegisterFromBancaNoAAJITM :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L251,251,251,"-- name: CheckNIKIsRegisterFromBancaNoAAJITM :many
 SELECT NIK from BancaNoAAUI_TM where NIK = @p1
 ",SELECT NIK from BancaNoAAUI_TM where NIK = @p1,SELECT,false,false,false,,1,fd1a1930e24a57581233cced7b600fb3a7532586,code,go,go,,,,LOW,go3/aajiQueries.sql.go,251
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,CheckNIKIsRegisterFromBancaNoAAJITM,256,256,"-- name: CheckNIKIsRegisterFromBancaNoAAJITM :many
 SELECT NIK from BancaNoAAUI_TM where NIK = @p1
 ",SELECT NIK from BancaNoAAUI_TM where NIK = @p1,SELECT,false,false,false,,1,fd1a1930e24a57581233cced7b600fb3a7532586,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,251
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,278,278,"-- name: CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L278,278,278,"-- name: CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where NIKSeller = @p1 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where NIKSeller = @p1 and Status = 0,SELECT,false,false,false,,1,6a9b6cbbda4215209f8e66506e51c4599a944c83,code,go,go,,,,LOW,go3/aajiQueries.sql.go,278
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT,283,283,"-- name: CheckTransactionIsExistByNIKANDStatusFromBancaMTranAAJIAAUITT :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where NIKSeller = @p1 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where NIKSeller = @p1 and Status = 0,SELECT,false,false,false,,1,6a9b6cbbda4215209f8e66506e51c4599a944c83,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,278
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,305,305,"-- name: GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L305,305,305,"-- name: GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where AAJI = @p1 and NIKSeller != @p2 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where AAJI = @p1 and NIKSeller != @p2 and Status = 0,SELECT,false,false,false,,1,38b49f9e9e79067f1a6393fd7ddfa549edd71110,code,go,go,,,,LOW,go3/aajiQueries.sql.go,305
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus,315,315,"-- name: GetAAJIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where AAJI = @p1 and NIKSeller != @p2 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where AAJI = @p1 and NIKSeller != @p2 and Status = 0,SELECT,false,false,false,,1,38b49f9e9e79067f1a6393fd7ddfa549edd71110,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,305
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,337,337,"-- name: GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L337,337,337,"-- name: GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where AAUI = @p1 and NIKSeller != @p2 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where AAUI = @p1 and NIKSeller != @p2 and Status = 0,SELECT,false,false,false,,1,1e9fc266b76447f90ff40fafeb8833fb11a623cf,code,go,go,,,,LOW,go3/aajiQueries.sql.go,337
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus,347,347,"-- name: GetAAUIFromBancaMTranAAJIAAUITTByNIKANDStatus :many
 select NIKSeller from BancaMTranAAJIAAUI_TT where AAUI = @p1 and NIKSeller != @p2 and Status = 0
 ",select NIKSeller from BancaMTranAAJIAAUI_TT where AAUI = @p1 and NIKSeller != @p2 and Status = 0,SELECT,false,false,false,,1,1e9fc266b76447f90ff40fafeb8833fb11a623cf,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,337
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,369,369,"-- name: GetBancaNoAAJITMByDate :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L369,369,369,"-- name: GetBancaNoAAJITMByDate :many
 select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExpire, aj.DateUpload, aj.NIKUpload from BancaNoAAJI_TM aj
 left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2
 order by  aj.NIK
@@ -466,7 +466,7 @@ select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExp
 left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2
 order by  aj.NIK
 ","select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExpire, aj.DateUpload, aj.NIKUpload from BancaNoAAJI_TM aj left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2 order by aj.NIK",SELECT,false,false,false,,2,358565cf171c294ee28871df70e810d17a108710,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,369
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,425,425,"-- name: GetBancaNoAAJITMByNIKDate :many
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L425,425,425,"-- name: GetBancaNoAAJITMByNIKDate :many
 select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExpire, aj.DateUpload, aj.NIKUpload from BancaNoAAJI_TM aj
 left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2 and aj.NIK = @p3
 order by aj.NIK
@@ -476,7 +476,7 @@ select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExp
 left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2 and aj.NIK = @p3
 order by aj.NIK
 ","select aj.NIK, aj.Nama, aj.JobTitle, aj.AAJI, aj.DateExpire, au.AAUI, au.DateExpire, aj.DateUpload, aj.NIKUpload from BancaNoAAJI_TM aj left join BancaNoAAUI_TM au ON aj.NIK = au.NIK where aj.DateUpload >= @p1 and aj.DateUpload <= @p2 and aj.NIK = @p3 order by aj.NIK",SELECT,false,false,false,,2,0cab116e21ae25f0b619e6c18a8a2abbf875d117,code,go,go,,ctx,,LOW,go3/aajiQueries.sql.go,425
-golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,dateadd,482,482,"-- name: GetLastInsertedBatchId :one
+golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,go3/aajiQueries.sql.go@L482,482,482,"-- name: GetLastInsertedBatchId :one
 SELECT cast(max(BatchId) as int) as BatchId FROM BancaMTranAAJIAAUI_TT
 ",SELECT cast(max(BatchId) as int) as BatchId FROM BancaMTranAAJIAAUI_TT,EXEC,true,false,false,,1,021cb023b31036c7991162b665f49770ba018d0a,code,go,go,,,,MEDIUM,go3/aajiQueries.sql.go,482
 golang-sample,go3/aajiQueries.sql.go,aajiQueries.sql.go,GetLastInsertedBatchId,487,487,"-- name: GetLastInsertedBatchId :one
