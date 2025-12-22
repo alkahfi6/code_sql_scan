@@ -119,6 +119,9 @@ func analyzeCandidate(c *SqlCandidate) {
 	tokens := append([]ObjectToken{}, dmlTokens...)
 	tokens = append(tokens, findObjectTokens(sqlClean)...)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
+	if c.RawSql != "" && c.RawSql != sqlClean {
+		tokens = append(tokens, detectDynamicObjectPlaceholders(c.RawSql, usage, c.LineStart)...)
+	}
 	if !hasDynamicToken(tokens) {
 		tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
 	}
@@ -528,6 +531,24 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 		}
 		if obj.IsCrossDb {
 			hasCross = true
+		}
+	}
+
+	if !hasCross {
+		crossDbRe := regexp.MustCompile(`(?i)([A-Za-z0-9_]+)\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+`)
+		sources := []string{c.SqlClean, c.RawSql}
+		for _, src := range sources {
+			for _, m := range crossDbRe.FindAllStringSubmatch(src, -1) {
+				if len(m) < 2 {
+					continue
+				}
+				db := strings.TrimSpace(cleanIdentifier(m[1]))
+				if db == "" {
+					continue
+				}
+				hasCross = true
+				dbSet[db] = struct{}{}
+			}
 		}
 	}
 
@@ -1642,6 +1663,17 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 		}
 
 		dbName, schemaName, _, isLinked := splitObjectNameParts(objText)
+		normalized := normalizeFullObjectName(objText)
+		parts := strings.Split(normalized, ".")
+		if dbName == "" && len(parts) >= 2 && len(parts) <= 3 {
+			dbName = strings.TrimSpace(parts[0])
+			if len(parts) > 1 {
+				schemaName = strings.TrimSpace(parts[1])
+			}
+			if schemaName == "" {
+				schemaName = "dbo"
+			}
+		}
 		baseName := "<dynamic-object>"
 		full := buildFullName(dbName, schemaName, baseName)
 

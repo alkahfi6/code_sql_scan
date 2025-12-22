@@ -105,6 +105,12 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		}
 
 		for _, o := range c.Objects {
+			isPseudo := o.IsPseudoObject
+			if !isPseudo {
+				if strings.TrimSpace(o.PseudoKind) != "" || isDynamicBaseName(o.BaseName) {
+					isPseudo = true
+				}
+			}
 			if o.IsPseudoObject && (o.PseudoKind == "dynamic-sql" || o.PseudoKind == "dynamic-object") {
 				sig := dynSig
 				if sig == "" {
@@ -122,7 +128,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
 			}
 			pseudoKind := o.PseudoKind
-			if o.IsPseudoObject && strings.TrimSpace(pseudoKind) == "" {
+			if isPseudo && strings.TrimSpace(pseudoKind) == "" {
 				pseudoKind = "unknown"
 			}
 			role := o.Role
@@ -143,7 +149,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				o.DmlKind,
 				boolToStr(o.IsWrite),
 				boolToStr(o.IsCrossDb),
-				boolToStr(o.IsPseudoObject),
+				boolToStr(isPseudo),
 				pseudoKind,
 				c.SourceCat,
 				c.SourceKind,
