@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	csMethodRe     = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new)(?:\s+(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new))*\s+[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
-	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
+	csMethodRe     = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new)(?:\s+(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new))*\s+(?:ref\s+|out\s+|in\s+|params\s+)?[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?\(\)]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
+	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:ref\s+|out\s+|in\s+|params\s+)?[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?\(\)]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
 	atLinePattern  = regexp.MustCompile(`(?i)@l(\d+)$`)
 	fileScopeLabel = regexp.MustCompile(`(?i)<file-scope>`)
 )
@@ -572,8 +572,6 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			totalWrite = totalInsert + totalUpdate + totalDelete + totalTruncate + totalExec
 		}
 
-		totalDynamic = len(dynamicSigCounts)
-
 		objSet := make(map[string]struct{})
 		consumeObj := func(o ObjectRow) {
 			if shouldSkipObject(o) {
@@ -647,10 +645,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		if a.RelPath != b.RelPath {
 			return a.RelPath < b.RelPath
 		}
-		if a.Func != b.Func {
-			return a.Func < b.Func
-		}
-		return a.LineStart < b.LineStart
+		return a.Func < b.Func
 	})
 
 	return result, nil
@@ -860,14 +855,6 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i], result[j]
-		if a.FullObjectName != b.FullObjectName {
-			return a.FullObjectName < b.FullObjectName
-		}
-		scoreA := objectSummaryScore(a)
-		scoreB := objectSummaryScore(b)
-		if scoreA != scoreB {
-			return scoreA > scoreB
-		}
 		if a.RelPath != b.RelPath {
 			return a.RelPath < b.RelPath
 		}
@@ -1238,17 +1225,27 @@ func summarizeDynamicSignatures(counts map[string]dynamicSignatureInfo) string {
 		}
 		return list[i].key < list[j].key
 	})
-	if len(list) > 3 {
-		list = list[:3]
+	display := list
+	overflow := 0
+	if len(display) > 3 {
+		overflow = len(display) - 3
+		display = display[:3]
 	}
-	parts := make([]string, 0, len(list))
-	for _, item := range list {
+	parts := make([]string, 0, len(display)+1)
+	for _, item := range display {
 		example := strings.TrimSpace(item.example)
 		if example != "" {
 			parts = append(parts, fmt.Sprintf("%s x%d (example=%s)", item.key, item.count, example))
 			continue
 		}
 		parts = append(parts, fmt.Sprintf("%s x%d", item.key, item.count))
+	}
+	if overflow > 0 {
+		total := 0
+		for _, item := range list {
+			total += item.count
+		}
+		parts = append(parts, fmt.Sprintf("... (%d total)", total))
 	}
 	return strings.Join(parts, ";")
 }
@@ -1288,11 +1285,23 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, t := range display {
-		roleLabel := describeRoleCountsDetailed(t.roles)
-		parts = append(parts, fmt.Sprintf("%s (%s)", t.name, roleLabel))
+		roleParts := []string{}
+		if t.roles.ReadCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("read:%d", t.roles.ReadCount))
+		}
+		if t.roles.WriteCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("write:%d", t.roles.WriteCount))
+		}
+		if t.roles.ExecCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("exec:%d", t.roles.ExecCount))
+		}
+		if len(roleParts) == 0 {
+			roleParts = append(roleParts, "mixed")
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", t.name, strings.Join(roleParts, ",")))
 	}
-	if remaining := len(tops) - len(display); remaining > 0 {
-		parts = append(parts, fmt.Sprintf("+%d others", remaining))
+	if len(tops) > len(display) {
+		parts = append(parts, "...")
 	}
 	return strings.Join(parts, "; ")
 }
@@ -1391,12 +1400,31 @@ func buildTopObjects(stats map[string]*objectRoleCounter) string {
 		}
 		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
 	})
-	if len(entries) > 5 {
-		entries = entries[:5]
+	display := entries
+	overflow := 0
+	if len(display) > 5 {
+		overflow = len(display) - 5
+		display = display[:5]
 	}
-	parts := make([]string, 0, len(entries))
-	for _, e := range entries {
-		parts = append(parts, fmt.Sprintf("%s (%s)", e.name, describeRolesOrdered(e.role)))
+	parts := make([]string, 0, len(display)+1)
+	for _, e := range display {
+		roleParts := []string{}
+		if e.role.ReadCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("read:%d", e.role.ReadCount))
+		}
+		if e.role.WriteCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("write:%d", e.role.WriteCount))
+		}
+		if e.role.ExecCount > 0 {
+			roleParts = append(roleParts, fmt.Sprintf("exec:%d", e.role.ExecCount))
+		}
+		if len(roleParts) == 0 {
+			roleParts = append(roleParts, describeRolesOrdered(e.role))
+		}
+		parts = append(parts, fmt.Sprintf("%s (%s)", e.name, strings.Join(roleParts, ",")))
+	}
+	if overflow > 0 {
+		parts = append(parts, "...")
 	}
 	return strings.Join(parts, "; ")
 }
