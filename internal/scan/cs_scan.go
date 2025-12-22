@@ -40,7 +40,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			startIdx = len(lines) - 1
 		}
 
-		// First, try to locate an explicit method declaration above the line.
+		// Prefer an explicit method signature above the current line that opens a block.
 		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
 			trimmed := strings.TrimSpace(lines[i])
 			if !strings.Contains(trimmed, "{") {
@@ -61,22 +61,26 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 
-		// Fallback to the closest known method range within the search window.
-		var best *methodRange
+		// Otherwise choose the closest indexed range within the window (before or after).
+		var candidate *methodRange
+		bestDist := maxSearch + 1
 		for i := range methodRanges {
 			mr := &methodRanges[i]
-			if mr.Start > line {
-				break
-			}
-			best = mr
-			if line <= mr.End {
+			if line >= mr.Start && line <= mr.End {
 				return mr
 			}
+			dist := 0
+			if line < mr.Start {
+				dist = mr.Start - line
+			} else {
+				dist = line - mr.End
+			}
+			if dist <= maxSearch && dist < bestDist {
+				candidate = mr
+				bestDist = dist
+			}
 		}
-		if best != nil && line-best.End <= maxSearch {
-			return best
-		}
-		return nil
+		return candidate
 	}
 
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
