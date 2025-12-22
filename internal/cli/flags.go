@@ -23,7 +23,7 @@ func ParseFlags() *scan.Config {
 	outSummaryFunc := flag.String("out-summary-func", "", "output CSV for function-level summary")
 	outSummaryObject := flag.String("out-summary-object", "", "output CSV for object-level summary")
 	outSummaryForm := flag.String("out-summary-form", "", "output CSV for form/file-level summary")
-	maxSize := flag.Int64("max-size", 10*1024*1024, "max file size in bytes")
+	maxSize := flag.Int64("max-size", 2*1024*1024, "max file size in bytes")
 	workers := flag.Int("workers", 4, "number of workers")
 	includeExt := flag.String("include-ext", "", "additional extensions, comma-separated, e.g. .cshtml,.razor")
 
@@ -90,6 +90,10 @@ func ParseFlags() *scan.Config {
 		if err := os.MkdirAll(resolvedOut.baseDir, 0o755); err != nil {
 			log.Fatalf("failed to create out dir %s: %v", resolvedOut.baseDir, err)
 		}
+	}
+
+	if *maxSize <= 0 {
+		*maxSize = 2 * 1024 * 1024
 	}
 
 	return &scan.Config{

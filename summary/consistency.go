@@ -212,6 +212,11 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 }
 
 func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []ObjectSummaryRow) []string {
+	queryByKey := make(map[string]QueryRow)
+	for _, q := range normalizeQueryFuncs(queries) {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
+
 	type agg struct {
 		reads      int
 		writes     int
@@ -244,7 +249,8 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			}
 			expected[key] = entry
 		}
-		r, w, e := ObjectRoleBuckets(o)
+		qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
+		r, w, e := ObjectRoleCounts(o, qRow, hasQuery)
 		entry.reads += r
 		entry.writes += w
 		entry.execs += e
