@@ -20,7 +20,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		return nil, fmt.Errorf("stage=read-cs lang=%s root=%q file=%q err=%w", cfg.Lang, cfg.Root, path, err)
 	}
 	src := string(data)
-	clean := StripCodeCommentsCStyle(src, true)
+	clean := stripCSComments(src)
 
 	lines := strings.Split(src, "\n")
 	methodRanges := detectCsMethods(lines)
@@ -465,9 +465,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					ctxEnd = len(lines)
 				}
 				ctxText = strings.Join(lines[ctxStart:ctxEnd], "\n")
-				ctxText = StripCodeCommentsCStyle(ctxText, true)
-				methodTextClean := StripCodeCommentsCStyle(methodText, true)
-				cleanRawExpr := StripCodeCommentsCStyle(rawExpr, true)
+				ctxText = stripCSComments(ctxText)
+				methodTextClean := stripCSComments(methodText)
+				cleanRawExpr := stripCSComments(rawExpr)
 
 				skel, dyn, _ := BuildSqlSkeletonFromCSharpExpr(cleanRawExpr)
 				if skel == "" && ctxText != "" {
@@ -506,6 +506,10 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 			if isDyn && raw == "" {
 				raw = "<dynamic-sql>"
+			}
+
+			if raw != "" && raw != "<dynamic-sql>" {
+				raw = StripSqlComments(raw)
 			}
 
 			cand := SqlCandidate{
@@ -896,7 +900,7 @@ func normalizeCSharpSqlExpression(expr string) (string, bool, bool) {
 		return "", false, false
 	}
 
-	cleaned = StripCodeCommentsCStyle(cleaned, true)
+	cleaned = stripCSComments(cleaned)
 	cleaned = strings.TrimSpace(cleaned)
 	if cleaned == "" {
 		return "", false, false
@@ -915,7 +919,7 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 		return "", false
 	}
 
-	cleaned := StripCodeCommentsCStyle(methodText, true)
+	cleaned := stripCSComments(methodText)
 	assignFinder := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(varName) + `\s*(\+=|=)`)
 
 	type sqlBuildMatch struct {
@@ -1017,6 +1021,114 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 
 	combined := normalizeSqlSkeleton(strings.Join(fragments, "\n"))
 	return combined, dynamic
+}
+
+func stripCSComments(src string) string {
+	const (
+		stateNormal = iota
+		stateLineComment
+		stateBlockComment
+		stateString
+		stateChar
+		stateVerbatimString
+	)
+
+	var b strings.Builder
+	state := stateNormal
+	escaped := false
+
+	writeNewline := func() {
+		b.WriteByte('\n')
+	}
+
+	for i := 0; i < len(src); i++ {
+		c := src[i]
+		var next byte
+		if i+1 < len(src) {
+			next = src[i+1]
+		}
+
+		switch state {
+		case stateNormal:
+			if c == '/' && next == '/' {
+				state = stateLineComment
+				i++
+				continue
+			}
+			if c == '/' && next == '*' {
+				state = stateBlockComment
+				i++
+				continue
+			}
+			if c == '"' {
+				if i > 0 && src[i-1] == '@' {
+					state = stateVerbatimString
+				} else {
+					state = stateString
+				}
+				b.WriteByte(c)
+				continue
+			}
+			if c == '\'' {
+				state = stateChar
+				b.WriteByte(c)
+				continue
+			}
+			b.WriteByte(c)
+		case stateLineComment:
+			if c == '\n' {
+				state = stateNormal
+				writeNewline()
+			}
+		case stateBlockComment:
+			if c == '\n' {
+				writeNewline()
+				continue
+			}
+			if c == '*' && next == '/' {
+				state = stateNormal
+				i++
+			}
+		case stateString:
+			b.WriteByte(c)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				state = stateNormal
+			}
+		case stateChar:
+			b.WriteByte(c)
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '\'' {
+				state = stateNormal
+			}
+		case stateVerbatimString:
+			b.WriteByte(c)
+			if c == '"' {
+				if next == '"' {
+					b.WriteByte(next)
+					i++
+				} else {
+					state = stateNormal
+				}
+			}
+		}
+	}
+
+	return b.String()
 }
 
 func extractCSharpStatementExpr(src string, start int) (string, int) {
