@@ -347,7 +347,7 @@ func loadRawObjects(t *testing.T, path string) []ObjectRow {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"AppName", "RelPath", "File", "Func", "QueryHash", "ObjectName", "DbName", "SchemaName", "BaseName", "IsCrossDb", "Role", "DmlKind", "IsWrite", "IsObjectNameDynamic", "IsPseudoObject", "PseudoKind"}
+	required := []string{"AppName", "RelPath", "File", "Func", "QueryHash", "FullObjectName", "DbName", "SchemaName", "BaseName", "IsCrossDb", "Role", "DmlKind", "IsWrite", "IsObjectNameDynamic", "IsPseudoObject", "PseudoKind"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			t.Fatalf("object csv missing column %s", req)
@@ -368,7 +368,7 @@ func loadRawObjects(t *testing.T, path string) []ObjectRow {
 			File:            rec[idx["File"]],
 			Func:            rec[idx["Func"]],
 			QueryHash:       rec[idx["QueryHash"]],
-			ObjectName:      rec[idx["ObjectName"]],
+			ObjectName:      rec[idx["FullObjectName"]],
 			DbName:          rec[idx["DbName"]],
 			SchemaName:      rec[idx["SchemaName"]],
 			BaseName:        rec[idx["BaseName"]],
