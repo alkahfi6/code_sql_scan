@@ -526,41 +526,49 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,167,167,"
                         AND [FXORD7] <= @jEndDate                                                                               
                         ","SELECT [FXDEALN] , CAST([FXBRAN] AS INT) AS [FXBRAN] , CAST([FXORD7] AS INT) AS [FXORD7] , CAST(ISNULL([FXDRAC_], 0) AS BIGINT) AS [FXDRAC_] , [FXCUCD] , [FXTXAM] , ISNULL([FXREMK], '') AS [FXREMK] , [FXTYPE] , CAST([FXDRCIF] AS BIGINT) AS [FXDRCIF] , [FXACCT] , [FXBSCD] , [FXECFLG] , [FXSTAT] , [FXCRTM] , [FXCIFN] , [FXFIL3] , SUBSTRING(FXDEALN, 6 , 1) AS [trxSource] , ISNULL([FXFLGLCS], '') AS [FXFLGLCS] FROM dbo.ZFXMAST WHERE 1 = 1 AND [FXORD7] >= @jStartDate AND [FXORD7] <= @jEndDate",SELECT,false,false,false,,1,664f5e98fe0cf72b11d9ff7cca4a9b98ed903b41,code,csharp,CommandText,,this._connSmartFX,,LOW,clsValasService.cs,208
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,283,283,"
-                    IF OBJECT_ID('tempdb..#tmpDeal') IS NOT NULL
-	                    DROP TABLE #tmpDeal
-
-                    CREATE TABLE #tmpDeal                     
-                    (    
-	                    FAgentId	INT                		
-                    )   
-
-                    DECLARE 
-	                    @nDocHandle	INT
-
-                    EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput
-
-                    INSERT INTO #tmpDeal
-                    (
-	                    FAgentId									
-                    )
-                    SELECT
-	                    FAgentId
-                    FROM openxml(@nDocHandle, N'/Data/Deal',2)           
-                    WITH (
-	                    FAgentId         INT       			
-                    )  
-
-                    SELECT DISTINCT
-	                    FId
-                        , FBranchId
-                        , FLabel
-                        , FExtLink
-                        , FExtId
-                        , FTypeId
-                    FROM dbo.TAgent AS t
-                    JOIN #tmpDeal AS tmp
-                    ON t.FId = tmp.FAgentId
-                    ","IF OBJECT_ID('tempdb..#tmpDeal') IS NOT NULL DROP TABLE #tmpDeal CREATE TABLE #tmpDeal ( FAgentId INT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpDeal ( FAgentId ) SELECT FAgentId FROM openxml(@nDocHandle, N'/Data/Deal',2) WITH ( FAgentId INT ) SELECT DISTINCT FId , FBranchId , FLabel , FExtLink , FExtId , FTypeId FROM dbo.TAgent AS t JOIN #tmpDeal AS tmp ON t.FId = tmp.FAgentId",INSERT,true,false,false,,4,1e2312998412bebed6dbffb2eda23b5a1091b8c4,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,809
+                SELECT M_NB
+                     , M_IDSIBSCIF1
+                     , M_TRN_DATE
+                     , TIME
+                     , M_BRW_NOMU1
+                     , CASE WHEN NVL(M_RSNCODE,' ') != ' ' THEN -1*M_BRW_NOM1
+                            ELSE M_BRW_NOM1 END AS M_BRW_NOM1
+                     , M_BRW_NOMU2
+                     , CASE WHEN NVL(M_RSNCODE,' ') != ' ' THEN -1*M_BRW_NOM2
+                            ELSE M_BRW_NOM2 END AS M_BRW_NOM2
+                     , M_COMMENT_BS
+                     , M_SOURCE_ID
+                     , M_RSNCODE
+                     , M_PL_KEY1
+                     , M_TRN_TYPO
+                    
+                    , TRIM(M_TRN_FMLY) AS M_TRN_FMLY
+                    , TRIM(M_TRN_GRP) AS M_TRN_GRP
+                    , TRIM(M_TRN_TYPE) AS M_TRN_TYPE
+                    
+                    
+                    , TRIM(BrokerName) AS BrokerName
+                    , TRIM(Purpose) AS Purpose
+                    , TRIM(CurrencyPair) AS CurrencyPair
+                    , TRIM(M_LABEL) AS M_LABEL
+                    , TRIM(Underlying) AS Underlying
+                    , TRIM(Keterangan) AS Keterangan
+                    , M_SINTERNAL
+                    , M_BINTERNAL
+                    , FlagLCS
+                    
+                FROM [[MurexSchema]].VW_TRN_HDR_FX_Temp
+                WHERE M_TRN_DATE >= :dStartDate and M_TRN_DATE <= :dEndDate
+                    and ( M_BRW_NOMU2 = :cCur  OR M_BRW_NOMU1 = :cCur)                    
+                    AND translate( trim(M_IDSIBSCIF1), ' 1234567890', 'X' ) is null 
+                    AND M_IDSIBSCIF1 <> '8888888888888888888'   
+                    AND (M_SOURCE_ID <> 'BDS' OR M_SOURCE_ID IS NULL)
+                    AND (
+                            NVL(M_RSNCODE,' ') = ' '
+                            OR ( NVL(M_RSNCODE,' ') != ' ' AND M_TRN_DATE < :dEndDate )
+                        )
+                    AND M_TRN_TYPO NOT IN ('A286_FX_COMM_SPOT')
+                        ","SELECT M_NB , M_IDSIBSCIF1 , M_TRN_DATE , TIME , M_BRW_NOMU1 , CASE WHEN NVL(M_RSNCODE,' ') != ' ' THEN -1*M_BRW_NOM1 ELSE M_BRW_NOM1 END AS M_BRW_NOM1 , M_BRW_NOMU2 , CASE WHEN NVL(M_RSNCODE,' ') != ' ' THEN -1*M_BRW_NOM2 ELSE M_BRW_NOM2 END AS M_BRW_NOM2 , M_COMMENT_BS , M_SOURCE_ID , M_RSNCODE , M_PL_KEY1 , M_TRN_TYPO , TRIM(M_TRN_FMLY) AS M_TRN_FMLY , TRIM(M_TRN_GRP) AS M_TRN_GRP , TRIM(M_TRN_TYPE) AS M_TRN_TYPE , TRIM(BrokerName) AS BrokerName , TRIM(Purpose) AS Purpose , TRIM(CurrencyPair) AS CurrencyPair , TRIM(M_LABEL) AS M_LABEL , TRIM(Underlying) AS Underlying , TRIM(Keterangan) AS Keterangan , M_SINTERNAL , M_BINTERNAL , FlagLCS FROM [[MurexSchema]].VW_TRN_HDR_FX_Temp WHERE M_TRN_DATE >= :dStartDate and M_TRN_DATE <= :dEndDate and ( M_BRW_NOMU2 = :cCur OR M_BRW_NOMU1 = :cCur) AND translate( trim(M_IDSIBSCIF1), ' 1234567890', 'X' ) is null AND M_IDSIBSCIF1 <> '8888888888888888888' AND (M_SOURCE_ID <> 'BDS' OR M_SOURCE_ID IS NULL) AND ( NVL(M_RSNCODE,' ') = ' ' OR ( NVL(M_RSNCODE,' ') != ' ' AND M_TRN_DATE < :dEndDate ) ) AND M_TRN_TYPO NOT IN ('A286_FX_COMM_SPOT')",SELECT,false,true,false,,1,853b4c0738eff8004d0ceec797dbdbc82e318221,code,csharp,CommandText,clsValasService.cs|SqlParameter|CommandText@283,this._connSFX,,LOW,clsValasService.cs,588
 dotnet-sample,clsValasService.cs,clsValasService.cs,InquiryVLSTransactionONFX276,352,352,"SELECT src, dealno, customer_id, acc_id, trx_branch, trx_date, trx_datetime, currency_code, amount, rate, InUSD, SourceKey, JISDORRate, InUSDJISDOR, m_pl_key, NIKAgent, GuidProcess, m_pl_key1 FROM dbo.VLSTransactions_TR_BackupONFX276","SELECT src, dealno, customer_id, acc_id, trx_branch, trx_date, trx_datetime, currency_code, amount, rate, InUSD, SourceKey, JISDORRate, InUSDJISDOR, m_pl_key, NIKAgent, GuidProcess, m_pl_key1 FROM dbo.VLSTransactions_TR_BackupONFX276",SELECT,false,false,false,,1,ccdc3dc66dd1b71ea36ca39974761388d23dbe69,code,csharp,CommandText,,this._connSFX,,LOW,clsValasService.cs,316
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,451,451,"
                     SELECT a.M_CONTRACT as M_NB,
@@ -640,111 +648,69 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,451,451,"
                         AND (mktop.M_RSNCODE is null OR rtrim(mktop.M_RSNCODE) = '')
                         ","SELECT a.M_CONTRACT as M_NB, case when translate( trim(c.M_IDSIBSCIF1), ' 1234567890', 'X' ) is null then lpad(trim(c.M_IDSIBSCIF1),19,'0') else rtrim(c.M_IDSIBSCIF1) end as M_IDSIBSCIF1, to_char(a.M_TRN_DATE,'YYYY-MM-DD') as M_TRN_DATE, (M_TRN_TIME - mod(M_TRN_TIME,3600))/3600||':'||LPAD((MOD(M_TRN_TIME,3600)-MOD(M_TRN_TIME,60))/60,2,'0')||':'||LPAD(MOD(M_TRN_TIME,60),2,'0') as TIME, a.M_BRW_NOMU1 as M_BRW_NOMU1, a.M_BRW_NOM1 as M_BRW_NOM1, a.M_BRW_NOMU2 as M_BRW_NOMU2, a.M_BRW_NOM2 as M_BRW_NOM2, a.M_COMMENT_BS as M_COMMENT_BS, rtrim(tdc.M_SOURCE_ID) as M_SOURCE_ID, rtrim(mktop.M_RSNCODE) as M_RSNCODE, CASE WHEN a.m_trn_type = 'RBT' THEN CASE WHEN a.M_COMMENT_BS = 'S' AND a.M_BRW_NOMU1 != 'IDR' THEN 'OPTIDR' WHEN a.M_COMMENT_BS = 'B' AND a.M_BRW_NOMU1 = 'IDR' THEN 'OPTVLS' ELSE a.m_pl_key1 END ELSE CASE a.M_BRW_ODFC0 WHEN 'IDR' THEN 'OPTIDR' ELSE 'OPTVLS' END END as M_PL_KEY1, a.M_TRN_TYPO as M_TRN_TYPO, a.M_BRW_ODFC0 ,a.M_NB as M_XNB ,a.M_CONTRACT as M_COTRACT ,TRIM(a.M_TRN_TYPE) AS M_TRN_TYPE FROM [[MurexSchema]].TABLE#DATA#COUNTERP_DBF c INNER JOIN [[MurexSchema]].TRN_HDR_DBF a ON c.M_LABEL = CASE WHEN a.M_COMMENT_BS='S' THEN a.M_BPFOLIO ELSE a.M_SPFOLIO END join [[MurexSchema]].TRN_EXT_DBF U on a.M_LEXTREF =U.M_REFERENCE INNER JOIN [[MurexSchema]].TABLE#DATA#DEALCURR_DBF tdc on U.M_UDF_REF = tdc.M_NB LEFT JOIN [[MurexSchema]].table#data#event_dbf mktop ON U.M_EVT_REF=mktop.M_REFERENCE LEFT JOIN [[MurexSchema]].TRN_BROKER_DBF brok ON a.M_NB=brok.M_NB and brok.M_LINE=0 LEFT JOIN [[MurexSchema]].FD121200_DBF fd ON a.M_NB=fd.M_NB WHERE a.M_TRN_FMLY = 'CURR' and a.M_trn_grp='OPT' and a.m_trn_type IN ('SMP', 'RBT') AND a.M_TRN_DATE >= to_date(:dStartDate, 'yyyy-MM-dd') AND a.M_TRN_DATE <= to_date(:dEndDate, 'yyyy-MM-dd') AND (a.M_BRW_NOMU2 = :cCur OR a.M_BRW_NOMU1 = :cCur) AND c.M_IDSIBSCIF1 <> '8888888888888888888' AND (rtrim(tdc.M_SOURCE_ID) <> 'BDS' OR rtrim(tdc.M_SOURCE_ID) IS NULL) AND (mktop.M_RSNCODE is null OR rtrim(mktop.M_RSNCODE) = '')",SELECT,false,true,false,,1,3013d4a5a77188ec8054ddaf61e5c47d8503636a,code,csharp,CommandText,clsValasService.cs|SqlParameter|CommandText@451,this._connSFX,,LOW,clsValasService.cs,6163
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,765,765,"
-                    SELECT a.M_CONTRACT as M_NB,
-                        case
-                            when translate( trim(c.M_IDSIBSCIF1), ' 1234567890', 'X' ) is null then lpad(trim(c.M_IDSIBSCIF1),19,'0')
-                            else rtrim(c.M_IDSIBSCIF1) end     as M_IDSIBSCIF1,
-                        to_char(a.M_TRN_DATE,'YYYY-MM-DD')     as M_TRN_DATE,
-                        (M_TRN_TIME - mod(M_TRN_TIME,3600))/3600||':'||LPAD((MOD(M_TRN_TIME,3600)-MOD(M_TRN_TIME,60))/60,2,'0')||':'||LPAD(MOD(M_TRN_TIME,60),2,'0') as TIME,
-                        a.M_BRW_NOMU1     as M_BRW_NOMU1,
-                        a.M_BRW_NOM1     as M_BRW_NOM1,
-                        a.M_BRW_NOMU2     as M_BRW_NOMU2,
-                        a.M_BRW_NOM2     as M_BRW_NOM2,
-                        a.M_COMMENT_BS     as M_COMMENT_BS,
-                        rtrim(tdc.M_SOURCE_ID)     as M_SOURCE_ID,
-                        rtrim(mktop.M_RSNCODE)     as M_RSNCODE,
+                    IF OBJECT_ID('tempdb..#tmpDeal') IS NOT NULL
+	                    DROP TABLE #tmpDeal
 
-                        
-                        
-                        
-                        CASE WHEN a.m_trn_type = 'RBT'
-                            THEN CASE 
-                                WHEN a.M_COMMENT_BS = 'S' AND a.M_BRW_NOMU1 != 'IDR' THEN 'OPTIDR'
-                                WHEN a.M_COMMENT_BS = 'B' AND a.M_BRW_NOMU1 = 'IDR' THEN 'OPTVLS' 
-                                ELSE a.m_pl_key1
-                            END
-                        ELSE
-                        CASE a.M_BRW_ODFC0 
-                            WHEN 'IDR' THEN 'OPTIDR'
-                            ELSE 'OPTVLS' END    
-                        END as M_PL_KEY1,
+                    CREATE TABLE #tmpDeal                     
+                    (    
+	                    FDocumentId	INT                		
+                    )   
 
-                        a.M_TRN_TYPO    as M_TRN_TYPO,
-                        a.M_BRW_ODFC0
-                        ,a.M_NB as  M_XNB
-                       ,a.M_CONTRACT as M_COTRACT
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                    
-                        ,TRIM(a.M_TRN_TYPE) AS M_TRN_TYPE
-                    FROM [[MurexSchema]].TABLE#DATA#COUNTERP_DBF c
-                    INNER JOIN [[MurexSchema]].TRN_HDR_DBF a
-                        ON c.M_LABEL =  CASE WHEN a.M_COMMENT_BS='S' THEN a.M_BPFOLIO ELSE a.M_SPFOLIO END
-                    join [[MurexSchema]].TRN_EXT_DBF U  
-                    on a.M_LEXTREF =U.M_REFERENCE
-                    INNER JOIN [[MurexSchema]].TABLE#DATA#DEALCURR_DBF tdc
-                        on U.M_UDF_REF = tdc.M_NB
-                    LEFT JOIN [[MurexSchema]].table#data#event_dbf mktop
-                        ON U.M_EVT_REF=mktop.M_REFERENCE
-                    LEFT JOIN [[MurexSchema]].TRN_BROKER_DBF brok
-                        ON a.M_NB=brok.M_NB and brok.M_LINE=0
-                    LEFT JOIN [[MurexSchema]].FD121200_DBF fd
-                        ON a.M_NB=fd.M_NB                    
-                    
-                    WHERE a.M_TRN_FMLY = 'CURR' 
-                        
-                        and a.M_trn_grp='OPT'
-                        
-                        
-                        and a.m_trn_type IN ('SMP', 'RBT')
-                        
-                        AND a.M_TRN_DATE >= to_date(:dStartDate, 'yyyy-MM-dd')
-                        AND a.M_TRN_DATE <= to_date(:dEndDate, 'yyyy-MM-dd')
-                        AND (a.M_BRW_NOMU2 = :cCur  OR a.M_BRW_NOMU1 = :cCur)  
-                        AND c.M_IDSIBSCIF1 <> '8888888888888888888'   
-                        AND (rtrim(tdc.M_SOURCE_ID) <> 'BDS' OR rtrim(tdc.M_SOURCE_ID) IS NULL)
-                        AND (mktop.M_RSNCODE is null OR rtrim(mktop.M_RSNCODE) = '')
-                        ","SELECT a.M_CONTRACT as M_NB, case when translate( trim(c.M_IDSIBSCIF1), ' 1234567890', 'X' ) is null then lpad(trim(c.M_IDSIBSCIF1),19,'0') else rtrim(c.M_IDSIBSCIF1) end as M_IDSIBSCIF1, to_char(a.M_TRN_DATE,'YYYY-MM-DD') as M_TRN_DATE, (M_TRN_TIME - mod(M_TRN_TIME,3600))/3600||':'||LPAD((MOD(M_TRN_TIME,3600)-MOD(M_TRN_TIME,60))/60,2,'0')||':'||LPAD(MOD(M_TRN_TIME,60),2,'0') as TIME, a.M_BRW_NOMU1 as M_BRW_NOMU1, a.M_BRW_NOM1 as M_BRW_NOM1, a.M_BRW_NOMU2 as M_BRW_NOMU2, a.M_BRW_NOM2 as M_BRW_NOM2, a.M_COMMENT_BS as M_COMMENT_BS, rtrim(tdc.M_SOURCE_ID) as M_SOURCE_ID, rtrim(mktop.M_RSNCODE) as M_RSNCODE, CASE WHEN a.m_trn_type = 'RBT' THEN CASE WHEN a.M_COMMENT_BS = 'S' AND a.M_BRW_NOMU1 != 'IDR' THEN 'OPTIDR' WHEN a.M_COMMENT_BS = 'B' AND a.M_BRW_NOMU1 = 'IDR' THEN 'OPTVLS' ELSE a.m_pl_key1 END ELSE CASE a.M_BRW_ODFC0 WHEN 'IDR' THEN 'OPTIDR' ELSE 'OPTVLS' END END as M_PL_KEY1, a.M_TRN_TYPO as M_TRN_TYPO, a.M_BRW_ODFC0 ,a.M_NB as M_XNB ,a.M_CONTRACT as M_COTRACT ,TRIM(a.M_TRN_TYPE) AS M_TRN_TYPE FROM [[MurexSchema]].TABLE#DATA#COUNTERP_DBF c INNER JOIN [[MurexSchema]].TRN_HDR_DBF a ON c.M_LABEL = CASE WHEN a.M_COMMENT_BS='S' THEN a.M_BPFOLIO ELSE a.M_SPFOLIO END join [[MurexSchema]].TRN_EXT_DBF U on a.M_LEXTREF =U.M_REFERENCE INNER JOIN [[MurexSchema]].TABLE#DATA#DEALCURR_DBF tdc on U.M_UDF_REF = tdc.M_NB LEFT JOIN [[MurexSchema]].table#data#event_dbf mktop ON U.M_EVT_REF=mktop.M_REFERENCE LEFT JOIN [[MurexSchema]].TRN_BROKER_DBF brok ON a.M_NB=brok.M_NB and brok.M_LINE=0 LEFT JOIN [[MurexSchema]].FD121200_DBF fd ON a.M_NB=fd.M_NB WHERE a.M_TRN_FMLY = 'CURR' and a.M_trn_grp='OPT' and a.m_trn_type IN ('SMP', 'RBT') AND a.M_TRN_DATE >= to_date(:dStartDate, 'yyyy-MM-dd') AND a.M_TRN_DATE <= to_date(:dEndDate, 'yyyy-MM-dd') AND (a.M_BRW_NOMU2 = :cCur OR a.M_BRW_NOMU1 = :cCur) AND c.M_IDSIBSCIF1 <> '8888888888888888888' AND (rtrim(tdc.M_SOURCE_ID) <> 'BDS' OR rtrim(tdc.M_SOURCE_ID) IS NULL) AND (mktop.M_RSNCODE is null OR rtrim(mktop.M_RSNCODE) = '')",SELECT,false,true,false,,1,3013d4a5a77188ec8054ddaf61e5c47d8503636a,code,csharp,CommandText,clsValasService.cs|SqlParameter|CommandText@765,this._connSmartFX,,LOW,clsValasService.cs,6163
+                    DECLARE 
+	                    @nDocHandle	INT
+
+                    EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput
+
+                    INSERT INTO #tmpDeal
+                    (
+	                    FDocumentId									
+                    )
+                    SELECT
+	                    FDocumentId
+                    FROM openxml(@nDocHandle, N'/Data/Deal',2)           
+                    WITH (
+	                    FDocumentId         INT       			
+                    )  
+
+                    SELECT DISTINCT
+	                    FId
+                        , FLabel
+                        , FExtLink
+                        , FExpired
+                    FROM dbo.TDealDocument AS t
+                    JOIN #tmpDeal AS tmp
+                    ON t.FId = tmp.FDocumentId
+                    ","IF OBJECT_ID('tempdb..#tmpDeal') IS NOT NULL DROP TABLE #tmpDeal CREATE TABLE #tmpDeal ( FDocumentId INT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpDeal ( FDocumentId ) SELECT FDocumentId FROM openxml(@nDocHandle, N'/Data/Deal',2) WITH ( FDocumentId INT ) SELECT DISTINCT FId , FLabel , FExtLink , FExpired FROM dbo.TDealDocument AS t JOIN #tmpDeal AS tmp ON t.FId = tmp.FDocumentId",INSERT,true,false,false,,4,3862c363b7d98b30a7259adfd24cfaf60eef9756,code,csharp,CommandText,,this._connSmartFX,,MEDIUM,clsValasService.cs,703
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,873,873,"
-                select M_NB
-                    , M_IDSIBSCIF1
-                    , M_TRN_DATE
-                    , TIME
-                    , M_BRW_NOMU1
-                    , M_BRW_NOM1
-                    , M_BRW_NOMU2
-                    , M_BRW_NOM2
-                    , M_COMMENT_BS
-                    , M_SOURCE_ID
-                    , M_RSNCODE
-                    , M_PL_KEY1
-                    , M_TRN_TYPO
+                    SELECT 
+                        [FXDEALN]   
+                        , CAST([FXBRAN]  AS INT) AS [FXBRAN]
+                        , CAST([FXORD7]  AS INT) AS [FXORD7]
+                        , CAST(ISNULL([FXDRAC_], 0) AS BIGINT) AS [FXDRAC_]
+                        , [FXCUCD]   
+                        , [FXTXAM] 
+                        , ISNULL([FXREMK], '') AS [FXREMK]
+                        , [FXTYPE]
+                        , CAST([FXDRCIF] AS BIGINT) AS [FXDRCIF]
+                        , [FXACCT]
+                        , [FXBSCD]
+                        , [FXECFLG]
+                        , [FXSTAT]
+                        , [FXCRTM]
+                        , [FXCIFN]
+                        , [FXFIL3]
+                        , SUBSTRING(FXDEALN, 6 , 1) AS [trxSource]
+                        
+                        , ISNULL([FXFLGLCS], '') AS [FXFLGLCS]
+                        
+                    FROM dbo.ZFXMAST 
                     
-                    , TRIM(M_TRN_FMLY) AS M_TRN_FMLY
-                    , TRIM(M_TRN_GRP) AS M_TRN_GRP
-                    , TRIM(M_TRN_TYPE) AS M_TRN_TYPE
                     
-                from dbo.TRN_HDR_FX
-                where M_TRN_DATE >= @dStartDate and M_TRN_DATE <= @dEndDate
-                    and 
-	                    ( M_BRW_NOMU2 = @cCur  OR M_BRW_NOMU1 = @cCur)                    
-                    and isnumeric(M_IDSIBSCIF1) = 1   
-                    and M_IDSIBSCIF1 <> '8888888888888888888'   
-                    and (M_SOURCE_ID <> 'BDS' OR M_SOURCE_ID IS NULL)
-                    and isnull(M_RSNCODE,'') = ''                       
+                    WHERE 1 = 1
                     
-                        ","select M_NB , M_IDSIBSCIF1 , M_TRN_DATE , TIME , M_BRW_NOMU1 , M_BRW_NOM1 , M_BRW_NOMU2 , M_BRW_NOM2 , M_COMMENT_BS , M_SOURCE_ID , M_RSNCODE , M_PL_KEY1 , M_TRN_TYPO , TRIM(M_TRN_FMLY) AS M_TRN_FMLY , TRIM(M_TRN_GRP) AS M_TRN_GRP , TRIM(M_TRN_TYPE) AS M_TRN_TYPE from dbo.TRN_HDR_FX where M_TRN_DATE >= @dStartDate and M_TRN_DATE <= @dEndDate and ( M_BRW_NOMU2 = @cCur OR M_BRW_NOMU1 = @cCur) and isnumeric(M_IDSIBSCIF1) = 1 and M_IDSIBSCIF1 <> '8888888888888888888' and (M_SOURCE_ID <> 'BDS' OR M_SOURCE_ID IS NULL) and isnull(M_RSNCODE,'') = ''",SELECT,false,false,false,,1,6ea135f6afb81a77f26ce213334e21d720d18c34,code,csharp,CommandText,,this._connSmartFX,,LOW,clsValasService.cs,382
+                        AND [FXORD7] >= @jStartDate 
+                        AND [FXORD7] <= @jEndDate                                                                               
+                        ","SELECT [FXDEALN] , CAST([FXBRAN] AS INT) AS [FXBRAN] , CAST([FXORD7] AS INT) AS [FXORD7] , CAST(ISNULL([FXDRAC_], 0) AS BIGINT) AS [FXDRAC_] , [FXCUCD] , [FXTXAM] , ISNULL([FXREMK], '') AS [FXREMK] , [FXTYPE] , CAST([FXDRCIF] AS BIGINT) AS [FXDRCIF] , [FXACCT] , [FXBSCD] , [FXECFLG] , [FXSTAT] , [FXCRTM] , [FXCIFN] , [FXFIL3] , SUBSTRING(FXDEALN, 6 , 1) AS [trxSource] , ISNULL([FXFLGLCS], '') AS [FXFLGLCS] FROM dbo.ZFXMAST WHERE 1 = 1 AND [FXORD7] >= @jStartDate AND [FXORD7] <= @jEndDate",SELECT,false,false,false,,1,664f5e98fe0cf72b11d9ff7cca4a9b98ed903b41,code,csharp,CommandText,,this._connSmartFX,,LOW,clsValasService.cs,208
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1054,1054,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2847,10 +2813,10 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4880,48
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5477,5477,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5565,5565,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5653,5653,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,3996
-dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6008,6008,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'",INSERT,true,true,false,,4,4e14ea2a0fe1676f58b10fefdee55fe1ed389252,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6008,connProps,,HIGH,clsValasService.cs,3838
-dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6008,6008,DELETE FROM dbo.<expr>,DELETE FROM dbo.<expr>,DELETE,true,true,false,,1,609e6bbb5d87a351133aed87383be35114577ef9,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6008,connProps,,HIGH,clsValasService.cs,3838
-dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6097,6097,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'",INSERT,true,true,false,,4,4e14ea2a0fe1676f58b10fefdee55fe1ed389252,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6097,connProps,,HIGH,clsValasService.cs,2019
-dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6097,6097,DELETE FROM dbo.<expr>,DELETE FROM dbo.<expr>,DELETE,true,true,false,,1,609e6bbb5d87a351133aed87383be35114577ef9,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6097,connProps,,HIGH,clsValasService.cs,2019
+dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6008,6008,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'",INSERT,true,true,false,,4,4e14ea2a0fe1676f58b10fefdee55fe1ed389252,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6008,connProps,,HIGH,clsValasService.cs,1113
+dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6008,6008,DELETE FROM dbo.<expr>,DELETE FROM dbo.<expr>,DELETE,true,true,false,,1,609e6bbb5d87a351133aed87383be35114577ef9,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6008,connProps,,HIGH,clsValasService.cs,1113
+dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6097,6097,"INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'","INSERT INTO dbo.VLSTransactionsToday_TL ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , InsertedDate ) SELECT src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent , GuidProcess , m_pl_key1 , WaktuMasukDeal FROM dbo.VLSTransactionsToday_TR WHERE ISNULL(GuidProcess, 0x0) != '<expr>'",INSERT,true,true,false,,4,4e14ea2a0fe1676f58b10fefdee55fe1ed389252,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6097,connProps,,HIGH,clsValasService.cs,3789
+dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataNotInProcess,6097,6097,DELETE FROM dbo.<expr>,DELETE FROM dbo.<expr>,DELETE,true,true,false,,1,609e6bbb5d87a351133aed87383be35114577ef9,code,csharp,CommandText,clsValasService.cs|DeleteDataNotInProcess|CommandText@6097,connProps,,HIGH,clsValasService.cs,3789
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,6371,6371,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3169,15 +3135,15 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2
                     )  
 
                     ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,3,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7232,7232,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8693
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7313,7313,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8540
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7394,7394,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8557
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7693,7693,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8608
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7774,7774,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8540
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7855,7855,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8557
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV3,8286,8286,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8608
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7232,7232,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8523
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7313,7313,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8710
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7394,7394,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8642
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7693,7693,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8693
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7774,7774,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8625
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV3,7855,7855,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8642
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV3,8286,8286,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8523
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV3,8368,8368,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8710
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV3,8449,8449,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8727
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV3,8449,8449,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8557
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasTransactionV2,8526,8526,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasTransactionV2|CommandText@8526,this._connSFX,,HIGH,clsValasService.cs,8523
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasTransactionV2,8543,8543,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasTransactionV2|CommandText@8543,this._connObli,,HIGH,clsValasService.cs,8540
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasTransactionV2,8560,8560,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasTransactionV2|CommandText@8560,this._connSibs,,HIGH,clsValasService.cs,8557
@@ -3187,8 +3153,8 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasSummaryV2,864
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasResultV2,8696,8696,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasResultV2|CommandText@8696,this._connSFX,,HIGH,clsValasService.cs,8693
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasResultV2,8713,8713,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasResultV2|CommandText@8713,this._connObli,,HIGH,clsValasService.cs,8710
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasResultV2,8730,8730,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataValasResultV2|CommandText@8730,this._connSibs,,HIGH,clsValasService.cs,8727
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9075,9075,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8523
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9156,9156,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8540
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9075,9075,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSFX,,MEDIUM,clsValasService.cs,8693
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9156,9156,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connObli,,MEDIUM,clsValasService.cs,8625
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9237,9237,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,this._connSibs,,MEDIUM,clsValasService.cs,8557
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataSummaryValas,9313,9313,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataSummaryValas|CommandText@9313,this._connSFX,,HIGH,clsValasService.cs,9310
 dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataSummaryValas,9330,9330,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|DeleteDataSummaryValas|CommandText@9330,this._connObli,,HIGH,clsValasService.cs,9327
