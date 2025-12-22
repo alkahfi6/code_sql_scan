@@ -119,7 +119,9 @@ func analyzeCandidate(c *SqlCandidate) {
 	tokens := append([]ObjectToken{}, dmlTokens...)
 	tokens = append(tokens, findObjectTokens(sqlClean)...)
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
-	tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
+	if !hasDynamicToken(tokens) {
+		tokens = append(tokens, inferDynamicObjectFallbacks(sqlClean, c.RawSql, usage, c.LineStart)...)
+	}
 	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
 		tokens = ensureDynamicSqlPseudo(tokens, c, "UNKNOWN")
 	}
@@ -273,6 +275,64 @@ func analyzeCandidate(c *SqlCandidate) {
 			}
 		}
 	}
+
+	if hasDynamicToken(tokens) {
+		hasSpecificDyn := false
+		for _, tok := range tokens {
+			if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
+				if strings.TrimSpace(tok.DbName) != "" || (strings.TrimSpace(tok.SchemaName) != "" && !strings.EqualFold(strings.TrimSpace(tok.SchemaName), "dbo")) {
+					hasSpecificDyn = true
+					break
+				}
+			}
+		}
+
+		if hasSpecificDyn {
+			var filtered []ObjectToken
+			for _, tok := range tokens {
+				if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
+					dbEmpty := strings.TrimSpace(tok.DbName) == ""
+					schemaEmptyOrDbo := strings.TrimSpace(tok.SchemaName) == "" || strings.EqualFold(strings.TrimSpace(tok.SchemaName), "dbo")
+					if dbEmpty && schemaEmptyOrDbo {
+						continue
+					}
+				}
+				filtered = append(filtered, tok)
+			}
+			tokens = filtered
+		}
+
+		var bestDyn ObjectToken
+		hasDyn := false
+		isBetterDyn := func(a, b ObjectToken) bool {
+			if strings.TrimSpace(b.DbName) == "" && strings.TrimSpace(a.DbName) != "" {
+				return true
+			}
+			if strings.TrimSpace(b.DbName) != "" && strings.TrimSpace(a.DbName) == "" {
+				return false
+			}
+			if (strings.TrimSpace(b.SchemaName) == "" || strings.EqualFold(strings.TrimSpace(b.SchemaName), "dbo")) && strings.TrimSpace(a.SchemaName) != "" && !strings.EqualFold(strings.TrimSpace(a.SchemaName), "dbo") {
+				return true
+			}
+			return false
+		}
+
+		var filtered []ObjectToken
+		for _, tok := range tokens {
+			if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
+				if !hasDyn || isBetterDyn(tok, bestDyn) {
+					bestDyn = tok
+					hasDyn = true
+				}
+				continue
+			}
+			filtered = append(filtered, tok)
+		}
+		if hasDyn {
+			filtered = append(filtered, bestDyn)
+		}
+		tokens = filtered
+	}
 	classifyObjects(c, usage, tokens)
 
 	c.DynamicSignature = buildDynamicSignature(c)
@@ -350,7 +410,6 @@ func splitSqlStatements(sql string) []string {
 		return nil
 	}
 
-	lower := strings.ToLower(sql)
 	var parts []string
 	var buf strings.Builder
 	inSingle, inDouble := false, false
@@ -362,23 +421,6 @@ func splitSqlStatements(sql string) []string {
 			parts = append(parts, part)
 		}
 		buf.Reset()
-	}
-
-	isBoundary := func(r rune) bool {
-		return unicode.IsSpace(r) || strings.ContainsRune(";,()", r)
-	}
-
-	matchKeyword := func(idx int, kw string) bool {
-		if idx < 0 || idx+len(kw) > len(lower) {
-			return false
-		}
-		if lower[idx:idx+len(kw)] != kw {
-			return false
-		}
-		beforeBoundary := idx == 0 || isBoundary(rune(lower[idx-1]))
-		afterIdx := idx + len(kw)
-		afterBoundary := afterIdx >= len(lower) || isBoundary(rune(lower[afterIdx]))
-		return beforeBoundary && afterBoundary
 	}
 
 	for i := 0; i < len(sql); {
@@ -423,15 +465,6 @@ func splitSqlStatements(sql string) []string {
 				flush()
 				i++
 				continue
-			}
-
-			if parenDepth == 0 {
-				if matchKeyword(i, "insert into") || matchKeyword(i, "update") || matchKeyword(i, "delete from") || matchKeyword(i, "truncate table") {
-					if strings.TrimSpace(buf.String()) != "" {
-						flush()
-						continue
-					}
-				}
 			}
 		}
 
@@ -1663,6 +1696,10 @@ func inferDynamicObjectFallbacks(sqlClean, rawSql, usage string, line int) []Obj
 	}
 
 	if !hasHint(sqlClean) && !hasHint(rawSql) {
+		return nil
+	}
+
+	if strings.Contains(sqlClean, "[[") || strings.Contains(sqlClean, "]]") {
 		return nil
 	}
 

@@ -592,10 +592,16 @@ func injectLineBreakAfterDashComments(sql string) string {
 	for i := 0; i < len(sql); i++ {
 		c := sql[i]
 		if c == '-' && i+1 < len(sql) && sql[i+1] == '-' {
+			// Skip the comment payload while preserving the delimiter and a trailing newline
+			// so the comment stripper can remove the full line cleanly.
 			out.WriteString("--")
-			i++
-			if i+1 < len(sql) && sql[i+1] != '\n' && sql[i+1] != '\r' {
-				out.WriteByte('\n')
+			i += 2
+			for i < len(sql) {
+				if sql[i] == '\n' || sql[i] == '\r' {
+					out.WriteByte(sql[i])
+					break
+				}
+				i++
 			}
 			continue
 		}
