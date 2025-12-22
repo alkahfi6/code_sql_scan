@@ -40,31 +40,28 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			startIdx = len(lines) - 1
 		}
 
-		inString := false
-		verbatim := false
-		escaped := false
-
+		// First, try to locate an explicit method declaration above the line.
 		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
-			open, _, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[i], inString, verbatim, escaped)
-			inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
-			if open > 0 && strings.Contains(lines[i], "{") {
-				trimmed := strings.TrimSpace(lines[i])
-				name := extractCsMethodName(trimmed)
-				if name == "" && i > 0 {
-					combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
-					name = extractCsMethodName(combined)
+			trimmed := strings.TrimSpace(lines[i])
+			if !strings.Contains(trimmed, "{") {
+				continue
+			}
+			name := extractCsMethodName(trimmed)
+			if name == "" && i > 0 {
+				combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
+				name = extractCsMethodName(combined)
+			}
+			if name != "" {
+				start := i + 1
+				end := line
+				if end < start {
+					end = start
 				}
-				if name != "" {
-					start := i + 1
-					end := line
-					if end < start {
-						end = start
-					}
-					return &methodRange{Name: name, Start: start, End: end}
-				}
+				return &methodRange{Name: name, Start: start, End: end}
 			}
 		}
 
+		// Fallback to the closest known method range within the search window.
 		var best *methodRange
 		for i := range methodRanges {
 			mr := &methodRanges[i]
@@ -76,10 +73,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				return mr
 			}
 		}
-		if best != nil {
-			if line-best.End <= maxSearch {
-				return best
-			}
+		if best != nil && line-best.End <= maxSearch {
+			return best
 		}
 		return nil
 	}

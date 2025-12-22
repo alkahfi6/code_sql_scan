@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"sort"
 	"strings"
 
 	summary "code_sql_scan/summary"
@@ -52,7 +53,22 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 		return err
 	}
 
+	sort.Slice(cands, func(i, j int) bool {
+		a, b := cands[i], cands[j]
+		if a.RelPath != b.RelPath {
+			return a.RelPath < b.RelPath
+		}
+		if a.LineStart != b.LineStart {
+			return a.LineStart < b.LineStart
+		}
+		if a.Func != b.Func {
+			return a.Func < b.Func
+		}
+		return a.QueryHash < b.QueryHash
+	})
+
 	pseudoWritten := make(map[string]struct{})
+	var objectRows [][]string
 
 	for _, c := range cands {
 		funcName := resolver.Resolve(c.Func, c.RelPath, c.File, c.LineStart)
@@ -135,9 +151,23 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				boolToStr(o.IsPseudoObject),
 				pseudoKind,
 			}
-			if err := ow.Write(oRow); err != nil {
-				return err
-			}
+			objectRows = append(objectRows, oRow)
+		}
+	}
+
+	sort.Slice(objectRows, func(i, j int) bool {
+		if objectRows[i][1] != objectRows[j][1] {
+			return objectRows[i][1] < objectRows[j][1]
+		}
+		if objectRows[i][5] != objectRows[j][5] {
+			return objectRows[i][5] < objectRows[j][5]
+		}
+		return objectRows[i][11] < objectRows[j][11]
+	})
+
+	for _, row := range objectRows {
+		if err := ow.Write(row); err != nil {
+			return err
 		}
 	}
 
