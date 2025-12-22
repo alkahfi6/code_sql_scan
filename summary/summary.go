@@ -15,8 +15,8 @@ import (
 )
 
 var (
-	csMethodRe     = regexp.MustCompile(`(?i)\b(public|private|protected|internal|static|async|sealed|override|virtual|partial)\b[^\{]*\b([A-Za-z_][A-Za-z0-9_]*)\s*\(`)
-	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*{?`)
+	csMethodRe     = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new)(?:\s+(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new))*\s+[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
+	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*[A-Za-z_][A-Za-z0-9_<>,\[\]\s]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
 	atLinePattern  = regexp.MustCompile(`(?i)@l(\d+)$`)
 	fileScopeLabel = regexp.MustCompile(`(?i)<file-scope>`)
 )

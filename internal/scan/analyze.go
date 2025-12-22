@@ -1063,14 +1063,24 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 			return tokens
 		}
 	}
+	if strings.TrimSpace(dml) == "" {
+		dml = "UNKNOWN"
+	}
+	role := "mixed"
+	isWrite := c.IsWrite
+	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && strings.EqualFold(strings.TrimSpace(c.UsageKind), "EXEC") {
+		role = "exec"
+		dml = "EXEC"
+		isWrite = true
+	}
 	tokens = append(tokens, ObjectToken{
 		BaseName:           "<dynamic-sql>",
 		FullName:           "<dynamic-sql>",
 		DbName:             "",
 		SchemaName:         "",
-		Role:               "mixed",
+		Role:               role,
 		DmlKind:            dml,
-		IsWrite:            c.IsWrite,
+		IsWrite:            isWrite,
 		IsObjectNameDyn:    false,
 		IsPseudoObject:     true,
 		PseudoKind:         "dynamic-sql",
@@ -1178,9 +1188,16 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			tokens[i].RepresentativeLine = c.LineStart
 		}
 		if tokens[i].IsPseudoObject && strings.EqualFold(strings.TrimSpace(tokens[i].BaseName), "<dynamic-sql>") {
-			preserveRole[i] = false
-			tokens[i].IsWrite = false
-			tokens[i].Role = strings.TrimSpace(tokens[i].Role)
+			if strings.EqualFold(strings.TrimSpace(usageKind), "EXEC") {
+				preserveRole[i] = true
+				tokens[i].Role = "exec"
+				tokens[i].DmlKind = "EXEC"
+				tokens[i].IsWrite = true
+			} else {
+				preserveRole[i] = false
+				tokens[i].IsWrite = false
+				tokens[i].Role = strings.TrimSpace(tokens[i].Role)
+			}
 			continue
 		}
 		if strings.TrimSpace(tokens[i].Role) != "" || strings.TrimSpace(tokens[i].DmlKind) != "" || tokens[i].IsWrite {
