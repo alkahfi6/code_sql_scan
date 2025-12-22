@@ -15,10 +15,10 @@ import (
 )
 
 var (
-	csMethodRe     = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new)(?:\s+(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new))*\s+(?:ref\s+|out\s+|in\s+|params\s+)?[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?\(\)]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
-	csMethodNoMod  = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:ref\s+|out\s+|in\s+|params\s+)?[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?\(\)]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{?`)
-	atLinePattern  = regexp.MustCompile(`(?i)@l(\d+)$`)
-	fileScopeLabel = regexp.MustCompile(`(?i)<file-scope>`)
+	csMethodWithBrace      = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new)?(?:\s+(?:public|private|protected|internal|static|async|sealed|override|virtual|partial|extern|unsafe|new))*\s+[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{`)
+	csMethodNoModWithBrace = regexp.MustCompile(`(?i)^\s*(?:\[[^\]]+\]\s*)*(?:ref\s+|out\s+|in\s+|params\s+)?[A-Za-z_][A-Za-z0-9_<>,\[\]\s\.\?]*\s+([A-Za-z_][A-Za-z0-9_]*)\s*\([^;]*\)\s*(?:where\s+[^\{]+)?\{`)
+	atLinePattern          = regexp.MustCompile(`(?i)@l(\d+)$`)
+	fileScopeLabel         = regexp.MustCompile(`(?i)<file-scope>`)
 )
 
 var (
@@ -451,7 +451,7 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 
 func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
-	objects = normalizeObjectRows(objects)
+	objects = NormalizeObjectRows(objects)
 	grouped := make(map[string][]QueryRow)
 	queryByKey := make(map[string]QueryRow)
 
@@ -759,31 +759,28 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
 	type agg struct {
-		appName        string
-		relPath        string
-		fullName       string
-		baseName       string
-		funcSet        map[string]struct{}
-		funcCounts     map[string]int
-		firstFunc      string
-		reads          int
-		writes         int
-		execs          int
-		dmlSet         map[string]struct{}
-		dbSet          map[string]struct{}
-		hasCross       bool
-		isPseudo       bool
-		pseudoKinds    map[string]int
-		hasPseudoLines bool
+		appName     string
+		relPath     string
+		fullName    string
+		baseName    string
+		dbName      string
+		schemaName  string
+		funcSet     map[string]struct{}
+		funcCounts  map[string]int
+		firstFunc   string
+		reads       int
+		writes      int
+		execs       int
+		dmlSet      map[string]struct{}
+		dbSet       map[string]struct{}
+		hasCross    bool
+		isPseudo    bool
+		pseudoKinds map[string]int
 	}
 
-	objects = normalizeObjectRows(objects)
+	objects = NormalizeObjectRows(objects)
 
 	grouped := make(map[string]*agg)
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range queries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
 	for _, o := range objects {
 		if shouldSkipObject(o) {
 			continue
@@ -792,27 +789,17 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if strings.TrimSpace(fullName) == "" {
 			continue
 		}
-		dbParsed, _, parsedBase := splitFullObjectName(fullName)
-		baseName := strings.TrimSpace(o.BaseName)
-		if baseName == "" {
-			baseName = parsedBase
-		}
-		pseudoKind := strings.TrimSpace(o.PseudoKind)
-		isPseudoObj := o.IsPseudoObject
-		if detected, kind := pseudoObjectInfo(baseName, pseudoKind); detected {
-			isPseudoObj = true
-			pseudoKind = defaultPseudoKind(kind)
-		} else if isPseudoObj {
-			pseudoKind = defaultPseudoKind(pseudoKind)
-		}
-		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
+
+		key := ObjectSummaryGroupKey(o)
 		entry := grouped[key]
 		if entry == nil {
 			entry = &agg{
 				appName:     o.AppName,
 				relPath:     o.RelPath,
 				fullName:    fullName,
-				baseName:    baseName,
+				baseName:    strings.TrimSpace(o.BaseName),
+				dbName:      strings.TrimSpace(o.DbName),
+				schemaName:  strings.TrimSpace(o.SchemaName),
 				funcSet:     make(map[string]struct{}),
 				funcCounts:  make(map[string]int),
 				dmlSet:      make(map[string]struct{}),
@@ -820,29 +807,20 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 				pseudoKinds: make(map[string]int),
 			}
 			grouped[key] = entry
-		} else if entry.baseName == "" {
-			entry.baseName = baseName
 		}
 
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
-		qRow, hasQuery := queryByKey[qKey]
-		flags := roleFlagsForObject(o, qRow, hasQuery)
-		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		switch {
-		case flags.exec:
-			entry.execs++
-		case flags.write:
-			entry.writes++
-		default:
-			entry.reads++
-		}
+		read, write, exec := ObjectRoleBuckets(o)
+		entry.reads += read
+		entry.writes += write
+		entry.execs += exec
 
 		if o.IsCrossDb {
 			entry.hasCross = true
 		}
-		if db := strings.TrimSpace(dbParsed); db != "" {
+		if db := strings.TrimSpace(o.DbName); db != "" {
 			entry.dbSet[db] = struct{}{}
 		}
+		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
 		if upperDml != "" {
 			for _, part := range strings.Split(upperDml, ";") {
 				trimmed := strings.TrimSpace(part)
@@ -853,10 +831,9 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			}
 		}
 
-		if isPseudoObj {
+		if o.IsPseudoObject {
 			entry.isPseudo = true
-			entry.pseudoKinds[pseudoKind]++
-			entry.hasPseudoLines = true
+			entry.pseudoKinds[defaultPseudoKind(o.PseudoKind)]++
 		}
 
 		fn := strings.TrimSpace(o.Func)
@@ -880,24 +857,9 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			}
 		}
 		if len(exampleFuncs) == 0 && entry.firstFunc != "" {
-			exampleFuncs = []string{entry.firstFunc}
-		}
-		if len(exampleFuncs) == 0 {
-			exampleFuncs = []string{"<unknown-func>"}
-		}
-		if entry.firstFunc != "" {
-			present := false
-			for _, ex := range exampleFuncs {
-				if ex == entry.firstFunc {
-					present = true
-					break
-				}
-			}
-			if !present {
-				exampleFuncs = append([]string{entry.firstFunc}, exampleFuncs...)
-				if len(exampleFuncs) > 5 {
-					exampleFuncs = exampleFuncs[:5]
-				}
+			exampleFuncs = append([]string{entry.firstFunc}, exampleFuncs...)
+			if len(exampleFuncs) > 5 {
+				exampleFuncs = exampleFuncs[:5]
 			}
 		}
 
@@ -906,8 +868,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			pseudoKind = "unknown"
 		}
 
-		roleSummary := summarizeRoleCounts(entry.reads, entry.writes, entry.execs)
-		roleSummaryCompact := summarizeRoleCountsCompact(entry.reads, entry.writes, entry.execs)
+		roleLabel := summarizeRoleLabel(entry.reads, entry.writes, entry.execs)
+		roleCounts := summarizeRoleCounts(entry.reads, entry.writes, entry.execs)
 		dmlKinds := setToSortedSlice(entry.dmlSet)
 
 		result = append(result, ObjectSummaryRow{
@@ -915,8 +877,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			RelPath:        entry.relPath,
 			BaseName:       entry.baseName,
 			FullObjectName: entry.fullName,
-			Roles:          roleSummary,
-			RolesSummary:   roleSummaryCompact,
+			Roles:          roleLabel,
+			RolesSummary:   roleCounts,
 			DmlKinds:       strings.Join(dmlKinds, ";"),
 			TotalReads:     entry.reads,
 			TotalWrites:    entry.writes,
@@ -932,10 +894,19 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i], result[j]
-		if a.RelPath != b.RelPath {
-			return a.RelPath < b.RelPath
+		if a.IsPseudoObject != b.IsPseudoObject {
+			return !a.IsPseudoObject && b.IsPseudoObject
 		}
-		return a.BaseName < b.BaseName
+		if a.BaseName != b.BaseName {
+			return a.BaseName < b.BaseName
+		}
+		if a.FullObjectName != b.FullObjectName {
+			return a.FullObjectName < b.FullObjectName
+		}
+		if a.Roles != b.Roles {
+			return a.Roles < b.Roles
+		}
+		return a.RelPath < b.RelPath
 	})
 
 	return result, nil
@@ -943,7 +914,7 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 
 func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
-	objects = normalizeObjectRows(objects)
+	objects = NormalizeObjectRows(objects)
 	groupQueries := make(map[string][]QueryRow)
 	objectSetByForm := make(map[string]map[string]struct{})
 	objectCountByForm := make(map[string]int)
@@ -1703,6 +1674,39 @@ func summarizeRoleCountsCompact(reads, writes, execs int) string {
 	return fmt.Sprintf("reads:%d,writes:%d,execs:%d", reads, writes, execs)
 }
 
+func summarizeRoleLabel(reads, writes, execs int) string {
+	switch {
+	case execs > 0 && reads == 0 && writes == 0:
+		return "exec"
+	case reads > 0 && writes == 0 && execs == 0:
+		return "source"
+	case writes > 0 && reads == 0 && execs == 0:
+		return "target"
+	default:
+		return "mixed"
+	}
+}
+
+func ObjectRoleBuckets(o ObjectRow) (int, int, int) {
+	upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
+	role := strings.ToLower(strings.TrimSpace(o.Role))
+
+	isExec := upperDml == "EXEC"
+	isWrite := o.IsWrite && isWriteDml(upperDml)
+	isRead := !o.IsWrite && (upperDml == "SELECT" || role == "source")
+
+	switch {
+	case isExec:
+		return 0, 0, 1
+	case isWrite:
+		return 0, 1, 0
+	case isRead:
+		return 1, 0, 0
+	default:
+		return 0, 0, 0
+	}
+}
+
 func buildTopObjects(stats map[string]*objectRoleCounter) string {
 	if len(stats) == 0 {
 		return ""
@@ -2074,22 +2078,49 @@ func extractLineNumberFromFunc(name string) int {
 
 func buildSequentialMethodIndex(lines []string) []*methodRange {
 	methodAtLine := make([]*methodRange, len(lines))
-	var current *methodRange
+	i := 0
 	inString := false
 	verbatim := false
 	escaped := false
-	for i, line := range lines {
-		if !inString {
-			if name := extractCsMethodName(strings.TrimSpace(line)); name != "" {
-				current = &methodRange{Name: name, Start: i + 1, End: i + 1}
+
+	for i < len(lines) {
+		name, braceLine := detectCsMethodSignature(lines, i)
+		if name == "" {
+			_, _, inString, verbatim, escaped = countBracesAndStringState(lines[i], inString, verbatim, escaped)
+			i++
+			continue
+		}
+
+		startLine := i + 1
+		endLine := startLine
+		depth := 0
+		for idx := i; idx < len(lines); idx++ {
+			open, close, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[idx], inString, verbatim, escaped)
+			inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
+			depth += open
+			depth -= close
+			if idx == braceLine && depth == 0 {
+				depth = 1
+			}
+			if depth == 0 && idx >= braceLine {
+				endLine = idx + 1
+				break
+			}
+			if idx == len(lines)-1 {
+				endLine = len(lines)
 			}
 		}
-		_, _, inString, verbatim, escaped = countBracesAndStringState(line, inString, verbatim, escaped)
-		if current != nil {
-			current.End = i + 1
-			methodAtLine[i] = current
+
+		mr := &methodRange{Name: name, Start: startLine, End: endLine}
+		for line := startLine - 1; line < endLine && line < len(methodAtLine); line++ {
+			methodAtLine[line] = mr
 		}
+		if endLine <= startLine {
+			endLine = startLine
+		}
+		i = endLine
 	}
+
 	return methodAtLine
 }
 
@@ -2109,7 +2140,7 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 		if strings.HasPrefix(trimmed, "[") && strings.HasSuffix(trimmed, "]") {
 			continue
 		}
-		name := extractCsMethodName(trimmed)
+		name, _ := detectCsMethodSignature([]string{trimmed + "{"}, 0)
 		if name != "" {
 			start := i + 1
 			end := line
@@ -2122,17 +2153,48 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 	return nil
 }
 
-func extractCsMethodName(trimmed string) string {
-	if strings.TrimSpace(trimmed) == "" {
+func detectCsMethodSignature(lines []string, start int) (string, int) {
+	var buffer strings.Builder
+	braceLine := -1
+	for i := start; i < len(lines); i++ {
+		trimmed := strings.TrimSpace(lines[i])
+		if trimmed == "" || strings.HasPrefix(trimmed, "//") {
+			continue
+		}
+		buffer.WriteString(trimmed)
+		buffer.WriteString(" ")
+		candidate := buffer.String()
+		if strings.Contains(candidate, "{") {
+			braceLine = i
+		}
+
+		if name := extractCsMethodName(candidate); name != "" && braceLine >= 0 {
+			return name, braceLine
+		}
+
+		if braceLine >= 0 {
+			break
+		}
+
+		if i-start > 5 {
+			break
+		}
+	}
+	return "", -1
+}
+
+func extractCsMethodName(candidate string) string {
+	trimmed := strings.TrimSpace(candidate)
+	if trimmed == "" {
 		return ""
 	}
 	if isCsControlKeyword(leadingToken(trimmed)) {
 		return ""
 	}
-	if m := csMethodRe.FindStringSubmatch(trimmed); len(m) >= 3 {
-		return m[2]
+	if m := csMethodWithBrace.FindStringSubmatch(trimmed); len(m) >= 2 {
+		return m[1]
 	}
-	if m := csMethodNoMod.FindStringSubmatch(trimmed); len(m) >= 2 {
+	if m := csMethodNoModWithBrace.FindStringSubmatch(trimmed); len(m) >= 2 {
 		candidate := m[1]
 		if isCsControlKeyword(strings.ToLower(candidate)) {
 			return ""
@@ -2377,6 +2439,58 @@ func objectSummaryKeyDetailed(app, rel, full, base, role, dml string, isPseudo b
 	return strings.Join(parts, "|")
 }
 
+func ObjectSummaryGroupKey(o ObjectRow) string {
+	full := chooseFullObjectName(o)
+	base := strings.TrimSpace(o.BaseName)
+	if base == "" {
+		_, _, parsedBase := splitFullObjectName(full)
+		base = parsedBase
+	}
+
+	isPseudo := o.IsPseudoObject
+	pseudoKind := strings.TrimSpace(o.PseudoKind)
+	if detected, kind := pseudoObjectInfo(base, pseudoKind); detected {
+		isPseudo = true
+		pseudoKind = defaultPseudoKind(kind)
+	} else if isPseudo {
+		pseudoKind = defaultPseudoKind(pseudoKind)
+	} else {
+		pseudoKind = ""
+	}
+
+	return strings.Join([]string{
+		o.AppName,
+		o.RelPath,
+		full,
+		strings.TrimSpace(o.DbName),
+		strings.TrimSpace(o.SchemaName),
+		base,
+		boolToStr(isPseudo),
+		pseudoKind,
+	}, "|")
+}
+
+func ObjectSummaryRowKey(row ObjectSummaryRow) string {
+	db, schema, parsedBase := splitFullObjectName(row.FullObjectName)
+	base := strings.TrimSpace(row.BaseName)
+	if base == "" {
+		base = parsedBase
+	}
+
+	o := normalizeObjectRow(ObjectRow{
+		AppName:        row.AppName,
+		RelPath:        row.RelPath,
+		ObjectName:     row.FullObjectName,
+		DbName:         db,
+		SchemaName:     schema,
+		BaseName:       base,
+		IsPseudoObject: row.IsPseudoObject,
+		PseudoKind:     row.PseudoKind,
+	})
+
+	return ObjectSummaryGroupKey(o)
+}
+
 func boolToStr(b bool) string {
 	if b {
 		return "true"
@@ -2398,7 +2512,7 @@ func buildFullName(db, schema, base string) string {
 	return strings.Join(parts, ".")
 }
 
-func normalizeObjectRows(objects []ObjectRow) []ObjectRow {
+func NormalizeObjectRows(objects []ObjectRow) []ObjectRow {
 	if len(objects) == 0 {
 		return objects
 	}
@@ -2432,10 +2546,12 @@ func normalizeObjectRow(o ObjectRow) ObjectRow {
 		o.SchemaName = "dbo"
 	}
 
-	if !o.IsPseudoObject {
-		o.PseudoKind = ""
+	if detected, kind := pseudoObjectInfo(o.BaseName, o.PseudoKind); detected {
+		o.IsPseudoObject = true
+		o.PseudoKind = defaultPseudoKind(kind)
 	} else {
-		o.PseudoKind = defaultPseudoKind(o.PseudoKind)
+		o.IsPseudoObject = false
+		o.PseudoKind = ""
 	}
 
 	// Rebuild object name with normalized parts to ensure consistency.

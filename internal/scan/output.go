@@ -300,15 +300,23 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 		objectCounts := aggregateObjectCounts(queries, objects)
 		objectSummaryMap := make(map[string]summary.ObjectSummaryRow)
 		for _, row := range objectSummary {
-			key := strings.Join([]string{row.AppName, row.RelPath, row.FullObjectName}, "|")
+			key := summary.ObjectSummaryRowKey(row)
 			objectSummaryMap[key] = row
 		}
 
 		for key, expected := range objectCounts {
 			sum, ok := objectSummaryMap[key]
+			parts := strings.Split(key, "|")
+			rel := ""
+			full := ""
+			if len(parts) >= 2 {
+				rel = parts[1]
+			}
+			if len(parts) >= 3 {
+				full = parts[2]
+			}
 			if !ok {
-				parts := strings.SplitN(key, "|", 3)
-				errors = append(errors, fmt.Sprintf("object %s/%s missing in summary (expected reads=%d writes=%d exec=%d)", parts[1], parts[2], expected.Reads, expected.Writes, expected.Execs))
+				errors = append(errors, fmt.Sprintf("object %s/%s missing in summary (expected reads=%d writes=%d exec=%d)", rel, full, expected.Reads, expected.Writes, expected.Execs))
 				continue
 			}
 			if sum.TotalReads != expected.Reads || sum.TotalWrites != expected.Writes || sum.TotalExec != expected.Execs {
@@ -351,36 +359,17 @@ type objectCount struct {
 }
 
 func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectRow) map[string]objectCount {
-	queryByKey := make(map[string]summary.QueryRow)
-	for _, q := range queries {
-		key := strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")
-		queryByKey[key] = q
-	}
-
 	counts := make(map[string]objectCount)
-	for _, o := range objects {
+	for _, o := range summary.NormalizeObjectRows(objects) {
 		if shouldSkipObjectForValidation(o) {
 			continue
 		}
-		fullName := strings.TrimSpace(summary.ChooseFullObjectName(o))
-		if fullName == "" {
-			continue
-		}
-		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
-
-		qKey := strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")
-		qRow, hasQuery := queryByKey[qKey]
-		flags := normalizeRoleFlags(classifyObjectRole(o, qRow, hasQuery))
-
+		key := summary.ObjectSummaryGroupKey(o)
 		agg := counts[key]
-		switch {
-		case flags.exec:
-			agg.Execs++
-		case flags.write:
-			agg.Writes++
-		default:
-			agg.Reads++
-		}
+		r, w, e := summary.ObjectRoleBuckets(o)
+		agg.Reads += r
+		agg.Writes += w
+		agg.Execs += e
 		counts[key] = agg
 	}
 

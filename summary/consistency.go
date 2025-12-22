@@ -226,54 +226,28 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		fullName   string
 	}
 
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range queries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
-
 	expected := make(map[string]*agg)
-	for _, o := range objects {
+	for _, o := range NormalizeObjectRows(objects) {
 		if shouldSkipObject(o) {
 			continue
 		}
 		fullName := chooseFullObjectName(o)
-		if strings.TrimSpace(fullName) == "" {
-			continue
-		}
-		_, _, parsedBase := splitFullObjectName(fullName)
-		base := strings.TrimSpace(o.BaseName)
-		if base == "" {
-			base = parsedBase
-		}
-		pseudoKind := defaultPseudoKind(o.PseudoKind)
-		isPseudoObj := o.IsPseudoObject
-		if detected, kind := pseudoObjectInfo(base, pseudoKind); detected {
-			isPseudoObj = true
-			pseudoKind = defaultPseudoKind(choosePseudoKind(pseudoKind, defaultPseudoKind(kind)))
-		}
-		key := strings.Join([]string{o.AppName, o.RelPath, fullName}, "|")
+		key := ObjectSummaryGroupKey(o)
 		entry := expected[key]
 		if entry == nil {
 			entry = &agg{
 				funcSet:  make(map[string]struct{}),
 				dbSet:    make(map[string]struct{}),
 				dmlSet:   make(map[string]struct{}),
-				baseName: base,
+				baseName: o.BaseName,
 				fullName: fullName,
 			}
 			expected[key] = entry
 		}
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
-		qRow, hasQuery := queryByKey[qKey]
-		flags := roleFlagsForObject(o, qRow, hasQuery)
-		switch {
-		case flags.exec:
-			entry.execs++
-		case flags.write:
-			entry.writes++
-		default:
-			entry.reads++
-		}
+		r, w, e := ObjectRoleBuckets(o)
+		entry.reads += r
+		entry.writes += w
+		entry.execs += e
 		if o.IsCrossDb {
 			entry.hasCross = true
 		}
@@ -290,9 +264,9 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			}
 		}
 
-		if isPseudoObj {
+		if o.IsPseudoObject {
 			entry.isPseudo = true
-			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, pseudoKind)
+			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(o.PseudoKind))
 		}
 		if fn := strings.TrimSpace(o.Func); fn != "" {
 			entry.funcSet[fn] = struct{}{}
@@ -301,12 +275,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
-		_, _, parsedBase := splitFullObjectName(strings.TrimSpace(s.FullObjectName))
-		baseName := strings.TrimSpace(s.BaseName)
-		if baseName == "" {
-			baseName = parsedBase
-		}
-		key := strings.Join([]string{s.AppName, s.RelPath, strings.TrimSpace(s.FullObjectName)}, "|")
+		key := ObjectSummaryRowKey(s)
 		summaryMap[key] = s
 	}
 
@@ -332,7 +301,7 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		if rawFuncCount != summary.TotalFuncs {
 			diffs = append(diffs, fmt.Sprintf("funcs raw=%d summary=%d", rawFuncCount, summary.TotalFuncs))
 		}
-		expectedRoles := summarizeRoleCounts(raw.reads, raw.writes, raw.execs)
+		expectedRoles := summarizeRoleLabel(raw.reads, raw.writes, raw.execs)
 		if strings.TrimSpace(summary.Roles) != expectedRoles {
 			diffs = append(diffs, fmt.Sprintf("roles raw=%s summary=%s", expectedRoles, summary.Roles))
 		}
