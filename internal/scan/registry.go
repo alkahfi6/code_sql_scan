@@ -84,3 +84,9 @@ func (c *goPkgSymtabCache) store(key string, symtab map[string]SqlSymbol) {
 
 var goPkgSymtabStore = newGoPkgSymtabCache()
 var connStore = newConnRegistry()
+
+func resetGlobalStores() {
+	goSymtabStore = newGoSymtabCache()
+	goPkgSymtabStore = newGoPkgSymtabCache()
+	connStore = newConnRegistry()
+}

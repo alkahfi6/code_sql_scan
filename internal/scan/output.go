@@ -359,6 +359,12 @@ type objectCount struct {
 }
 
 func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectRow) map[string]objectCount {
+	queryByKey := make(map[string]summary.QueryRow)
+	for _, q := range queries {
+		key := strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")
+		queryByKey[key] = q
+	}
+
 	counts := make(map[string]objectCount)
 	for _, o := range summary.NormalizeObjectRows(objects) {
 		if shouldSkipObjectForValidation(o) {
@@ -366,7 +372,8 @@ func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectR
 		}
 		key := summary.ObjectSummaryGroupKey(o)
 		agg := counts[key]
-		r, w, e := summary.ObjectRoleBuckets(o)
+		qRow, hasQuery := queryByKey[strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")]
+		r, w, e := summary.ObjectRoleCounts(o, qRow, hasQuery)
 		agg.Reads += r
 		agg.Writes += w
 		agg.Execs += e

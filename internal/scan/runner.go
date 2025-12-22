@@ -19,6 +19,8 @@ func Run(cfg *Config) ([]string, error) {
 	start := time.Now()
 	log.Printf("[INFO] starting scan root=%s app=%s lang=%s workers=%d maxSize=%d", cfg.Root, cfg.AppName, cfg.Lang, cfg.Workers, cfg.MaxFileSize)
 
+	resetGlobalStores()
+
 	pathCh, countCh := streamFiles(cfg)
 	cands := runWorkers(cfg, pathCh)
 	fileCount := <-countCh
@@ -139,6 +141,21 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 			if err != nil {
 				log.Printf("[WARN] walk error on %s: %v", path, err)
 				return nil
+			}
+			if d.Type()&os.ModeSymlink != 0 {
+				target, err := filepath.EvalSymlinks(path)
+				if err != nil {
+					log.Printf("[WARN] stage=resolve-symlink lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
+					return nil
+				}
+				if !isWithinRoot(cfg.Root, target) {
+					log.Printf("[INFO] stage=skip-symlink-outside lang=%s root=%q link=%q target=%q", cfg.Lang, cfg.Root, path, target)
+					if d.IsDir() {
+						return filepath.SkipDir
+					}
+					return nil
+				}
+				path = target
 			}
 			if d.IsDir() {
 				name := strings.ToLower(d.Name())

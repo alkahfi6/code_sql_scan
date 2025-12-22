@@ -1094,13 +1094,9 @@ func stripCSComments(src string) string {
 	state := stateNormal
 	escaped := false
 
-	writeNewline := func() {
-		b.WriteByte('\n')
-	}
-
-	for i := 0; i < len(src); i++ {
+	for i := 0; i < len(src); {
 		c := src[i]
-		var next byte
+		next := byte(0)
 		if i+1 < len(src) {
 			next = src[i+1]
 		}
@@ -1109,79 +1105,96 @@ func stripCSComments(src string) string {
 		case stateNormal:
 			if c == '/' && next == '/' {
 				state = stateLineComment
-				i++
+				i += 2
 				continue
 			}
 			if c == '/' && next == '*' {
 				state = stateBlockComment
-				i++
+				i += 2
+				continue
+			}
+			if c == '@' && next == '"' {
+				state = stateVerbatimString
+				b.WriteByte(c)
+				b.WriteByte(next)
+				i += 2
 				continue
 			}
 			if c == '"' {
-				if i > 0 && src[i-1] == '@' {
-					state = stateVerbatimString
-				} else {
-					state = stateString
-				}
+				state = stateString
 				b.WriteByte(c)
+				i++
 				continue
 			}
 			if c == '\'' {
 				state = stateChar
 				b.WriteByte(c)
+				i++
 				continue
 			}
 			b.WriteByte(c)
+			i++
 		case stateLineComment:
 			if c == '\n' {
+				b.WriteByte('\n')
 				state = stateNormal
-				writeNewline()
 			}
+			i++
 		case stateBlockComment:
 			if c == '\n' {
-				writeNewline()
+				b.WriteByte('\n')
+				i++
 				continue
 			}
 			if c == '*' && next == '/' {
 				state = stateNormal
-				i++
+				i += 2
+				continue
 			}
+			i++
 		case stateString:
 			b.WriteByte(c)
 			if escaped {
 				escaped = false
+				i++
 				continue
 			}
 			if c == '\\' {
 				escaped = true
+				i++
 				continue
 			}
 			if c == '"' {
 				state = stateNormal
 			}
+			i++
 		case stateChar:
 			b.WriteByte(c)
 			if escaped {
 				escaped = false
+				i++
 				continue
 			}
 			if c == '\\' {
 				escaped = true
+				i++
 				continue
 			}
 			if c == '\'' {
 				state = stateNormal
 			}
+			i++
 		case stateVerbatimString:
 			b.WriteByte(c)
 			if c == '"' {
 				if next == '"' {
 					b.WriteByte(next)
-					i++
-				} else {
-					state = stateNormal
+					i += 2
+					continue
 				}
+				state = stateNormal
 			}
+			i++
 		}
 	}
 

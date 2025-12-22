@@ -35,8 +35,31 @@ func ensureRelPath(root, p string) string {
 		absPath = filepath.Join(rootAbs, clean)
 	}
 
+	if !isWithinRoot(rootAbs, absPath) {
+		return ""
+	}
+
 	if rel, err := filepath.Rel(rootAbs, absPath); err == nil && rel != "." && !strings.HasPrefix(rel, "..") {
 		return filepath.ToSlash(filepath.Clean(rel))
 	}
-	return filepath.ToSlash(filepath.Clean(absPath))
+	return ""
+}
+
+func isWithinRoot(root, target string) bool {
+	if root == "" || target == "" {
+		return false
+	}
+	rootAbs, err := filepath.Abs(root)
+	if err != nil {
+		rootAbs = filepath.Clean(root)
+	}
+	tgtAbs, err := filepath.Abs(target)
+	if err != nil {
+		tgtAbs = filepath.Clean(target)
+	}
+	rel, err := filepath.Rel(rootAbs, tgtAbs)
+	if err != nil {
+		return false
+	}
+	return rel == "." || (!strings.HasPrefix(rel, "..") && rel != "")
 }

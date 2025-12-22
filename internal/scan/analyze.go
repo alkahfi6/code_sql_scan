@@ -555,7 +555,7 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 		}
 		if regexes.identRe != nil && regexes.identRe.MatchString(trimmed) {
 			r := rune(trimmed[0])
-			if unicode.IsLower(r) || strings.EqualFold(trimmed, "this") {
+			if (unicode.IsLower(r) && trimmed == strings.ToLower(trimmed)) || strings.EqualFold(trimmed, "this") {
 				return true
 			}
 		}
@@ -601,7 +601,7 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 		obj.FullName = normalizeFullObjectName(buildFullName(obj.DbName, obj.SchemaName, obj.BaseName))
 
 		if obj.DbName != "" {
-			if isLikelyVarName(obj.DbName) || crossAnchor < 0 || (obj.FoundAt > 0 && obj.FoundAt < crossAnchor) {
+			if isLikelyVarName(obj.DbName) || (crossAnchor < 0 && !strings.EqualFold(c.UsageKind, "EXEC")) || (obj.FoundAt > 0 && obj.FoundAt < crossAnchor) {
 				obj.DbName = ""
 				obj.IsCrossDb = false
 			} else {

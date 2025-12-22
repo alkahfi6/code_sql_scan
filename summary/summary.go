@@ -484,6 +484,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		maxLine := 0
 		dbListSet := make(map[string]struct{})
 		objectCounter := make(map[string]*objectRoleCounter)
+		dynamicGroups := make(map[string]dynamicGroup)
 		dynamicSigCounts := make(map[string]dynamicSignatureInfo)
 		dynamicPseudoKinds := make(map[string]int)
 		dynamicExampleCounts := make(map[string]int)
@@ -560,6 +561,19 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				if dynObjPseudo {
 					totalDynamicObject++
 				}
+				groupKey := buildDynamicGroupKey(q)
+				grp := dynamicGroups[groupKey]
+				grp.count++
+				grp.usageKind = usageKindWithFallback(q.UsageKind)
+				grp.callSite = callSiteKind(q)
+				grp.pseudoKind = pickDynamicPseudoKind(grp.pseudoKind, dynSqlPseudo, dynObjPseudo)
+				if grp.minLine == 0 || q.LineStart < grp.minLine {
+					grp.minLine = q.LineStart
+				}
+				if grp.maxLine == 0 || q.LineEnd > grp.maxLine {
+					grp.maxLine = q.LineEnd
+				}
+				dynamicGroups[groupKey] = grp
 				sig := dynamicSignature(q)
 				if sig == "" {
 					sig = q.QueryHash
@@ -651,9 +665,16 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				consumeObj(o)
 			}
 		}
-		topObjects := buildTopObjectSummary(objectCounter, 10)
-		topObjectsShort := buildTopObjectSummary(objectCounter, 5)
-		objectsUsed := buildObjectsUsedDetailed(objectCounter)
+		displayCounter := filterDynamicPseudoObjects(objectCounter)
+		topObjects := buildTopObjectSummary(displayCounter, 10)
+		topObjectsShort := buildTopObjectSummary(displayCounter, 5)
+		objectsUsed := buildObjectsUsedDetailed(displayCounter)
+		dynamicDisplay := summarizeDynamicGroups(dynamicGroups, 3)
+		if dynamicDisplay != "" {
+			topObjects = appendSummary(topObjects, dynamicDisplay)
+			topObjectsShort = appendSummary(topObjectsShort, dynamicDisplay)
+			objectsUsed = appendSummary(objectsUsed, dynamicDisplay)
+		}
 		dbList := setToSortedSlice(dbListSet)
 		totalDynamic = dynamicCount
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
@@ -758,6 +779,11 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 }
 
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
+	queryByKey := make(map[string]QueryRow)
+	for _, q := range normalizeQueryFuncs(queries) {
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
+
 	type agg struct {
 		appName     string
 		relPath     string
@@ -809,7 +835,8 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			grouped[key] = entry
 		}
 
-		read, write, exec := ObjectRoleBuckets(o)
+		qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
+		read, write, exec := ObjectRoleCounts(o, qRow, hasQuery)
 		entry.reads += read
 		entry.writes += write
 		entry.execs += exec
@@ -1567,6 +1594,179 @@ func buildObjectsUsedDetailed(stats map[string]*objectRoleCounter) string {
 	return strings.Join(parts, "; ")
 }
 
+type dynamicGroup struct {
+	count      int
+	minLine    int
+	maxLine    int
+	usageKind  string
+	callSite   string
+	pseudoKind string
+}
+
+func buildDynamicGroupKey(q QueryRow) string {
+	usage := usageKindWithFallback(q.UsageKind)
+	base := dynamicSignature(q)
+	if base == "" {
+		base = fmt.Sprintf("%s|%s@%d", strings.TrimSpace(q.RelPath), strings.TrimSpace(q.Func), q.LineStart)
+	}
+	return fmt.Sprintf("%s|%s", usage, base)
+}
+
+func usageKindWithFallback(kind string) string {
+	upper := strings.ToUpper(strings.TrimSpace(kind))
+	if upper == "" {
+		return "UNKNOWN"
+	}
+	return upper
+}
+
+func pickDynamicPseudoKind(current string, hasDynSQL, hasDynObj bool) string {
+	if strings.TrimSpace(current) != "" {
+		return current
+	}
+	switch {
+	case hasDynObj:
+		return "dynamic-object"
+	default:
+		return "dynamic-sql"
+	}
+}
+
+func filterDynamicPseudoObjects(stats map[string]*objectRoleCounter) map[string]*objectRoleCounter {
+	if len(stats) == 0 {
+		return stats
+	}
+	filtered := make(map[string]*objectRoleCounter, len(stats))
+	dynAggregate := &objectRoleCounter{}
+	hasDyn := false
+	for name, counter := range stats {
+		if counter != nil && counter.IsPseudo {
+			if counter.PseudoKind != nil {
+				if _, ok := counter.PseudoKind["dynamic-sql"]; ok {
+					mergeRoleCounters(dynAggregate, counter)
+					hasDyn = true
+					continue
+				}
+				if _, ok := counter.PseudoKind["dynamic-object"]; ok {
+					mergeRoleCounters(dynAggregate, counter)
+					hasDyn = true
+					continue
+				}
+			}
+		}
+		filtered[name] = counter
+	}
+	if hasDyn {
+		dynAggregate.IsPseudo = true
+		if dynAggregate.PseudoKind == nil {
+			dynAggregate.PseudoKind = make(map[string]int)
+		}
+		dynAggregate.PseudoKind["dynamic-sql"] += dynAggregate.ExecCount + dynAggregate.WriteCount + dynAggregate.ReadCount
+		filtered["<dynamic-sql>"] = dynAggregate
+	}
+	return filtered
+}
+
+func mergeRoleCounters(dst, src *objectRoleCounter) {
+	if dst == nil || src == nil {
+		return
+	}
+	dst.ReadCount += src.ReadCount
+	dst.WriteCount += src.WriteCount
+	dst.ExecCount += src.ExecCount
+	dst.HasRead = dst.HasRead || src.HasRead || src.ReadCount > 0
+	dst.HasWrite = dst.HasWrite || src.HasWrite || src.WriteCount > 0
+	dst.HasExec = dst.HasExec || src.HasExec || src.ExecCount > 0
+	if src.IsPseudo {
+		dst.IsPseudo = true
+	}
+	if src.PseudoKind != nil {
+		if dst.PseudoKind == nil {
+			dst.PseudoKind = make(map[string]int)
+		}
+		for k, v := range src.PseudoKind {
+			dst.PseudoKind[k] += v
+		}
+	}
+}
+
+func summarizeDynamicGroups(groups map[string]dynamicGroup, limit int) string {
+	if len(groups) == 0 || limit <= 0 {
+		return ""
+	}
+	type entry struct {
+		key   string
+		group dynamicGroup
+	}
+	list := make([]entry, 0, len(groups))
+	for k, g := range groups {
+		list = append(list, entry{key: k, group: g})
+	}
+	sort.Slice(list, func(i, j int) bool {
+		if list[i].group.count != list[j].group.count {
+			return list[i].group.count > list[j].group.count
+		}
+		if list[i].group.minLine != list[j].group.minLine {
+			return list[i].group.minLine < list[j].group.minLine
+		}
+		return list[i].key < list[j].key
+	})
+	if len(list) > limit {
+		list = list[:limit]
+	}
+	parts := make([]string, 0, len(list))
+	for _, item := range list {
+		g := item.group
+		label := fmt.Sprintf("<%s>", strings.TrimSpace(g.pseudoKind))
+		if strings.TrimSpace(g.pseudoKind) == "" {
+			label = "<dynamic-sql>"
+		}
+		lineLabel := ""
+		switch {
+		case g.minLine > 0 && g.maxLine > 0 && g.minLine != g.maxLine:
+			lineLabel = fmt.Sprintf("lines=%d..%d", g.minLine, g.maxLine)
+		case g.minLine > 0:
+			lineLabel = fmt.Sprintf("line=%d", g.minLine)
+		}
+		usage := strings.TrimSpace(g.usageKind)
+		if usage != "" {
+			lineLabel = strings.TrimSpace(strings.Join(filterNonEmpty([]string{lineLabel, fmt.Sprintf("usage=%s", usage)}), ", "))
+		}
+		if lineLabel != "" {
+			parts = append(parts, fmt.Sprintf("%s(n=%d, %s)", label, g.count, lineLabel))
+			continue
+		}
+		parts = append(parts, fmt.Sprintf("%s(n=%d)", label, g.count))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func filterNonEmpty(parts []string) []string {
+	var res []string
+	for _, p := range parts {
+		if strings.TrimSpace(p) == "" {
+			continue
+		}
+		res = append(res, p)
+	}
+	return res
+}
+
+func appendSummary(base, extra string) string {
+	base = strings.TrimSpace(base)
+	extra = strings.TrimSpace(extra)
+	switch {
+	case base == "" && extra == "":
+		return ""
+	case base == "":
+		return extra
+	case extra == "":
+		return base
+	default:
+		return base + "; " + extra
+	}
+}
+
 func buildTopObjectsByRole(stats map[string]*objectRoleCounter, role string, limit int) string {
 	if len(stats) == 0 || limit <= 0 {
 		return ""
@@ -1688,19 +1888,17 @@ func summarizeRoleLabel(reads, writes, execs int) string {
 }
 
 func ObjectRoleBuckets(o ObjectRow) (int, int, int) {
-	upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-	role := strings.ToLower(strings.TrimSpace(o.Role))
+	return ObjectRoleCounts(o, QueryRow{}, false)
+}
 
-	isExec := upperDml == "EXEC"
-	isWrite := o.IsWrite && isWriteDml(upperDml)
-	isRead := !o.IsWrite && (upperDml == "SELECT" || role == "source")
-
+func ObjectRoleCounts(o ObjectRow, q QueryRow, hasQuery bool) (int, int, int) {
+	flags := roleFlagsForObject(o, q, hasQuery)
 	switch {
-	case isExec:
+	case flags.exec:
 		return 0, 0, 1
-	case isWrite:
+	case flags.write:
 		return 0, 1, 0
-	case isRead:
+	case flags.read:
 		return 1, 0, 0
 	default:
 		return 0, 0, 0
