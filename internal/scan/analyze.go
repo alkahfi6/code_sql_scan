@@ -392,7 +392,7 @@ func analyzeCandidate(c *SqlCandidate) {
 func expandMultiStatementCandidate(c SqlCandidate) []SqlCandidate {
 	sqlClean := StripSqlComments(c.RawSql)
 	sqlClean = normalizeSqlWhitespace(sqlClean)
-	parts := splitSqlStatements(sqlClean)
+	parts := splitCandidateStatements(sqlClean)
 	if len(parts) <= 1 {
 		return []SqlCandidate{c}
 	}
@@ -405,6 +405,29 @@ func expandMultiStatementCandidate(c SqlCandidate) []SqlCandidate {
 		out = append(out, clone)
 	}
 	return out
+}
+
+func splitCandidateStatements(sql string) []string {
+	sql = strings.TrimSpace(sql)
+	if sql == "" {
+		return nil
+	}
+
+	baseParts := splitSqlStatements(sql)
+	var expanded []string
+	for _, part := range baseParts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		fragments := splitMultiDmlPart(part)
+		expanded = append(expanded, fragments...)
+	}
+
+	if len(expanded) == 0 {
+		return []string{sql}
+	}
+	return expanded
 }
 
 func splitSqlStatements(sql string) []string {
@@ -479,6 +502,44 @@ func splitSqlStatements(sql string) []string {
 	return parts
 }
 
+func splitMultiDmlPart(sql string) []string {
+	trimmed := strings.TrimSpace(sql)
+	if trimmed == "" {
+		return nil
+	}
+
+	dmlRe := regexp.MustCompile(`(?is)(insert\s+into|update\s+|delete\s+from|truncate\s+table)`) //nolint:lll
+	matches := dmlRe.FindAllStringSubmatchIndex(trimmed, -1)
+	if len(matches) <= 1 {
+		return []string{trimmed}
+	}
+
+	var parts []string
+	start := 0
+	for i, m := range matches {
+		if i == 0 {
+			continue
+		}
+		seg := strings.TrimSpace(trimmed[start:m[0]])
+		if seg != "" {
+			parts = append(parts, seg)
+		}
+		start = m[0]
+	}
+	if start < len(trimmed) {
+		last := strings.TrimSpace(trimmed[start:])
+		if last != "" {
+			parts = append(parts, last)
+		}
+	}
+
+	if len(parts) == 0 {
+		return []string{trimmed}
+	}
+
+	return parts
+}
+
 func updateCrossDbMetadata(c *SqlCandidate) {
 	dbSet := make(map[string]struct{})
 	hasCross := false
@@ -488,6 +549,9 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 
 	for i := range c.Objects {
 		obj := &c.Objects[i]
+		if strings.TrimSpace(obj.PseudoKind) != "" {
+			obj.IsPseudoObject = true
+		}
 		obj.DbName = trimIdent(obj.DbName)
 		obj.SchemaName = trimIdent(obj.SchemaName)
 		obj.BaseName = trimIdent(obj.BaseName)
@@ -1022,7 +1086,7 @@ func normalizeObjectToken(tok ObjectToken) ObjectToken {
 	if strings.HasPrefix(strings.TrimSpace(tok.BaseName), "#") {
 		tok.IsPseudoObject = true
 		if strings.TrimSpace(tok.PseudoKind) == "" {
-			tok.PseudoKind = "dynamic-object"
+			tok.PseudoKind = "temp-table"
 		}
 	}
 	return tok
@@ -1124,6 +1188,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	}
 	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
 	for i := range tokens {
+		if strings.TrimSpace(tokens[i].PseudoKind) != "" {
+			tokens[i].IsPseudoObject = true
+		}
 		originalFull := tokens[i].FullName
 		if strings.TrimSpace(tokens[i].BaseName) == "" {
 			tokens[i].BaseName = "<dynamic-object>"
@@ -1136,6 +1203,35 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 		if applyDynamicRewrite && (hasDynamicPlaceholder(tokens[i].DbName) || hasDynamicPlaceholder(tokens[i].SchemaName)) {
 			tokens[i].IsObjectNameDyn = true
+		}
+		if hasDynamicPlaceholder(tokens[i].SchemaName) {
+			tokens[i].IsPseudoObject = true
+			if strings.TrimSpace(tokens[i].PseudoKind) == "" || strings.EqualFold(strings.TrimSpace(tokens[i].PseudoKind), "dynamic-object") {
+				tokens[i].PseudoKind = "schema-placeholder"
+			}
+			tokens[i].SchemaName = ""
+		}
+		if hasDynamicPlaceholder(tokens[i].BaseName) {
+			tokens[i].IsPseudoObject = true
+			if strings.TrimSpace(tokens[i].PseudoKind) == "" || strings.EqualFold(strings.TrimSpace(tokens[i].PseudoKind), "dynamic-object") {
+				tokens[i].PseudoKind = "table-placeholder"
+			}
+		}
+		if strings.HasPrefix(strings.TrimSpace(tokens[i].BaseName), "#") {
+			tokens[i].DbName = ""
+			tokens[i].SchemaName = ""
+			tokens[i].FullName = strings.TrimSpace(tokens[i].BaseName)
+			tokens[i].IsPseudoObject = true
+			tokens[i].IsObjectNameDyn = true
+			if strings.TrimSpace(tokens[i].PseudoKind) == "" {
+				tokens[i].PseudoKind = "temp-table"
+			}
+		}
+		if strings.HasPrefix(strings.TrimSpace(tokens[i].BaseName), "@") {
+			tokens[i].IsPseudoObject = true
+			if strings.TrimSpace(tokens[i].PseudoKind) == "" {
+				tokens[i].PseudoKind = "table-variable"
+			}
 		}
 		if tokens[i].IsObjectNameDyn {
 			if applyDynamicRewrite {
@@ -1176,7 +1272,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		} else {
 			tokens[i].IsPseudoObject = false
 		}
-		tokens[i].IsObjectNameDyn = tokens[i].IsPseudoObject && tokens[i].PseudoKind == "dynamic-object"
+		tokens[i].IsObjectNameDyn = tokens[i].IsObjectNameDyn || (tokens[i].IsPseudoObject && tokens[i].PseudoKind == "dynamic-object")
 
 		rawFull = strings.TrimSpace(rawFull)
 		if rawFull == "" {
@@ -1676,6 +1772,14 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 		}
 		baseName := "<dynamic-object>"
 		full := buildFullName(dbName, schemaName, baseName)
+		pseudoKind := "dynamic-object"
+		lowerObj := strings.ToLower(objText)
+		if strings.Contains(lowerObj, "[[schema]]") {
+			pseudoKind = "schema-placeholder"
+		}
+		if strings.Contains(lowerObj, "[[table") {
+			pseudoKind = "table-placeholder"
+		}
 
 		tok := ObjectToken{
 			DbName:             dbName,
@@ -1684,7 +1788,7 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			FullName:           full,
 			IsObjectNameDyn:    true,
 			IsPseudoObject:     true,
-			PseudoKind:         "dynamic-object",
+			PseudoKind:         pseudoKind,
 			RepresentativeLine: line,
 			IsLinkedServer:     isLinked,
 		}
