@@ -82,6 +82,8 @@ type FunctionSummaryRow struct {
 	TotalDelete              int
 	TotalTruncate            int
 	TotalDynamic             int
+	TotalDynamicSql          int
+	TotalDynamicObject       int
 	DynamicSig               string
 	TotalWrite               int
 	TotalObjects             int
@@ -475,7 +477,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				continue
 			}
 		}
-		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalWrite int
+		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalDynamicSql, totalDynamicObject, totalWrite int
 		dynamicCount := 0
 		hasCross := false
 		minLine := 0
@@ -492,6 +494,20 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
 			if upperUsage != "" && upperUsage != "UNKNOWN" {
 				baseKinds[upperUsage] = struct{}{}
+			}
+
+			dynSqlPseudo := false
+			dynObjPseudo := false
+			for _, o := range objectsByQuery[qKey] {
+				if !o.IsPseudoObject {
+					continue
+				}
+				kind := normalizePseudoKindLabel(o.BaseName, o.PseudoKind)
+				if kind == "dynamic-sql" {
+					dynSqlPseudo = true
+				} else if strings.TrimSpace(kind) != "" {
+					dynObjPseudo = true
+				}
 			}
 
 			if len(baseKinds) == 0 {
@@ -538,6 +554,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			totalWrite += writeKinds
 			if q.IsDynamic {
 				dynamicCount++
+				if dynSqlPseudo || (!dynSqlPseudo && !dynObjPseudo) {
+					totalDynamicSql++
+				}
+				if dynObjPseudo {
+					totalDynamicObject++
+				}
 				sig := dynamicSignature(q)
 				if sig == "" {
 					sig = q.QueryHash
@@ -656,6 +678,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalDelete:              totalDelete,
 			TotalTruncate:            totalTruncate,
 			TotalDynamic:             totalDynamic,
+			TotalDynamicSql:          totalDynamicSql,
+			TotalDynamicObject:       totalDynamicObject,
 			DynamicSig:               dynamicSig,
 			DynamicPseudoKinds:       dynamicPseudoSummary,
 			DynamicExampleSignatures: dynamicExampleSummary,
@@ -1099,6 +1123,8 @@ type objectRoleCounter struct {
 	HasRead    bool
 	HasWrite   bool
 	HasExec    bool
+	IsPseudo   bool
+	PseudoKind map[string]int
 }
 
 type roleFlags struct {
@@ -1109,6 +1135,17 @@ type roleFlags struct {
 
 func (c *objectRoleCounter) Register(o ObjectRow, q QueryRow, hasQuery bool) {
 	flags := roleFlagsForObject(o, q, hasQuery)
+
+	if o.IsPseudoObject {
+		c.IsPseudo = true
+		kind := normalizePseudoKindLabel(o.BaseName, o.PseudoKind)
+		if strings.TrimSpace(kind) != "" {
+			if c.PseudoKind == nil {
+				c.PseudoKind = make(map[string]int)
+			}
+			c.PseudoKind[kind]++
+		}
+	}
 
 	if flags.exec {
 		c.HasExec = true
@@ -1494,12 +1531,19 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	if len(tops) == 0 {
 		return ""
 	}
+	formatName := func(name string, counter *objectRoleCounter) string {
+		if counter == nil || !counter.IsPseudo {
+			return name
+		}
+		return "[P] " + name
+	}
 	display := tops
 	if len(display) > limit {
 		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, t := range display {
+		name := formatName(t.name, t.roles)
 		roleLabel := describeRolesOrdered(t.roles)
 		roleCount := 0
 		switch roleLabel {
@@ -1513,7 +1557,7 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 			roleLabel = "mixed"
 			roleCount = t.roles.ExecCount + t.roles.WriteCount + t.roles.ReadCount
 		}
-		parts = append(parts, fmt.Sprintf("%s(%s=%d)", t.name, roleLabel, roleCount))
+		parts = append(parts, fmt.Sprintf("%s(%s=%d)", name, roleLabel, roleCount))
 	}
 	if len(tops) > len(display) {
 		parts = append(parts, "...")
@@ -1831,7 +1875,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicSignatures", "TotalObjects", "TopObjects", "ObjectsUsed", "HasCrossDb", "DbList", "TopObjectsShort", "DynamicPseudoKinds", "DynamicExampleSignatures"}
+	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "TotalDynamicSql", "TotalDynamicObject", "DynamicSignatures", "TotalObjects", "TopObjects", "ObjectsUsed", "HasCrossDb", "DbList", "TopObjectsShort", "DynamicPseudoKinds", "DynamicExampleSignatures"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -1851,6 +1895,8 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalExec),
 			fmt.Sprintf("%d", r.TotalWrite),
 			fmt.Sprintf("%d", r.TotalDynamic),
+			fmt.Sprintf("%d", r.TotalDynamicSql),
+			fmt.Sprintf("%d", r.TotalDynamicObject),
 			r.DynamicSig,
 			fmt.Sprintf("%d", r.TotalObjects),
 			r.TopObjects,

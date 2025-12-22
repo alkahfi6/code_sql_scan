@@ -519,6 +519,25 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					continue
 				}
 			}
+
+			hasKeyword := containsSqlKeyword(raw)
+			if raw != "<dynamic-sql>" && !hasKeyword {
+				if strings.Contains(raw, "(") && strings.Contains(raw, ".") && !strings.ContainsAny(raw, "@?:") {
+					continue
+				}
+				if isProcNameSpec(raw) {
+					isExecStub = true
+				} else {
+					continue
+				}
+			}
+			usageCheck := detectUsageKind(isExecStub, normalizeSqlWhitespace(StripSqlComments(raw)))
+			if raw != "<dynamic-sql>" && usageCheck == "UNKNOWN" && !hasKeyword && !isExecStub {
+				continue
+			}
+			if !isDyn && usageCheck == "UNKNOWN" && !isExecStub {
+				continue
+			}
 			// mark dynamic if raw contains interpolations or variables
 			if !p.dynamic {
 				if strings.Contains(raw, "$") || (strings.Contains(raw, "{") && strings.Contains(raw, "}")) {
@@ -685,6 +704,17 @@ func isCsControlKeyword(tok string) bool {
 	default:
 		return false
 	}
+}
+
+func containsSqlKeyword(raw string) bool {
+	lower := strings.ToLower(raw)
+	keywords := []string{"select", "insert", "update", "delete", "truncate", "exec", "execute"}
+	for _, kw := range keywords {
+		if strings.Contains(lower, kw) {
+			return true
+		}
+	}
+	return false
 }
 
 func detectCsMethods(lines []string) []methodRange {

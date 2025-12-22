@@ -543,8 +543,23 @@ func splitMultiDmlPart(sql string) []string {
 func updateCrossDbMetadata(c *SqlCandidate) {
 	dbSet := make(map[string]struct{})
 	hasCross := false
+	sqlLower := strings.ToLower(c.SqlClean)
+	crossAnchor := findCrossDbAnchor(sqlLower, c.UsageKind)
 	trimIdent := func(s string) string {
 		return cleanIdentifier(s)
+	}
+	isLikelyVarName := func(name string) bool {
+		trimmed := strings.TrimSpace(name)
+		if trimmed == "" {
+			return false
+		}
+		if regexes.identRe != nil && regexes.identRe.MatchString(trimmed) {
+			r := rune(trimmed[0])
+			if unicode.IsLower(r) || strings.EqualFold(trimmed, "this") {
+				return true
+			}
+		}
+		return false
 	}
 
 	for i := range c.Objects {
@@ -586,28 +601,36 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 		obj.FullName = normalizeFullObjectName(buildFullName(obj.DbName, obj.SchemaName, obj.BaseName))
 
 		if obj.DbName != "" {
-			dbSet[obj.DbName] = struct{}{}
-			if !obj.IsCrossDb {
+			if isLikelyVarName(obj.DbName) || crossAnchor < 0 || (obj.FoundAt > 0 && obj.FoundAt < crossAnchor) {
+				obj.DbName = ""
+				obj.IsCrossDb = false
+			} else {
 				obj.IsCrossDb = true
+				dbSet[obj.DbName] = struct{}{}
+				hasCross = true
+				continue
 			}
-			hasCross = true
-			continue
 		}
 		if obj.IsCrossDb {
 			hasCross = true
 		}
 	}
 
-	if !hasCross {
+	if !hasCross && crossAnchor >= 0 {
 		crossDbRe := regexp.MustCompile(`(?i)([A-Za-z0-9_]+)\.[A-Za-z0-9_]+\.[A-Za-z0-9_]+`)
 		sources := []string{c.SqlClean, c.RawSql}
 		for _, src := range sources {
-			for _, m := range crossDbRe.FindAllStringSubmatch(src, -1) {
-				if len(m) < 2 {
+			matches := crossDbRe.FindAllStringSubmatchIndex(src, -1)
+			for _, m := range matches {
+				if len(m) < 4 {
 					continue
 				}
-				db := strings.TrimSpace(cleanIdentifier(m[1]))
-				if db == "" {
+				db := strings.TrimSpace(cleanIdentifier(src[m[2]:m[3]]))
+				if db == "" || isLikelyVarName(db) {
+					continue
+				}
+				matchStart := m[0]
+				if matchStart >= 0 && crossAnchor >= 0 && matchStart < crossAnchor {
 					continue
 				}
 				hasCross = true
@@ -1187,6 +1210,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens = ensureDynamicSqlPseudo(tokens, c, dml)
 	}
 	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
+	sqlLower := strings.ToLower(c.SqlClean)
 	for i := range tokens {
 		if strings.TrimSpace(tokens[i].PseudoKind) != "" {
 			tokens[i].IsPseudoObject = true
@@ -1333,7 +1357,6 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		}
 	}
 	// Normalize SQL to lower case for position lookup
-	sqlLower := strings.ToLower(c.SqlClean)
 	// Compute first occurrence index for each token in the SQL
 	positions := make([]int, len(tokens))
 	for i := range tokens {
@@ -1676,6 +1699,22 @@ func findKeywordPosition(sqlLower, usageKind string) int {
 	default:
 		return -1
 	}
+}
+
+func findCrossDbAnchor(sqlLower, usageKind string) int {
+	if pos := findKeywordPosition(sqlLower, usageKind); pos >= 0 {
+		return pos
+	}
+	keywords := []string{"from", "join", "into", "update", "delete", "exec", "execute"}
+	best := -1
+	for _, kw := range keywords {
+		if pos := strings.Index(sqlLower, kw); pos >= 0 {
+			if best == -1 || pos < best {
+				best = pos
+			}
+		}
+	}
+	return best
 }
 
 func hasDynamicPlaceholder(name string) bool {
