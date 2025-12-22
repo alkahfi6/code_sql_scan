@@ -41,17 +41,35 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		}
 
 		// Prefer an explicit method signature above the current line that opens a block.
+		tryExtract := func(idx int) string {
+			trimmed := strings.TrimSpace(lines[idx])
+			if trimmed == "" {
+				return ""
+			}
+			candidates := []string{trimmed}
+			if idx > 0 {
+				candidates = append(candidates, strings.TrimSpace(lines[idx-1]+" "+trimmed))
+			}
+			if idx > 1 {
+				candidates = append(candidates, strings.TrimSpace(lines[idx-2]+" "+lines[idx-1]+" "+trimmed))
+			}
+			for _, cand := range candidates {
+				if cand == "" {
+					continue
+				}
+				if name := extractCsMethodName(cand); name != "" {
+					return name
+				}
+			}
+			return ""
+		}
+
 		for i := startIdx; i >= 0 && startIdx-i <= maxSearch; i-- {
 			trimmed := strings.TrimSpace(lines[i])
 			if !strings.Contains(trimmed, "{") {
 				continue
 			}
-			name := extractCsMethodName(trimmed)
-			if name == "" && i > 0 {
-				combined := strings.TrimSpace(lines[i-1] + " " + trimmed)
-				name = extractCsMethodName(combined)
-			}
-			if name != "" {
+			if name := tryExtract(i); name != "" {
 				start := i + 1
 				end := line
 				if end < start {

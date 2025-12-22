@@ -1068,7 +1068,11 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 	}
 	role := "mixed"
 	isWrite := c.IsWrite
-	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && strings.EqualFold(strings.TrimSpace(c.UsageKind), "EXEC") {
+	if strings.EqualFold(strings.TrimSpace(c.UsageKind), "EXEC") {
+		role = "exec"
+		dml = "EXEC"
+		isWrite = true
+	} else if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && strings.EqualFold(strings.TrimSpace(c.UsageKind), "EXEC") {
 		role = "exec"
 		dml = "EXEC"
 		isWrite = true
@@ -1193,6 +1197,9 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 				tokens[i].Role = "exec"
 				tokens[i].DmlKind = "EXEC"
 				tokens[i].IsWrite = true
+				tokens[i].DbName = ""
+				tokens[i].SchemaName = ""
+				tokens[i].FullName = strings.TrimSpace(tokens[i].BaseName)
 			} else {
 				preserveRole[i] = false
 				tokens[i].IsWrite = false
