@@ -121,6 +121,15 @@ func analyzeCandidate(c *SqlCandidate) {
 	dmlTokens := detectAllDmlTargets(sqlClean, c.LineStart)
 	tokens := append([]ObjectToken{}, dmlTokens...)
 	tokens = append(tokens, findObjectTokens(sqlClean)...)
+	nakedTokens := detectNakedObjectTokens(sqlClean, usage, c.LineStart, tokens)
+	if len(nakedTokens) > 0 {
+		tokens = append(tokens, nakedTokens...)
+		for _, tok := range nakedTokens {
+			if tok.Role == "target" || strings.EqualFold(tok.DmlKind, "EXEC") || tok.IsWrite {
+				dmlTokens = append(dmlTokens, tok)
+			}
+		}
+	}
 	tokens = append(tokens, detectDynamicObjectPlaceholders(sqlClean, usage, c.LineStart)...)
 	if c.RawSql != "" && c.RawSql != sqlClean {
 		tokens = append(tokens, detectDynamicObjectPlaceholders(c.RawSql, usage, c.LineStart)...)
@@ -847,6 +856,187 @@ func findObjectTokens(sql string) []ObjectToken {
 	return tokens
 }
 
+func detectNakedObjectTokens(sql string, usageKind string, line int, existing []ObjectToken) []ObjectToken {
+	lower := strings.ToLower(sql)
+	usageUpper := strings.ToUpper(strings.TrimSpace(usageKind))
+	existingKeys := make(map[string]struct{})
+	for _, tok := range existing {
+		if key := objectIdentityKey(tok.DbName, tok.SchemaName, tok.BaseName); key != "" {
+			existingKeys[key] = struct{}{}
+		}
+		if key := objectIdentityKey("", "", tok.FullName); key != "" {
+			existingKeys[key] = struct{}{}
+		}
+	}
+
+	type rule struct {
+		keyword      string
+		role         string
+		dml          string
+		requireUsage []string
+	}
+
+	matchesUsage := func(req []string) bool {
+		if len(req) == 0 {
+			return true
+		}
+		for _, r := range req {
+			if strings.EqualFold(strings.TrimSpace(r), usageUpper) {
+				return true
+			}
+		}
+		return false
+	}
+
+	rules := []rule{
+		{keyword: "update", role: "target", dml: "UPDATE", requireUsage: []string{"UPDATE"}},
+		{keyword: "delete from", role: "target", dml: "DELETE", requireUsage: []string{"DELETE"}},
+		{keyword: "insert into", role: "target", dml: "INSERT", requireUsage: []string{"INSERT"}},
+		{keyword: "truncate table", role: "target", dml: "TRUNCATE", requireUsage: []string{"TRUNCATE"}},
+		{keyword: "from", role: "source"},
+		{keyword: "join", role: "source"},
+		{keyword: "exec", role: "exec", dml: "EXEC"},
+		{keyword: "execute", role: "exec", dml: "EXEC"},
+	}
+
+	var tokens []ObjectToken
+
+	for _, rule := range rules {
+		if !matchesUsage(rule.requireUsage) {
+			continue
+		}
+		start := 0
+		kw := strings.ToLower(rule.keyword)
+		for {
+			idx := strings.Index(lower[start:], kw)
+			if idx < 0 {
+				break
+			}
+			pos := start + idx
+			end := pos + len(kw)
+			if pos > 0 && isIdentChar(lower[pos-1]) {
+				start = end
+				continue
+			}
+			if end < len(lower) && isIdentChar(lower[end]) {
+				start = end
+				continue
+			}
+
+			p := skipWS(lower, end)
+			if p >= len(lower) {
+				break
+			}
+
+			objText, next := scanObjectName(sql, lower, p)
+			if hasDynamicPlaceholder(objText) {
+				start = next
+				continue
+			}
+			name := cleanNakedIdentifier(objText)
+			if name == "" {
+				start = next
+				continue
+			}
+			dbName, schemaName, baseName, isLinked := splitObjectNameParts(name)
+			if baseName == "" || isSqlKeyword(baseName) {
+				start = next
+				continue
+			}
+			if schemaName == "" && !strings.HasPrefix(strings.TrimSpace(baseName), "#") && !strings.HasPrefix(strings.TrimSpace(baseName), "@") {
+				schemaName = "dbo"
+			}
+
+			dml := resolveNakedDmlKind(rule.dml, usageUpper)
+			isWrite := false
+			if rule.role == "target" || rule.role == "exec" {
+				isWrite = true
+			} else if rule.role == "" {
+				isWrite = isWriteKind(dml)
+			}
+			tok := ObjectToken{
+				DbName:             dbName,
+				SchemaName:         schemaName,
+				BaseName:           baseName,
+				FullName:           buildFullName(dbName, schemaName, baseName),
+				Role:               rule.role,
+				DmlKind:            dml,
+				IsWrite:            isWrite,
+				RepresentativeLine: line,
+				FoundAt:            pos,
+				IsLinkedServer:     isLinked,
+			}
+
+			tok = normalizeObjectToken(tok)
+			key := objectIdentityKey(tok.DbName, tok.SchemaName, tok.BaseName)
+			if key == "" {
+				key = objectIdentityKey("", "", tok.FullName)
+			}
+			if key == "" {
+				start = next
+				continue
+			}
+			if _, ok := existingKeys[key]; ok {
+				start = next
+				continue
+			}
+			existingKeys[key] = struct{}{}
+			tokens = append(tokens, tok)
+			start = next
+		}
+	}
+
+	return tokens
+}
+
+func cleanNakedIdentifier(raw string) string {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ""
+	}
+	raw = strings.TrimLeft(raw, "(")
+	raw = strings.TrimRight(raw, ",;)")
+	if idx := strings.IndexAny(raw, " \t\r\n"); idx >= 0 {
+		raw = raw[:idx]
+	}
+	raw = strings.Trim(raw, "[]\"")
+	raw = strings.TrimSpace(raw)
+	return raw
+}
+
+func objectIdentityKey(db, schema, base string) string {
+	full := strings.TrimSpace(buildFullName(db, schema, base))
+	if full == "" {
+		full = strings.TrimSpace(base)
+	}
+	full = strings.Trim(full, ".")
+	full = strings.TrimSpace(full)
+	if full == "" {
+		return ""
+	}
+	return strings.ToLower(full)
+}
+
+func resolveNakedDmlKind(ruleKind, usageKind string) string {
+	kind := strings.ToUpper(strings.TrimSpace(ruleKind))
+	if kind != "" {
+		return kind
+	}
+	if usageKind != "" && usageKind != "UNKNOWN" {
+		return usageKind
+	}
+	return "SELECT"
+}
+
+func isSqlKeyword(tok string) bool {
+	switch strings.ToLower(strings.TrimSpace(tok)) {
+	case "", "from", "join", "on", "where", "group", "order", "by", "inner", "left", "right", "full", "cross", "and", "or", "as", "set", "values", "into", "delete", "update", "insert", "exec", "execute", "top", "distinct", "truncate", "table", "using", "merge", "with":
+		return true
+	default:
+		return false
+	}
+}
+
 func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 	usage = strings.ToUpper(strings.TrimSpace(usage))
 	var re *regexp.Regexp
@@ -875,6 +1065,9 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 		}
 		rawName := strings.TrimSpace(cleaned[m[2]:m[3]])
 		if rawName == "" {
+			continue
+		}
+		if hasDynamicPlaceholder(rawName) {
 			continue
 		}
 
@@ -1328,6 +1521,9 @@ func buildDynamicObjectPseudo(usageKind string, line int) ObjectToken {
 	case "EXEC":
 		tok.Role = "exec"
 		tok.DmlKind = "EXEC"
+		tok.BaseName = "<dynamic-sql>"
+		tok.FullName = "<dynamic-sql>"
+		tok.PseudoKind = "dynamic-sql"
 		tok.IsWrite = true
 	}
 	return tok
@@ -1390,8 +1586,20 @@ func hasDynamicPlaceholderToken(tokens []ObjectToken) bool {
 	return false
 }
 
+func hasDynamicSqlToken(tokens []ObjectToken) bool {
+	for _, tok := range tokens {
+		if isDynamicSqlToken(tok) {
+			return true
+		}
+	}
+	return false
+}
+
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	allowDynamicSql := strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>")
+	if c.IsDynamic {
+		allowDynamicSql = true
+	}
 	if allowDynamicSql {
 		tokens = ensureDynamicSqlPseudo(tokens, c, usageKind)
 	}
@@ -1404,6 +1612,18 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens = append(tokens, fallback...)
 	}
 	tokens = condenseDynamicPseudoTokens(tokens, allowDynamicSql)
+	if c.IsDynamic && strings.EqualFold(strings.TrimSpace(usageKind), "EXEC") && !hasDynamicSqlToken(tokens) {
+		tokens = append(tokens, ObjectToken{
+			BaseName:           "<dynamic-sql>",
+			FullName:           "<dynamic-sql>",
+			Role:               "exec",
+			DmlKind:            "EXEC",
+			IsWrite:            true,
+			IsPseudoObject:     true,
+			PseudoKind:         "dynamic-sql",
+			RepresentativeLine: c.LineStart,
+		})
+	}
 	if len(tokens) <= len(origTokens) {
 		copy(origTokens, tokens)
 		tokens = origTokens[:len(tokens)]
@@ -1823,10 +2043,10 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens[i].IsObjectNameDyn = tokens[i].IsObjectNameDyn || hasDynamicPlaceholder(full)
 		tokens[i].RepresentativeLine = c.LineStart
 	}
-	c.Objects = mergeObjectRoles(tokens)
+	c.Objects = mergeObjectRoles(tokens, usageKind)
 }
 
-func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
+func mergeObjectRoles(tokens []ObjectToken, usageKind string) []ObjectToken {
 	if len(tokens) <= 1 {
 		for i := range tokens {
 			if tokens[i].SchemaName == "" && tokens[i].BaseName != "" && !tokens[i].IsPseudoObject {
@@ -1836,6 +2056,7 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 		}
 		return tokens
 	}
+	usageUpper := strings.ToUpper(strings.TrimSpace(usageKind))
 
 	type agg struct {
 		first     ObjectToken
@@ -1904,18 +2125,18 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 		tok.RepresentativeLine = g.minLine
 		role := "source"
 		if g.hasExec {
-			if g.hasSource || g.hasTarget {
-				role = "mixed"
-			} else {
-				role = "exec"
-			}
-		} else if g.hasTarget && g.hasSource {
-			role = "mixed"
+			role = "exec"
 		} else if g.hasTarget {
+			role = "target"
+		}
+		if g.hasTarget && !g.hasExec {
 			role = "target"
 		}
 		tok.Role = role
 		tok.IsWrite = g.hasWrite
+		if g.hasTarget {
+			delete(g.dmlSet, "SELECT")
+		}
 		if len(g.dmlSet) == 1 {
 			for k := range g.dmlSet {
 				tok.DmlKind = k
@@ -1929,6 +2150,11 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 			tok.DmlKind = strings.Join(kinds, ";")
 		} else {
 			tok.DmlKind = "UNKNOWN"
+		}
+		if tok.Role == "source" && usageUpper != "" && tok.DmlKind != usageUpper {
+			if _, ok := g.dmlSet[usageUpper]; ok {
+				tok.DmlKind = usageUpper
+			}
 		}
 		if tok.IsPseudoObject && tok.PseudoKind == "" {
 			tok.PseudoKind = "unknown"
@@ -2304,6 +2530,10 @@ func collectInsertTargets(sql string, connDb string, line int) []ObjectToken {
 		objText, _ := scanObjectName(cleaned, lower, p)
 		objText = strings.TrimSpace(objText)
 		if objText == "" {
+			idx = p
+			continue
+		}
+		if hasDynamicPlaceholder(objText) {
 			idx = p
 			continue
 		}

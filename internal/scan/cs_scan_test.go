@@ -75,7 +75,7 @@ func TestStripCSComments_StripsBlockWithSql(t *testing.T) {
 
 func TestCsScan_ResolvesFunctionsInApiServices(t *testing.T) {
 	cfg := &Config{
-		Root:    "./dotnet_check",
+		Root:    filepath.Clean(filepath.Join("..", "..", "dotnet_check")),
 		AppName: "dotnet-sample",
 		Lang:    "dotnet",
 	}
