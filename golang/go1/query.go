@@ -1,3 +1,6 @@
+//go:build samples
+// +build samples
+
 package dbobox
 
 const QueryGetPreviousWorkingDate = `select * from OBOXGetPrevDate_v`

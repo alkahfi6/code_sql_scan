@@ -1,3 +1,6 @@
+//go:build samples
+// +build samples
+
 package dbobox
 
 const SPUpdateControlTableResikoPasar = "[dbo].[UpdateControlTableResikoPasar] ?,?"

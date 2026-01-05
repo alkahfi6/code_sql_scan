@@ -1,3 +1,6 @@
+//go:build samples
+// +build samples
+
 package mssql
 
 const QueryGetCurrWorkingDate = `
