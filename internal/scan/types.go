@@ -37,6 +37,7 @@ type SqlCandidate struct {
 	SourceKind       string // go / csharp / xml / yaml / json / sql
 	CallSiteKind     string
 	DynamicSignature string
+	DynamicReason    string
 	LineStart        int
 	LineEnd          int
 	Func             string
@@ -85,6 +86,7 @@ type QueryUsageRow struct {
 	SourceKind       string
 	CallSiteKind     string
 	DynamicSignature string
+	DynamicReason    string
 	LineStart        int
 	LineEnd          int
 	Func             string

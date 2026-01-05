@@ -350,6 +350,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			rawLiteral := false
 			defPath := relPath
 			defLine := line
+			dynReason := ""
+			rawFromVariable := false
 
 			switch p.re {
 			case regexes.newCmd:
@@ -376,11 +378,16 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 3))
 				raw = decodeCSharpLiteralContent(rawArg, cleanedGroup(clean, m, 2) == "@")
-				rawLiteral = true
+				rawLiteral = strings.HasPrefix(rawArg, "\"") || strings.HasPrefix(rawArg, "@\"")
+				if regexes.identRe.MatchString(rawArg) && !rawLiteral {
+					rawFromVariable = true
+					isDyn = true
+				}
 			case regexes.execProcDyn:
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
+				rawFromVariable = true
 				if regexes.identRe.MatchString(rawArg) {
 					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(rawArg, funcName, methodText, line); okLiteral {
 						raw = lit
@@ -481,11 +488,24 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = norm
 				rawLiteral = true
 				isDyn = dyn
+				if argExpr != "" && regexes.identRe.MatchString(argExpr) {
+					rawFromVariable = true
+				}
+				if dyn && dynReason == "" {
+					dynReason = "concat"
+				}
 			} else if argExpr != "" && regexes.identRe.MatchString(argExpr) {
 				if rebuilt, dyn := rebuildCSharpVariableSql(methodText, argExpr); rebuilt != "" {
 					raw = rebuilt
 					rawLiteral = true
 					isDyn = dyn
+					rawFromVariable = true
+					if dyn && dynReason == "" {
+						dynReason = "concat"
+					}
+				}
+				if rawFromVariable && dynReason == "" {
+					dynReason = "runtime variable"
 				}
 			}
 
@@ -517,18 +537,22 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				methodTextClean := stripCSComments(methodText)
 				cleanRawExpr := stripCSComments(rawExpr)
 
-				skel, dyn, _ := BuildSqlSkeletonFromCSharpExpr(cleanRawExpr)
+				skel, dyn, reason := BuildSqlSkeletonFromCSharpExpr(cleanRawExpr)
 				if skel == "" && ctxText != "" {
-					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(ctxText)
+					skel, dyn, reason = BuildSqlSkeletonFromCSharpExpr(ctxText)
 				}
 				if skel == "" && methodTextClean != "" {
-					skel, dyn, _ = BuildSqlSkeletonFromCSharpExpr(methodTextClean)
+					skel, dyn, reason = BuildSqlSkeletonFromCSharpExpr(methodTextClean)
 				}
 				if skel != "" && detectUsageKind(false, skel) != "UNKNOWN" {
 					raw = skel
 					rawLiteral = true
 					if dyn {
 						isDyn = true
+						rawFromVariable = true
+						if dynReason == "" {
+							dynReason = reason
+						}
 					}
 				}
 			}
@@ -563,6 +587,9 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			if !p.dynamic {
 				if strings.Contains(raw, "$") || (strings.Contains(raw, "{") && strings.Contains(raw, "}")) {
 					isDyn = true
+					if dynReason == "" {
+						dynReason = "interpolation"
+					}
 				}
 			}
 			// Determine exec stub: if pattern flagged or the raw string looks like a proc name spec
@@ -579,23 +606,31 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = StripSqlComments(raw)
 			}
 
+			if rawFromVariable && !isDyn {
+				isDyn = true
+				if dynReason == "" {
+					dynReason = "runtime variable"
+				}
+			}
+
 			cand := SqlCandidate{
-				AppName:      cfg.AppName,
-				RelPath:      relPath,
-				File:         filepath.Base(path),
-				SourceCat:    "code",
-				SourceKind:   "csharp",
-				CallSiteKind: canonicalCallSiteKind(p.callSiteKind),
-				LineStart:    lineStart,
-				LineEnd:      lineEnd,
-				Func:         funcName,
-				RawSql:       raw,
-				IsDynamic:    isDyn,
-				IsExecStub:   isExecStub,
-				ConnName:     connName,
-				ConnDb:       "",
-				DefinedPath:  defPath,
-				DefinedLine:  defLine,
+				AppName:       cfg.AppName,
+				RelPath:       relPath,
+				File:          filepath.Base(path),
+				SourceCat:     "code",
+				SourceKind:    "csharp",
+				CallSiteKind:  canonicalCallSiteKind(p.callSiteKind),
+				LineStart:     lineStart,
+				LineEnd:       lineEnd,
+				Func:          funcName,
+				RawSql:        raw,
+				IsDynamic:     isDyn,
+				IsExecStub:    isExecStub,
+				DynamicReason: normalizeDynamicReasonLabel(dynReason),
+				ConnName:      connName,
+				ConnDb:        "",
+				DefinedPath:   defPath,
+				DefinedLine:   defLine,
 			}
 			cands = append(cands, cand)
 		}

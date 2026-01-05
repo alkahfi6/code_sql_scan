@@ -366,7 +366,7 @@ func analyzeCandidate(c *SqlCandidate) {
 	}
 
 	// If Exec stub and no tokens, interpret RawSql as proc spec
-	if c.IsExecStub && len(c.Objects) == 0 && strings.TrimSpace(c.RawSql) != "" {
+	if c.IsExecStub && !hasRealObjects(c.Objects) && strings.TrimSpace(c.RawSql) != "" {
 		tok := parseProcNameSpec(c.RawSql)
 		tok.IsCrossDb = tok.DbName != ""
 		tok.Role = "exec"
@@ -376,7 +376,7 @@ func analyzeCandidate(c *SqlCandidate) {
 		if tok.SchemaName == "" && tok.BaseName != "" && tok.DbName != "" {
 			tok.SchemaName = "dbo"
 		}
-		c.Objects = []ObjectToken{tok}
+		c.Objects = append(c.Objects, tok)
 	}
 
 	if strings.TrimSpace(c.CallSiteKind) == "" {
@@ -1149,6 +1149,81 @@ func hasDynamicToken(tokens []ObjectToken) bool {
 	return false
 }
 
+func hasRealObjects(tokens []ObjectToken) bool {
+	for _, tok := range tokens {
+		if tok.IsPseudoObject {
+			continue
+		}
+		if isDynamicBaseName(tok.BaseName) {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func normalizeDynamicReasonLabel(reason string) string {
+	switch strings.ToLower(strings.TrimSpace(reason)) {
+	case "":
+		return ""
+	case "concat":
+		return "concat runtime"
+	case "stringbuilder":
+		return "stringbuilder"
+	case "interpolation":
+		return "string interpolation"
+	case "placeholder":
+		return "template placeholder"
+	default:
+		return strings.TrimSpace(reason)
+	}
+}
+
+func inferDynamicReason(c *SqlCandidate, tokens []ObjectToken) string {
+	reasonSet := make(map[string]struct{})
+	add := func(r string) {
+		if normalized := normalizeDynamicReasonLabel(r); normalized != "" {
+			reasonSet[normalized] = struct{}{}
+		}
+	}
+
+	add(c.DynamicReason)
+
+	lowerRaw := strings.ToLower(c.RawSql)
+	lowerClean := strings.ToLower(c.SqlClean)
+	if strings.Contains(lowerRaw, "<expr>") || strings.Contains(lowerClean, "<expr>") {
+		add("concat runtime")
+	}
+	if strings.Contains(lowerRaw, "[[") || strings.Contains(lowerRaw, "${") || strings.Contains(lowerRaw, "]]") {
+		add("template placeholder")
+	}
+	for _, tok := range tokens {
+		switch strings.ToLower(strings.TrimSpace(tok.PseudoKind)) {
+		case "schema-placeholder":
+			add("[[schema]] placeholder")
+		case "table-placeholder":
+			add("[[table]] placeholder")
+		case "dynamic-object":
+			add("dynamic object name")
+		case "dynamic-sql":
+			add("dynamic sql")
+		}
+	}
+	if strings.Contains(lowerRaw, "<dynamic-sql>") {
+		add("dynamic sql")
+	}
+	if len(reasonSet) == 0 && c.IsDynamic {
+		add("dynamic construction")
+	}
+
+	var reasons []string
+	for reason := range reasonSet {
+		reasons = append(reasons, reason)
+	}
+	sort.Strings(reasons)
+	return strings.Join(reasons, "; ")
+}
+
 func buildDynamicSignature(c *SqlCandidate) string {
 	if !c.IsDynamic {
 		return ""
@@ -1224,13 +1299,19 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 }
 
 func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
-	if c.IsDynamic && !hasDynamicToken(tokens) {
+	needDynamic := c.IsDynamic && (!hasDynamicToken(tokens) || strings.EqualFold(strings.TrimSpace(usageKind), "EXEC"))
+	if needDynamic {
 		dml := usageKind
 		if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && !strings.EqualFold(strings.TrimSpace(usageKind), "EXEC") {
 			dml = "UNKNOWN"
 		}
 		tokens = ensureDynamicSqlPseudo(tokens, c, dml)
 	}
+
+	if c.IsDynamic && strings.TrimSpace(c.DynamicReason) == "" {
+		c.DynamicReason = inferDynamicReason(c, tokens)
+	}
+
 	applyDynamicRewrite := strings.EqualFold(strings.TrimSpace(c.SourceKind), "csharp")
 	sqlLower := strings.ToLower(c.SqlClean)
 	for i := range tokens {

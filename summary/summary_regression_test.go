@@ -17,8 +17,12 @@ type funcSummaryRow struct {
 	TotalExec        int
 	TotalWrite       int
 	TotalDynamic     int
+	DynamicCount     int
+	TotalDynamicSql  int
+	TotalDynamicObj  int
 	ObjectsUsed      string
 	DynamicSignature string
+	DynamicReason    string
 }
 
 type objSummaryRow struct {
@@ -194,8 +198,12 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 			TotalExec:        atoi(rec[idx["TotalExec"]]),
 			TotalWrite:       atoi(rec[idx["TotalWrite"]]),
 			TotalDynamic:     atoi(rec[idx["TotalDynamic"]]),
+			DynamicCount:     parseInt(pick(rec, idx, "DynamicCount")),
+			TotalDynamicSql:  parseInt(pick(rec, idx, "TotalDynamicSql")),
+			TotalDynamicObj:  parseInt(pick(rec, idx, "TotalDynamicObject")),
 			ObjectsUsed:      rec[idx["ObjectsUsed"]],
 			DynamicSignature: rec[idx["DynamicSignatures"]],
+			DynamicReason:    pick(rec, idx, "DynamicReason"),
 		})
 	}
 	return rows
@@ -312,21 +320,22 @@ func loadRawQueries(t *testing.T, path string) []QueryRow {
 			t.Fatalf("read query csv: %v", err)
 		}
 		rows = append(rows, QueryRow{
-			AppName:    rec[idx["AppName"]],
-			RelPath:    rec[idx["RelPath"]],
-			File:       rec[idx["File"]],
-			Func:       rec[idx["Func"]],
-			UsageKind:  rec[idx["UsageKind"]],
-			IsWrite:    strings.EqualFold(rec[idx["IsWrite"]], "true"),
-			IsDynamic:  strings.EqualFold(rec[idx["IsDynamic"]], "true"),
-			HasCrossDb: strings.EqualFold(rec[idx["HasCrossDb"]], "true"),
-			DbList:     strings.Split(strings.TrimSpace(rec[idx["DbList"]]), ";"),
-			ConnDb:     rec[idx["ConnDb"]],
-			QueryHash:  rec[idx["QueryHash"]],
-			LineStart:  atoi(rec[idx["LineStart"]]),
-			LineEnd:    atoi(rec[idx["LineEnd"]]),
-			CallSite:   rec[idx["CallSiteKind"]],
-			DynamicSig: rec[idx["DynamicSignature"]],
+			AppName:       rec[idx["AppName"]],
+			RelPath:       rec[idx["RelPath"]],
+			File:          rec[idx["File"]],
+			Func:          rec[idx["Func"]],
+			UsageKind:     rec[idx["UsageKind"]],
+			IsWrite:       strings.EqualFold(rec[idx["IsWrite"]], "true"),
+			IsDynamic:     strings.EqualFold(rec[idx["IsDynamic"]], "true"),
+			HasCrossDb:    strings.EqualFold(rec[idx["HasCrossDb"]], "true"),
+			DbList:        strings.Split(strings.TrimSpace(rec[idx["DbList"]]), ";"),
+			ConnDb:        rec[idx["ConnDb"]],
+			QueryHash:     rec[idx["QueryHash"]],
+			LineStart:     atoi(rec[idx["LineStart"]]),
+			LineEnd:       atoi(rec[idx["LineEnd"]]),
+			CallSite:      rec[idx["CallSiteKind"]],
+			DynamicSig:    rec[idx["DynamicSignature"]],
+			DynamicReason: pick(rec, idx, "DynamicReason"),
 		})
 	}
 	return rows

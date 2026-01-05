@@ -25,6 +25,9 @@ type functionAgg struct {
 	execCount     int
 	writeCount    int
 	dynamicCount  int
+	dynamicRaw    int
+	dynamicSql    int
+	dynamicObject int
 }
 
 // TotalMismatches returns the total number of mismatches found.
@@ -79,6 +82,7 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 
 func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries []FunctionSummaryRow) []string {
 	normQueries := normalizeQueryFuncs(queries)
+	dedupQueries, dynamicCounts := dedupeDynamicQueries(normQueries)
 	objectsByQuery := map[string][]ObjectRow{}
 	for _, o := range objects {
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
@@ -86,7 +90,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 	}
 
 	expected := make(map[string]*functionAgg)
-	for _, q := range normQueries {
+	for _, q := range dedupQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		entry := expected[key]
 		if entry == nil {
@@ -145,6 +149,32 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 
 		if isDynamicQuery(q) {
 			entry.dynamicCount++
+			raw := dynamicCounts[dynamicDedupSignature(q)]
+			if raw == 0 {
+				raw = 1
+			}
+			entry.dynamicRaw += raw
+
+			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+			dynSqlPseudo := false
+			dynObjPseudo := false
+			for _, o := range objectsByQuery[qKey] {
+				if !o.IsPseudoObject {
+					continue
+				}
+				kind := normalizePseudoKindLabel(o.BaseName, o.PseudoKind)
+				if kind == "dynamic-sql" {
+					dynSqlPseudo = true
+				} else if strings.TrimSpace(kind) != "" {
+					dynObjPseudo = true
+				}
+			}
+			if dynSqlPseudo || (!dynSqlPseudo && !dynObjPseudo) {
+				entry.dynamicSql++
+			}
+			if dynObjPseudo {
+				entry.dynamicObject++
+			}
 		}
 	}
 
@@ -207,6 +237,15 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 	check("exec", raw.execCount, summary.TotalExec)
 	check("write", raw.writeCount, summary.TotalWrite)
 	check("dynamic", raw.dynamicCount, summary.TotalDynamic)
+	if summary.DynamicCount != 0 {
+		check("dynamicRaw", raw.dynamicRaw, summary.DynamicCount)
+	}
+	if summary.TotalDynamicSql != 0 || raw.dynamicSql != 0 {
+		check("dynamicSql", raw.dynamicSql, summary.TotalDynamicSql)
+	}
+	if summary.TotalDynamicObject != 0 || raw.dynamicObject != 0 {
+		check("dynamicObject", raw.dynamicObject, summary.TotalDynamicObject)
+	}
 
 	return strings.Join(diffs, "; ")
 }
@@ -291,7 +330,11 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 func normalizeRoles(val string) string {
 	set := make(map[string]struct{})
 	for _, role := range strings.Split(val, ";") {
-		if normalized := normalizeRoleValue(role); normalized != "" {
+		trimmed := strings.TrimSpace(role)
+		if idx := strings.IndexAny(trimmed, " ("); idx >= 0 {
+			trimmed = strings.TrimSpace(trimmed[:idx])
+		}
+		if normalized := normalizeRoleValue(trimmed); normalized != "" {
 			set[normalized] = struct{}{}
 		}
 	}
@@ -389,8 +432,20 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		if col, ok := idx["TotalDynamic"]; ok {
 			row.TotalDynamic = parseInt(rec[col])
 		}
+		if col, ok := idx["TotalDynamicSql"]; ok {
+			row.TotalDynamicSql = parseInt(rec[col])
+		}
+		if col, ok := idx["TotalDynamicObject"]; ok {
+			row.TotalDynamicObject = parseInt(rec[col])
+		}
+		if col, ok := idx["DynamicCount"]; ok {
+			row.DynamicCount = parseInt(rec[col])
+		}
 		if col, ok := idx["DynamicSignatures"]; ok {
 			row.DynamicSig = rec[col]
+		}
+		if col, ok := idx["DynamicReason"]; ok {
+			row.DynamicReason = rec[col]
 		}
 		if col, ok := idx["TotalObjects"]; ok {
 			row.TotalObjects = parseInt(rec[col])
@@ -405,6 +460,18 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		}
 		if col, ok := idx["DbList"]; ok {
 			row.DbList = rec[col]
+		}
+		if col, ok := idx["TopObjects"]; ok {
+			row.TopObjects = rec[col]
+		}
+		if col, ok := idx["TopObjectsShort"]; ok {
+			row.TopObjectsShort = rec[col]
+		}
+		if col, ok := idx["DynamicPseudoKinds"]; ok {
+			row.DynamicPseudoKinds = rec[col]
+		}
+		if col, ok := idx["DynamicExampleSignatures"]; ok {
+			row.DynamicExampleSignatures = rec[col]
 		}
 		rows = append(rows, row)
 	}
