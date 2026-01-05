@@ -169,8 +169,13 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		if val, ok := globalLiterals[name]; ok {
 			return val, true
 		}
-		for _, m := range literalInMethod {
-			if val, ok := m[name]; ok {
+		methods := make([]string, 0, len(literalInMethod))
+		for m := range literalInMethod {
+			methods = append(methods, m)
+		}
+		sort.Strings(methods)
+		for _, method := range methods {
+			if val, ok := literalInMethod[method][name]; ok {
 				return val, true
 			}
 		}
