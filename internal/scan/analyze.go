@@ -140,6 +140,7 @@ func analyzeCandidate(c *SqlCandidate) {
 	if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
 		tokens = ensureDynamicSqlPseudo(tokens, c, "UNKNOWN")
 	}
+	tokens = append(tokens, detectClauseRoleTokens(sqlClean, usage, c.LineStart)...)
 
 	insertTargetKeys := make(map[string]struct{})
 	addInsertKey := func(tok ObjectToken) bool {
@@ -1121,6 +1122,169 @@ func detectAllDmlTargets(sql string, line int) []ObjectToken {
 			seen[key] = struct{}{}
 			tokens = append(tokens, tok)
 		}
+	}
+	return tokens
+}
+
+func findKeywordWithBoundary(sqlLower, keyword string, start int) int {
+	if start < 0 {
+		start = 0
+	}
+	for {
+		idx := strings.Index(sqlLower[start:], keyword)
+		if idx < 0 {
+			return -1
+		}
+		pos := start + idx
+		end := pos + len(keyword)
+		if pos > 0 && isIdentChar(sqlLower[pos-1]) {
+			start = end
+			continue
+		}
+		if end < len(sqlLower) && isIdentChar(sqlLower[end]) {
+			start = end
+			continue
+		}
+		return pos
+	}
+}
+
+func buildClauseObjectToken(rawName, role, dml string, isWrite bool, line, foundAt int) (ObjectToken, bool) {
+	rawName = strings.TrimSpace(rawName)
+	if rawName == "" {
+		return ObjectToken{}, false
+	}
+	dbName, schemaName, baseName, isLinked := splitObjectNameParts(rawName)
+	if baseName == "" {
+		return ObjectToken{}, false
+	}
+	trimmedBase := strings.TrimSpace(baseName)
+	if schemaName == "" && !strings.HasPrefix(trimmedBase, "#") && !strings.HasPrefix(trimmedBase, "@") {
+		schemaName = "dbo"
+	}
+	tok := ObjectToken{
+		DbName:             dbName,
+		SchemaName:         schemaName,
+		BaseName:           baseName,
+		FullName:           buildFullName(dbName, schemaName, baseName),
+		Role:               role,
+		DmlKind:            strings.ToUpper(strings.TrimSpace(dml)),
+		IsWrite:            isWrite,
+		FoundAt:            foundAt,
+		RepresentativeLine: line,
+		IsObjectNameDyn:    hasDynamicPlaceholder(rawName),
+		IsLinkedServer:     isLinked,
+	}
+
+	tok = normalizeObjectToken(tok)
+	return tok, true
+}
+
+func collectClauseObjects(sql, sqlLower string, start int, keywords []string, role, dml string, isWrite bool, line int) []ObjectToken {
+	var tokens []ObjectToken
+	for _, kw := range keywords {
+		searchPos := start
+		for searchPos >= 0 && searchPos < len(sqlLower) {
+			idx := strings.Index(sqlLower[searchPos:], kw)
+			if idx < 0 {
+				break
+			}
+			pos := searchPos + idx
+			end := pos + len(kw)
+			if pos > 0 && isIdentChar(sqlLower[pos-1]) {
+				searchPos = end
+				continue
+			}
+			if end < len(sqlLower) && isIdentChar(sqlLower[end]) {
+				searchPos = end
+				continue
+			}
+			objStart := skipWS(sqlLower, end)
+			if objStart >= len(sqlLower) {
+				break
+			}
+			rawObj, next := scanObjectName(sql, sqlLower, objStart)
+			if tok, ok := buildClauseObjectToken(rawObj, role, dml, isWrite, line, pos); ok {
+				tokens = append(tokens, tok)
+			}
+			if next <= searchPos {
+				next = end
+			}
+			searchPos = next
+		}
+	}
+	return tokens
+}
+
+func detectOutputTargets(sql, sqlLower, usage string, line int) []ObjectToken {
+	keywords := []string{"output", "returning"}
+	var tokens []ObjectToken
+	for _, kw := range keywords {
+		searchPos := 0
+		for searchPos < len(sqlLower) {
+			idx := strings.Index(sqlLower[searchPos:], kw)
+			if idx < 0 {
+				break
+			}
+			pos := searchPos + idx
+			end := pos + len(kw)
+			if pos > 0 && isIdentChar(sqlLower[pos-1]) {
+				searchPos = end
+				continue
+			}
+			if end < len(sqlLower) && isIdentChar(sqlLower[end]) {
+				searchPos = end
+				continue
+			}
+			intoPos := findKeywordWithBoundary(sqlLower, "into", end)
+			if intoPos < 0 {
+				searchPos = end
+				continue
+			}
+			objStart := skipWS(sqlLower, intoPos+len("into"))
+			if objStart >= len(sqlLower) {
+				break
+			}
+			rawObj, next := scanObjectName(sql, sqlLower, objStart)
+			if tok, ok := buildClauseObjectToken(rawObj, "target", usage, true, line, intoPos); ok {
+				tokens = append(tokens, tok)
+			}
+			if next <= searchPos {
+				next = end
+			}
+			searchPos = next
+		}
+	}
+	return tokens
+}
+
+func detectClauseRoleTokens(sql, usage string, line int) []ObjectToken {
+	sqlLower := strings.ToLower(sql)
+	usageUpper := strings.ToUpper(strings.TrimSpace(usage))
+	var tokens []ObjectToken
+	switch usageUpper {
+	case "INSERT":
+		tokens = append(tokens, detectDmlTargetsFromSql(sql, usageUpper, line)...)
+		selectPos := findKeywordWithBoundary(sqlLower, "select", 0)
+		if selectPos >= 0 {
+			tokens = append(tokens, collectClauseObjects(sql, sqlLower, selectPos, []string{"from", "join", "using"}, "source", "SELECT", false, line)...)
+		}
+	case "UPDATE":
+		tokens = append(tokens, detectDmlTargetsFromSql(sql, usageUpper, line)...)
+		fromPos := findKeywordWithBoundary(sqlLower, "from", findKeywordWithBoundary(sqlLower, "set", 0))
+		if fromPos >= 0 {
+			tokens = append(tokens, collectClauseObjects(sql, sqlLower, fromPos, []string{"from", "join", "using"}, "source", "SELECT", false, line)...)
+		}
+	case "MERGE":
+		tokens = append(tokens, detectDmlTargetsFromSql(sql, usageUpper, line)...)
+		usingPos := findKeywordWithBoundary(sqlLower, "using", 0)
+		if usingPos >= 0 {
+			tokens = append(tokens, collectClauseObjects(sql, sqlLower, usingPos, []string{"using", "join"}, "source", "SELECT", false, line)...)
+		}
+	}
+
+	if usageUpper == "INSERT" || usageUpper == "UPDATE" || usageUpper == "DELETE" || usageUpper == "MERGE" {
+		tokens = append(tokens, detectOutputTargets(sql, sqlLower, usageUpper, line)...)
 	}
 	return tokens
 }
