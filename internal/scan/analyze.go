@@ -287,63 +287,6 @@ func analyzeCandidate(c *SqlCandidate) {
 		}
 	}
 
-	if hasDynamicToken(tokens) {
-		hasSpecificDyn := false
-		for _, tok := range tokens {
-			if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
-				if strings.TrimSpace(tok.DbName) != "" || (strings.TrimSpace(tok.SchemaName) != "" && !strings.EqualFold(strings.TrimSpace(tok.SchemaName), "dbo")) {
-					hasSpecificDyn = true
-					break
-				}
-			}
-		}
-
-		if hasSpecificDyn {
-			var filtered []ObjectToken
-			for _, tok := range tokens {
-				if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
-					dbEmpty := strings.TrimSpace(tok.DbName) == ""
-					schemaEmptyOrDbo := strings.TrimSpace(tok.SchemaName) == "" || strings.EqualFold(strings.TrimSpace(tok.SchemaName), "dbo")
-					if dbEmpty && schemaEmptyOrDbo {
-						continue
-					}
-				}
-				filtered = append(filtered, tok)
-			}
-			tokens = filtered
-		}
-
-		var bestDyn ObjectToken
-		hasDyn := false
-		isBetterDyn := func(a, b ObjectToken) bool {
-			if strings.TrimSpace(b.DbName) == "" && strings.TrimSpace(a.DbName) != "" {
-				return true
-			}
-			if strings.TrimSpace(b.DbName) != "" && strings.TrimSpace(a.DbName) == "" {
-				return false
-			}
-			if (strings.TrimSpace(b.SchemaName) == "" || strings.EqualFold(strings.TrimSpace(b.SchemaName), "dbo")) && strings.TrimSpace(a.SchemaName) != "" && !strings.EqualFold(strings.TrimSpace(a.SchemaName), "dbo") {
-				return true
-			}
-			return false
-		}
-
-		var filtered []ObjectToken
-		for _, tok := range tokens {
-			if strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-object") {
-				if !hasDyn || isBetterDyn(tok, bestDyn) {
-					bestDyn = tok
-					hasDyn = true
-				}
-				continue
-			}
-			filtered = append(filtered, tok)
-		}
-		if hasDyn {
-			filtered = append(filtered, bestDyn)
-		}
-		tokens = filtered
-	}
 	classifyObjects(c, usage, tokens)
 
 	c.DynamicSignature = buildDynamicSignature(c)
@@ -1268,6 +1211,9 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 			return tokens
 		}
 	}
+	if !strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") {
+		return tokens
+	}
 	if strings.TrimSpace(dml) == "" {
 		dml = "UNKNOWN"
 	}
@@ -1298,15 +1244,143 @@ func ensureDynamicSqlPseudo(tokens []ObjectToken, c *SqlCandidate, dml string) [
 	return tokens
 }
 
-func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
-	needDynamic := c.IsDynamic && (!hasDynamicToken(tokens) || strings.EqualFold(strings.TrimSpace(usageKind), "EXEC"))
-	if needDynamic {
-		dml := usageKind
-		if strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>") && !strings.EqualFold(strings.TrimSpace(usageKind), "EXEC") {
-			dml = "UNKNOWN"
-		}
-		tokens = ensureDynamicSqlPseudo(tokens, c, dml)
+func dynamicObjectSpecificityScore(tok ObjectToken) int {
+	score := 0
+	if strings.TrimSpace(tok.DbName) != "" {
+		score += 4
 	}
+	schema := strings.TrimSpace(tok.SchemaName)
+	if schema != "" && !strings.EqualFold(schema, "dbo") {
+		score += 2
+	}
+	if strings.TrimSpace(tok.Role) != "" {
+		score++
+	}
+	if strings.TrimSpace(tok.DmlKind) != "" {
+		score++
+	}
+	return score
+}
+
+func isDynamicSqlToken(tok ObjectToken) bool {
+	if strings.EqualFold(strings.TrimSpace(tok.BaseName), "<dynamic-sql>") {
+		return true
+	}
+	return strings.EqualFold(strings.TrimSpace(tok.PseudoKind), "dynamic-sql")
+}
+
+func isDynamicObjectPlaceholder(tok ObjectToken) bool {
+	kind := strings.ToLower(strings.TrimSpace(tok.PseudoKind))
+	if kind == "dynamic-sql" {
+		return false
+	}
+	if kind == "dynamic-object" || kind == "schema-placeholder" || kind == "table-placeholder" {
+		return true
+	}
+	base := strings.TrimSpace(tok.BaseName)
+	if strings.EqualFold(base, "<dynamic-object>") {
+		return true
+	}
+	if tok.IsObjectNameDyn && kind == "" {
+		return true
+	}
+	return false
+}
+
+func buildDynamicObjectPseudo(usageKind string, line int) ObjectToken {
+	tok := ObjectToken{
+		BaseName:           "<dynamic-object>",
+		FullName:           "<dynamic-object>",
+		Role:               "source",
+		DmlKind:            "SELECT",
+		IsObjectNameDyn:    true,
+		IsPseudoObject:     true,
+		PseudoKind:         "dynamic-object",
+		RepresentativeLine: line,
+	}
+	switch strings.ToUpper(strings.TrimSpace(usageKind)) {
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
+		tok.Role = "target"
+		tok.DmlKind = strings.ToUpper(strings.TrimSpace(usageKind))
+		tok.IsWrite = true
+	case "EXEC":
+		tok.Role = "exec"
+		tok.DmlKind = "EXEC"
+		tok.IsWrite = true
+	}
+	return tok
+}
+
+func condenseDynamicPseudoTokens(tokens []ObjectToken, allowDynamicSql bool) []ObjectToken {
+	var dynObjs []ObjectToken
+	var dynSqls []ObjectToken
+	var out []ObjectToken
+
+	for _, tok := range tokens {
+		if isDynamicSqlToken(tok) {
+			if allowDynamicSql {
+				dynSqls = append(dynSqls, tok)
+			}
+			continue
+		}
+		if isDynamicObjectPlaceholder(tok) {
+			dynObjs = append(dynObjs, tok)
+			continue
+		}
+		out = append(out, tok)
+	}
+
+	if allowDynamicSql && len(dynSqls) > 0 {
+		best := dynSqls[0]
+		for _, tok := range dynSqls[1:] {
+			if strings.TrimSpace(tok.DmlKind) != "" && strings.TrimSpace(best.DmlKind) == "" {
+				best = tok
+				continue
+			}
+			if strings.TrimSpace(tok.Role) != "" && strings.TrimSpace(best.Role) == "" {
+				best = tok
+			}
+		}
+		out = append(out, best)
+	}
+
+	if len(dynObjs) > 0 {
+		best := dynObjs[0]
+		bestScore := dynamicObjectSpecificityScore(best)
+		for _, tok := range dynObjs[1:] {
+			if score := dynamicObjectSpecificityScore(tok); score > bestScore {
+				best = tok
+				bestScore = score
+			}
+		}
+		out = append(out, best)
+	}
+
+	return out
+}
+
+func hasDynamicPlaceholderToken(tokens []ObjectToken) bool {
+	for _, tok := range tokens {
+		if isDynamicSqlToken(tok) || isDynamicObjectPlaceholder(tok) {
+			return true
+		}
+	}
+	return false
+}
+
+func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
+	allowDynamicSql := strings.EqualFold(strings.TrimSpace(c.RawSql), "<dynamic-sql>")
+	if allowDynamicSql {
+		tokens = ensureDynamicSqlPseudo(tokens, c, usageKind)
+	}
+	if c.IsDynamic && !hasDynamicPlaceholderToken(tokens) {
+		fallback := inferDynamicObjectFallbacks(c.SqlClean, c.RawSql, usageKind, c.LineStart)
+		if len(fallback) == 0 {
+			fallback = []ObjectToken{buildDynamicObjectPseudo(usageKind, c.LineStart)}
+		}
+		tokens = append(tokens, fallback...)
+	}
+	tokens = condenseDynamicPseudoTokens(tokens, allowDynamicSql)
 
 	if c.IsDynamic && strings.TrimSpace(c.DynamicReason) == "" {
 		c.DynamicReason = inferDynamicReason(c, tokens)
@@ -2281,6 +2355,32 @@ func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
 	if len(cands) <= 1 {
 		return cands
 	}
+
+	sort.SliceStable(cands, func(i, j int) bool {
+		a, b := cands[i], cands[j]
+		if a.RelPath != b.RelPath {
+			return a.RelPath < b.RelPath
+		}
+		if a.LineStart != b.LineStart {
+			return a.LineStart < b.LineStart
+		}
+		if a.LineEnd != b.LineEnd {
+			return a.LineEnd < b.LineEnd
+		}
+		if a.Func != b.Func {
+			return a.Func < b.Func
+		}
+		if a.UsageKind != b.UsageKind {
+			return a.UsageKind < b.UsageKind
+		}
+		if a.SqlClean != b.SqlClean {
+			return a.SqlClean < b.SqlClean
+		}
+		if a.RawSql != b.RawSql {
+			return a.RawSql < b.RawSql
+		}
+		return a.SourceKind < b.SourceKind
+	})
 
 	seen := make(map[string]bool)
 	var uniq []SqlCandidate
