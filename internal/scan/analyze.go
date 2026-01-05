@@ -515,12 +515,19 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 
 	for i := range c.Objects {
 		obj := &c.Objects[i]
+		placeholderKind := strings.ToLower(strings.TrimSpace(obj.PseudoKind))
 		if strings.TrimSpace(obj.PseudoKind) != "" {
 			obj.IsPseudoObject = true
 		}
-		obj.DbName = trimIdent(obj.DbName)
-		obj.SchemaName = trimIdent(obj.SchemaName)
-		obj.BaseName = trimIdent(obj.BaseName)
+		if placeholderKind == "schema-placeholder" || placeholderKind == "table-placeholder" {
+			obj.DbName = strings.TrimSpace(obj.DbName)
+			obj.SchemaName = strings.TrimSpace(obj.SchemaName)
+			obj.BaseName = trimIdent(obj.BaseName)
+		} else {
+			obj.DbName = trimIdent(obj.DbName)
+			obj.SchemaName = trimIdent(obj.SchemaName)
+			obj.BaseName = trimIdent(obj.BaseName)
+		}
 
 		if obj.DbName == "" {
 			full := strings.TrimSpace(obj.FullName)
@@ -543,15 +550,23 @@ func updateCrossDbMetadata(c *SqlCandidate) {
 			}
 		}
 
-		if obj.DbName != "" && obj.SchemaName == "" {
-			obj.SchemaName = "dbo"
-		}
-		if obj.DbName == "" && strings.TrimSpace(obj.SchemaName) == "" {
-			obj.SchemaName = "dbo"
+		if placeholderKind != "schema-placeholder" {
+			if obj.DbName != "" && obj.SchemaName == "" {
+				obj.SchemaName = "dbo"
+			}
+			if obj.DbName == "" && strings.TrimSpace(obj.SchemaName) == "" {
+				obj.SchemaName = "dbo"
+			}
 		}
 		obj.FullName = normalizeFullObjectName(buildFullName(obj.DbName, obj.SchemaName, obj.BaseName))
 
 		if obj.DbName != "" {
+			if (placeholderKind == "schema-placeholder" || placeholderKind == "table-placeholder") && isDynamicObjectName(obj.DbName) {
+				obj.IsCrossDb = true
+				dbSet[obj.DbName] = struct{}{}
+				hasCross = true
+				continue
+			}
 			if isLikelyVarName(obj.DbName) || (crossAnchor < 0 && !strings.EqualFold(c.UsageKind, "EXEC")) || (obj.FoundAt > 0 && obj.FoundAt < crossAnchor) {
 				obj.DbName = ""
 				obj.IsCrossDb = false
@@ -1259,6 +1274,12 @@ func dynamicObjectSpecificityScore(tok ObjectToken) int {
 	if strings.TrimSpace(tok.DmlKind) != "" {
 		score++
 	}
+	switch strings.ToLower(strings.TrimSpace(tok.PseudoKind)) {
+	case "schema-placeholder", "table-placeholder":
+		score += 6
+	case "dynamic-object":
+		score++
+	}
 	return score
 }
 
@@ -1373,6 +1394,7 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 	if allowDynamicSql {
 		tokens = ensureDynamicSqlPseudo(tokens, c, usageKind)
 	}
+	origTokens := tokens
 	if c.IsDynamic && !hasDynamicPlaceholderToken(tokens) {
 		fallback := inferDynamicObjectFallbacks(c.SqlClean, c.RawSql, usageKind, c.LineStart)
 		if len(fallback) == 0 {
@@ -1381,6 +1403,10 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 		tokens = append(tokens, fallback...)
 	}
 	tokens = condenseDynamicPseudoTokens(tokens, allowDynamicSql)
+	if len(tokens) <= len(origTokens) {
+		copy(origTokens, tokens)
+		tokens = origTokens[:len(tokens)]
+	}
 
 	if c.IsDynamic && strings.TrimSpace(c.DynamicReason) == "" {
 		c.DynamicReason = inferDynamicReason(c, tokens)
@@ -1434,16 +1460,19 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 				tokens[i].PseudoKind = "table-variable"
 			}
 		}
+		schemaPlaceholder := strings.EqualFold(strings.TrimSpace(tokens[i].PseudoKind), "schema-placeholder")
 		if tokens[i].IsObjectNameDyn {
 			if applyDynamicRewrite {
-				if hasDynamicPlaceholder(tokens[i].DbName) {
+				if hasDynamicPlaceholder(tokens[i].DbName) && !schemaPlaceholder {
 					tokens[i].DbName = ""
 				}
 				if hasDynamicPlaceholder(tokens[i].SchemaName) {
 					tokens[i].SchemaName = ""
 				}
 			}
-			tokens[i].BaseName = "<dynamic-object>"
+			if !schemaPlaceholder {
+				tokens[i].BaseName = "<dynamic-object>"
+			}
 			tokens[i].FullName = buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName)
 		}
 		if tokens[i].IsObjectNameDyn && !tokens[i].IsPseudoObject {
@@ -1488,13 +1517,28 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			tokens[i].IsObjectNameDyn = true
 		}
 
-		tokens[i].DbName = cleanIdentifier(tokens[i].DbName)
-		tokens[i].SchemaName = cleanIdentifier(tokens[i].SchemaName)
-		tokens[i].BaseName = cleanIdentifier(tokens[i].BaseName)
+		placeholderKind := strings.ToLower(strings.TrimSpace(tokens[i].PseudoKind))
+		if placeholderKind == "schema-placeholder" || placeholderKind == "table-placeholder" {
+			tokens[i].DbName = strings.TrimSpace(tokens[i].DbName)
+			tokens[i].SchemaName = strings.TrimSpace(tokens[i].SchemaName)
+			tokens[i].BaseName = cleanIdentifier(tokens[i].BaseName)
+		} else {
+			tokens[i].DbName = cleanIdentifier(tokens[i].DbName)
+			tokens[i].SchemaName = cleanIdentifier(tokens[i].SchemaName)
+			tokens[i].BaseName = cleanIdentifier(tokens[i].BaseName)
+		}
 		if tokens[i].IsPseudoObject {
-			tokens[i].DbName = ""
-			tokens[i].SchemaName = ""
-			tokens[i].FullName = strings.TrimSpace(tokens[i].BaseName)
+			switch placeholderKind {
+			case "schema-placeholder":
+				tokens[i].SchemaName = ""
+				tokens[i].FullName = normalizeFullObjectName(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+			case "table-placeholder":
+				tokens[i].FullName = normalizeFullObjectName(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+			default:
+				tokens[i].DbName = ""
+				tokens[i].SchemaName = ""
+				tokens[i].FullName = strings.TrimSpace(tokens[i].BaseName)
+			}
 		} else {
 			if strings.TrimSpace(tokens[i].DbName) == "" && strings.TrimSpace(tokens[i].SchemaName) == "" {
 				tokens[i].SchemaName = "dbo"
@@ -1994,7 +2038,7 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			continue
 		}
 
-		dbName, schemaName, _, isLinked := splitObjectNameParts(objText)
+		dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
 		normalized := normalizeFullObjectName(objText)
 		parts := strings.Split(normalized, ".")
 		if dbName == "" && len(parts) >= 2 && len(parts) <= 3 {
@@ -2006,16 +2050,26 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 				schemaName = "dbo"
 			}
 		}
-		baseName := "<dynamic-object>"
-		full := buildFullName(dbName, schemaName, baseName)
-		pseudoKind := "dynamic-object"
-		lowerObj := strings.ToLower(objText)
-		if strings.Contains(lowerObj, "[[schema]]") {
-			pseudoKind = "schema-placeholder"
+		baseName = strings.TrimSpace(baseName)
+		if baseName == "" {
+			baseName = "<dynamic-object>"
 		}
-		if strings.Contains(lowerObj, "[[table") {
+		prefixPlaceholder := hasDynamicPlaceholder(dbName) || hasDynamicPlaceholder(schemaName)
+		basePlaceholder := hasDynamicPlaceholder(baseName)
+		pseudoKind := "dynamic-object"
+		switch {
+		case prefixPlaceholder && !basePlaceholder:
+			pseudoKind = "schema-placeholder"
+		case basePlaceholder && !prefixPlaceholder:
 			pseudoKind = "table-placeholder"
 		}
+		if pseudoKind != "schema-placeholder" {
+			baseName = "<dynamic-object>"
+		}
+		if pseudoKind == "schema-placeholder" {
+			schemaName = ""
+		}
+		full := buildFullName(dbName, schemaName, baseName)
 
 		tok := ObjectToken{
 			DbName:             dbName,
@@ -2029,7 +2083,15 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			IsLinkedServer:     isLinked,
 		}
 
+		if tok.PseudoKind == "schema-placeholder" {
+			tok.SchemaName = ""
+		}
+
 		tok = normalizeObjectToken(tok)
+		if tok.PseudoKind == "schema-placeholder" {
+			tok.SchemaName = ""
+			tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
+		}
 
 		switch keyword {
 		case "insert into":
@@ -2311,8 +2373,10 @@ func choosePseudoKindLocal(current, candidate string) string {
 		switch strings.ToLower(strings.TrimSpace(kind)) {
 		case "dynamic-sql":
 			return 3
-		case "dynamic-object":
+		case "schema-placeholder", "table-placeholder":
 			return 2
+		case "dynamic-object":
+			return 1
 		case "unknown":
 			return 1
 		default:
