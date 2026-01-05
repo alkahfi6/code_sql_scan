@@ -10,9 +10,11 @@ import (
 )
 
 var (
-	insertTargetRe = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([A-Za-z0-9_\[\]\.\"#]+)`)
-	updateTargetRe = regexp.MustCompile(`(?is)update\s+([A-Za-z0-9_\[\]\.\"#]+)\s+set\s+`)
-	deleteTargetRe = regexp.MustCompile(`(?is)delete\s+from\s+([A-Za-z0-9_\[\]\.\"#]+)`)
+	insertTargetRe   = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
+	updateTargetRe   = regexp.MustCompile(`(?is)update\s+([@A-Za-z0-9_\[\]\.\"#]+)\s+set\s+`)
+	deleteTargetRe   = regexp.MustCompile(`(?is)delete\s+(?:from\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
+	truncateTargetRe = regexp.MustCompile(`(?is)truncate\s+(?:table\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
+	mergeTargetRe    = regexp.MustCompile(`(?is)merge\s+(?:into\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
 )
 
 // ------------------------------------------------------------
@@ -204,6 +206,12 @@ func analyzeCandidate(c *SqlCandidate) {
 			}
 			if strings.Contains(lowerFrag, "delete from") || deleteTargetRe.MatchString(frag) {
 				kinds = append(kinds, "DELETE")
+			}
+			if strings.Contains(lowerFrag, "truncate") || truncateTargetRe.MatchString(frag) {
+				kinds = append(kinds, "TRUNCATE")
+			}
+			if strings.Contains(lowerFrag, "merge into") || mergeTargetRe.MatchString(frag) {
+				kinds = append(kinds, "MERGE")
 			}
 			if len(kinds) == 0 {
 				continue
@@ -508,7 +516,7 @@ func splitMultiDmlPart(sql string) []string {
 		return nil
 	}
 
-	dmlRe := regexp.MustCompile(`(?is)(insert\s+into|update\s+|delete\s+from|truncate\s+table)`) //nolint:lll
+	dmlRe := regexp.MustCompile(`(?is)(insert\s+into|update\s+|delete\s+from|truncate\s+table|merge\s+into)`) //nolint:lll
 	matches := dmlRe.FindAllStringSubmatchIndex(trimmed, -1)
 	if len(matches) <= 1 {
 		return []string{trimmed}
@@ -672,6 +680,7 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		"update":   "UPDATE",
 		"delete":   "DELETE",
 		"truncate": "TRUNCATE",
+		"merge":    "MERGE",
 		"exec":     "EXEC",
 		"execute":  "EXEC",
 	}
@@ -727,7 +736,7 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		return "UNKNOWN"
 	}
 
-	order := []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "SELECT", "EXEC"}
+	order := []string{"INSERT", "UPDATE", "DELETE", "MERGE", "TRUNCATE", "SELECT", "EXEC"}
 	for _, kind := range order {
 		if _, ok := foundSet[kind]; ok {
 			return kind
@@ -772,7 +781,7 @@ func normalizeProcSpecForHash(s string) string {
 
 func isWriteKind(kind string) bool {
 	switch kind {
-	case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
+	case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "MERGE", "EXEC":
 		return true
 	default:
 		return false
@@ -790,7 +799,7 @@ func findObjectTokens(sql string) []ObjectToken {
 	}
 
 	keywords := []string{
-		"from", "join", "update", "into",
+		"from", "join", "update", "merge", "into",
 		"truncate",
 		"delete from", "delete",
 		"exec", "execute",
@@ -840,7 +849,8 @@ func findObjectTokens(sql string) []ObjectToken {
 				continue
 			}
 			dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
-			if baseName != "" && schemaName == "" {
+			trimmedBase := strings.TrimSpace(baseName)
+			if baseName != "" && schemaName == "" && !strings.HasPrefix(trimmedBase, "#") && !strings.HasPrefix(trimmedBase, "@") {
 				schemaName = "dbo"
 			}
 			fullName := buildFullName(dbName, schemaName, baseName)
@@ -884,6 +894,10 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 		re = updateTargetRe
 	case "DELETE":
 		re = deleteTargetRe
+	case "TRUNCATE":
+		re = truncateTargetRe
+	case "MERGE":
+		re = mergeTargetRe
 	default:
 		return nil
 	}
@@ -905,7 +919,8 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 		if baseName == "" {
 			continue
 		}
-		if schemaName == "" {
+		trimmedBase := strings.TrimSpace(baseName)
+		if schemaName == "" && !strings.HasPrefix(trimmedBase, "#") && !strings.HasPrefix(trimmedBase, "@") {
 			schemaName = "dbo"
 		}
 
@@ -938,7 +953,7 @@ func detectDmlTargetsFromSql(sql string, usage string, line int) []ObjectToken {
 func detectAllDmlTargets(sql string, line int) []ObjectToken {
 	var tokens []ObjectToken
 	seen := make(map[string]struct{})
-	for _, kind := range []string{"INSERT", "UPDATE", "DELETE"} {
+	for _, kind := range []string{"INSERT", "UPDATE", "DELETE", "TRUNCATE", "MERGE"} {
 		for _, tok := range detectDmlTargetsFromSql(sql, kind, line) {
 			key := strings.ToLower(fmt.Sprintf("%s|%s|%s|%s", kind, tok.DbName, tok.SchemaName, tok.BaseName))
 			if key == "" {
@@ -1043,7 +1058,7 @@ func isIdentChar(b byte) bool {
 	return (b >= '0' && b <= '9') ||
 		(b >= 'a' && b <= 'z') ||
 		(b >= 'A' && b <= 'Z') ||
-		b == '_' || b == '.' || b == '$' || b == '-' || b == '[' || b == ']' || b == '#'
+		b == '_' || b == '.' || b == '$' || b == '-' || b == '[' || b == ']' || b == '#' || b == '@'
 }
 
 func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) {
@@ -1097,7 +1112,10 @@ func splitObjectNameParts(full string) (db, schema, base string, isLinked bool) 
 }
 
 func normalizeObjectToken(tok ObjectToken) ObjectToken {
-	if tok.SchemaName == "" && tok.BaseName != "" {
+	trimmedBase := strings.TrimSpace(tok.BaseName)
+	isTemp := strings.HasPrefix(trimmedBase, "#")
+	isTableVar := strings.HasPrefix(trimmedBase, "@")
+	if tok.SchemaName == "" && tok.BaseName != "" && !isTemp && !isTableVar {
 		tok.SchemaName = "dbo"
 	}
 	if tok.FullName == "" {
@@ -1106,10 +1124,14 @@ func normalizeObjectToken(tok ObjectToken) ObjectToken {
 	if tok.DbName != "" {
 		tok.IsCrossDb = true
 	}
-	if strings.HasPrefix(strings.TrimSpace(tok.BaseName), "#") {
+	if isTemp || isTableVar {
 		tok.IsPseudoObject = true
 		if strings.TrimSpace(tok.PseudoKind) == "" {
-			tok.PseudoKind = "temp-table"
+			if isTableVar {
+				tok.PseudoKind = "table-variable"
+			} else {
+				tok.PseudoKind = "temp-table"
+			}
 		}
 	}
 	return tok
@@ -1468,6 +1490,21 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 				tokens[i].IsWrite = false
 			}
 		}
+	case "MERGE":
+		for i := range tokens {
+			if preserveRole[i] {
+				continue
+			}
+			if i == targetIdx {
+				tokens[i].Role = "target"
+				tokens[i].DmlKind = "MERGE"
+				tokens[i].IsWrite = true
+			} else {
+				tokens[i].Role = "source"
+				tokens[i].DmlKind = "SELECT"
+				tokens[i].IsWrite = false
+			}
+		}
 	case "TRUNCATE":
 		for i := range tokens {
 			if preserveRole[i] {
@@ -1686,6 +1723,11 @@ func findKeywordPosition(sqlLower, usageKind string) int {
 			return pos + len("delete from")
 		}
 		return strings.Index(sqlLower, "delete")
+	case "MERGE":
+		if pos := strings.Index(sqlLower, "merge into"); pos >= 0 {
+			return pos + len("merge into")
+		}
+		return strings.Index(sqlLower, "merge")
 	case "TRUNCATE":
 		return strings.Index(sqlLower, "truncate")
 	case "EXEC":

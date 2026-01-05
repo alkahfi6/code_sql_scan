@@ -18,6 +18,7 @@ type regexRegistry struct {
 	dapperExec       *regexp.Regexp
 	efFromSql        *regexp.Regexp
 	efExecRaw        *regexp.Regexp
+	efExecRawIdent   *regexp.Regexp
 	execQuery        *regexp.Regexp
 	callQueryWsLit   *regexp.Regexp
 	callQueryWsDyn   *regexp.Regexp
@@ -62,7 +63,8 @@ func initRegexes() {
 		dapperQuery:          mustCompileRegex("dapperQuery", `(?is)\.\s*Query(?:Async)?(?:<[^>]*>)?\s*\(\s*(@?)"([^"]+)"`),
 		dapperExec:           mustCompileRegex("dapperExec", `(?is)\.\s*Execute(?:Async)?\s*\(\s*(@?)"([^"]+)"`),
 		efFromSql:            mustCompileRegex("efFromSql", `(?is)\.\s*FromSqlRaw\s*\(\s*(@?)"([^"]+)"`),
-		efExecRaw:            mustCompileRegex("efExecRaw", `(?is)\.\s*ExecuteSqlRaw\s*\(\s*(@?)"([^"]+)"`),
+		efExecRaw:            mustCompileRegex("efExecRaw", `(?is)\.\s*ExecuteSqlRaw(?:Async)?\s*\(\s*(@?)"([^"]+)"`),
+		efExecRawIdent:       mustCompileRegex("efExecRawIdent", `(?i)\.\s*ExecuteSqlRaw(?:Async)?\s*\(\s*([A-Za-z_][A-Za-z0-9_]*)`),
 		execQuery:            mustCompileRegex("execQuery", `(?is)\.\s*ExecuteQuery\s*\(\s*[^,]+,\s*(@?)"([^"]+)"`),
 		callQueryWsLit:       mustCompileRegex("callQueryWsLit", `(?is)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*(@?)"([^"]+)"`),
 		callQueryWsDyn:       mustCompileRegex("callQueryWsDyn", `(?is)\.\s*CallQueryFromWs\s*\(\s*[^,]+,\s*[^,]+,\s*([^),]+)`),

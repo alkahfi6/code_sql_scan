@@ -42,7 +42,7 @@ type SqlCandidate struct {
 	Func             string
 	RawSql           string
 	SqlClean         string
-	UsageKind        string // SELECT/INSERT/UPDATE/DELETE/TRUNCATE/EXEC/UNKNOWN
+	UsageKind        string // SELECT/INSERT/UPDATE/DELETE/TRUNCATE/MERGE/EXEC/UNKNOWN
 	IsWrite          bool
 	IsDynamic        bool
 	IsExecStub       bool
