@@ -317,6 +317,57 @@ func dynamicSummarySignatureLocal(q summary.QueryRow) string {
 	return fmt.Sprintf("%s|%s|%s", strings.TrimSpace(q.RelPath), strings.TrimSpace(q.Func), call)
 }
 
+func normalizePseudoKindLocal(baseName, pseudoKind string) string {
+	lowerKind := strings.ToLower(strings.TrimSpace(pseudoKind))
+	if lowerKind != "" {
+		return lowerKind
+	}
+	lowerBase := strings.ToLower(strings.TrimSpace(baseName))
+	switch {
+	case lowerBase == "<dynamic-sql>":
+		return "dynamic-sql"
+	case strings.HasPrefix(lowerBase, "<dynamic-object"):
+		return "dynamic-object"
+	default:
+		return ""
+	}
+}
+
+func classifyDynamicKindLocal(q summary.QueryRow, objects []summary.ObjectRow) string {
+	if !q.IsDynamic {
+		return ""
+	}
+	hasDynObj := false
+	hasDynSql := false
+	for _, o := range objects {
+		switch normalizePseudoKindLocal(o.BaseName, o.PseudoKind) {
+		case "dynamic-object":
+			hasDynObj = true
+		case "dynamic-sql":
+			hasDynSql = true
+		}
+	}
+	if hasDynObj {
+		return "dynamic-object"
+	}
+	if hasDynSql {
+		return "dynamic-sql"
+	}
+	return "dynamic-sql"
+}
+
+func buildDynamicKindIndexLocal(queries []summary.QueryRow, objectsByQuery map[string][]summary.ObjectRow) map[string]string {
+	res := make(map[string]string)
+	for _, q := range queries {
+		if !q.IsDynamic {
+			continue
+		}
+		key := strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")
+		res[key] = classifyDynamicKindLocal(q, objectsByQuery[key])
+	}
+	return res
+}
+
 func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.ObjectRow, funcSummary []summary.FunctionSummaryRow, objectSummary []summary.ObjectSummaryRow) error {
 	validateFuncs := len(funcSummary) > 0
 	validateObjects := len(objectSummary) > 0
@@ -338,6 +389,13 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 		}
 		dedupQueries = append(dedupQueries, q)
 	}
+	objects = summary.NormalizeObjectRows(objects)
+	objectsByQuery := make(map[string][]summary.ObjectRow)
+	for _, o := range objects {
+		key := strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")
+		objectsByQuery[key] = append(objectsByQuery[key], o)
+	}
+	dynamicKindByQuery := buildDynamicKindIndexLocal(dedupQueries, objectsByQuery)
 
 	type funcCounts struct {
 		total    int
@@ -350,6 +408,8 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 		write    int
 		dynamic  int
 		dynRaw   int
+		dynSQL   int
+		dynObj   int
 	}
 
 	var errors []string
@@ -390,6 +450,12 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 			if q.IsDynamic {
 				counts.dynamic++
 				counts.dynRaw = rawDynByFunc[key]
+				switch dynamicKindByQuery[strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")] {
+				case "dynamic-object":
+					counts.dynObj++
+				case "dynamic-sql":
+					counts.dynSQL++
+				}
 			}
 			counts.total++
 			queryCounts[key] = counts
@@ -412,13 +478,13 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 			if rawDyn == 0 {
 				rawDyn = sum.DynamicCount
 			}
-			if sum.TotalQueries != expected.total || sum.TotalSelect != expected.selectQ || sum.TotalInsert != expected.insert || sum.TotalUpdate != expected.update || sum.TotalDelete != expected.deleteQ || sum.TotalTruncate != expected.truncate || sum.TotalExec != expected.exec || sum.TotalWrite != expected.write || sum.TotalDynamic != expected.dynamic || (rawDyn != 0 && rawDyn != expected.dynRaw) {
+			if sum.TotalQueries != expected.total || sum.TotalSelect != expected.selectQ || sum.TotalInsert != expected.insert || sum.TotalUpdate != expected.update || sum.TotalDelete != expected.deleteQ || sum.TotalTruncate != expected.truncate || sum.TotalExec != expected.exec || sum.TotalWrite != expected.write || sum.TotalDynamic != expected.dynamic || (rawDyn != 0 && rawDyn != expected.dynRaw) || (sum.DynamicSqlCount != 0 && sum.DynamicSqlCount != expected.dynSQL) || (sum.DynamicObjectCount != 0 && sum.DynamicObjectCount != expected.dynObj) {
 				errors = append(errors, fmt.Sprintf(
-					"function %s/%s count mismatch (expected total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d, summary total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d)",
+					"function %s/%s count mismatch (expected total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d dynSql=%d dynObj=%d, summary total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d dynSql=%d dynObj=%d)",
 					sum.RelPath,
 					sum.Func,
-					expected.total, expected.selectQ, expected.insert, expected.update, expected.deleteQ, expected.truncate, expected.exec, expected.write, expected.dynamic, expected.dynRaw,
-					sum.TotalQueries, sum.TotalSelect, sum.TotalInsert, sum.TotalUpdate, sum.TotalDelete, sum.TotalTruncate, sum.TotalExec, sum.TotalWrite, sum.TotalDynamic, rawDyn,
+					expected.total, expected.selectQ, expected.insert, expected.update, expected.deleteQ, expected.truncate, expected.exec, expected.write, expected.dynamic, expected.dynRaw, expected.dynSQL, expected.dynObj,
+					sum.TotalQueries, sum.TotalSelect, sum.TotalInsert, sum.TotalUpdate, sum.TotalDelete, sum.TotalTruncate, sum.TotalExec, sum.TotalWrite, sum.TotalDynamic, rawDyn, sum.DynamicSqlCount, sum.DynamicObjectCount,
 				))
 			}
 		}
@@ -454,13 +520,13 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 				errors = append(errors, fmt.Sprintf("object %s/%s missing in summary (expected reads=%d writes=%d exec=%d)", rel, full, expected.Reads, expected.Writes, expected.Execs))
 				continue
 			}
-			if sum.TotalReads != expected.Reads || sum.TotalWrites != expected.Writes || sum.TotalExec != expected.Execs {
+			if sum.TotalReads != expected.Reads || sum.TotalWrites != expected.Writes || sum.TotalExec != expected.Execs || sum.TotalDynamicSql != expected.DynamicSql || sum.TotalDynamicObject != expected.DynamicObject {
 				errors = append(errors, fmt.Sprintf(
-					"object %s/%s count mismatch (expected reads=%d writes=%d exec=%d, summary reads=%d writes=%d exec=%d)",
+					"object %s/%s count mismatch (expected reads=%d writes=%d exec=%d dynSql=%d dynObj=%d, summary reads=%d writes=%d exec=%d dynSql=%d dynObj=%d)",
 					sum.RelPath,
 					sum.FullObjectName,
-					expected.Reads, expected.Writes, expected.Execs,
-					sum.TotalReads, sum.TotalWrites, sum.TotalExec,
+					expected.Reads, expected.Writes, expected.Execs, expected.DynamicSql, expected.DynamicObject,
+					sum.TotalReads, sum.TotalWrites, sum.TotalExec, sum.TotalDynamicSql, sum.TotalDynamicObject,
 				))
 			}
 		}
@@ -488,9 +554,11 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 }
 
 type objectCount struct {
-	Reads  int
-	Writes int
-	Execs  int
+	Reads         int
+	Writes        int
+	Execs         int
+	DynamicSql    int
+	DynamicObject int
 }
 
 func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectRow) map[string]objectCount {
@@ -500,18 +568,42 @@ func aggregateObjectCounts(queries []summary.QueryRow, objects []summary.ObjectR
 		queryByKey[key] = q
 	}
 
+	objects = summary.NormalizeObjectRows(objects)
+	objectsByQuery := make(map[string][]summary.ObjectRow)
+	for _, o := range objects {
+		key := strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")
+		objectsByQuery[key] = append(objectsByQuery[key], o)
+	}
+	dynamicKindByQuery := buildDynamicKindIndexLocal(queries, objectsByQuery)
+	dynamicSeen := make(map[string]map[string]struct{})
+
 	counts := make(map[string]objectCount)
-	for _, o := range summary.NormalizeObjectRows(objects) {
+	for _, o := range objects {
 		if shouldSkipObjectForValidation(o) {
 			continue
 		}
 		key := summary.ObjectSummaryGroupKey(o)
 		agg := counts[key]
-		qRow, hasQuery := queryByKey[strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")]
+		qKey := strings.Join([]string{o.AppName, o.RelPath, o.File, o.QueryHash}, "|")
+		qRow, hasQuery := queryByKey[qKey]
 		r, w, e := summary.ObjectRoleCounts(o, qRow, hasQuery)
 		agg.Reads += r
 		agg.Writes += w
 		agg.Execs += e
+		if kind := dynamicKindByQuery[qKey]; kind != "" {
+			if _, ok := dynamicSeen[key]; !ok {
+				dynamicSeen[key] = make(map[string]struct{})
+			}
+			if _, ok := dynamicSeen[key][qKey]; !ok {
+				dynamicSeen[key][qKey] = struct{}{}
+				switch kind {
+				case "dynamic-sql":
+					agg.DynamicSql++
+				case "dynamic-object":
+					agg.DynamicObject++
+				}
+			}
+		}
 		counts[key] = agg
 	}
 

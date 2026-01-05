@@ -92,7 +92,7 @@ func validateApp(outDir, app string) error {
 	if err != nil {
 		return fmt.Errorf("load object summary: %w", err)
 	}
-	if err := summary.ValidateObjectSummaryCounts(objects, objSummary); err != nil {
+	if err := summary.ValidateObjectSummaryCounts(queries, objects, objSummary); err != nil {
 		return fmt.Errorf("object summary validation: %w", err)
 	}
 

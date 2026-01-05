@@ -3,12 +3,16 @@ package scan
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
+
+	"code_sql_scan/summary"
 )
 
 func TestDeterministicCsvOutputs(t *testing.T) {
@@ -50,6 +54,13 @@ func TestDeterministicCsvOutputs(t *testing.T) {
 				t.Fatalf("second scan run failed: %v", err)
 			}
 
+			if err := verifyConsistencyOutputs(firstOut, tc.app); err != nil {
+				t.Fatalf("consistency check failed for first run: %v", err)
+			}
+			if err := verifyConsistencyOutputs(secondOut, tc.app); err != nil {
+				t.Fatalf("consistency check failed for second run: %v", err)
+			}
+
 			firstHashes, err := hashCsvOutputs(firstOut)
 			if err != nil {
 				t.Fatalf("hash first outputs: %v", err)
@@ -73,6 +84,21 @@ func TestDeterministicCsvOutputs(t *testing.T) {
 			}
 		})
 	}
+}
+
+func verifyConsistencyOutputs(dir, app string) error {
+	queryPath := filepath.Join(dir, fmt.Sprintf("%s-query.csv", app))
+	objectPath := filepath.Join(dir, fmt.Sprintf("%s-object.csv", app))
+	funcSummary := filepath.Join(dir, fmt.Sprintf("%s-summary-function.csv", app))
+	objSummary := filepath.Join(dir, fmt.Sprintf("%s-summary-object.csv", app))
+	report, err := summary.VerifyConsistency(queryPath, objectPath, funcSummary, objSummary)
+	if err != nil {
+		return err
+	}
+	if report != nil && report.TotalMismatches() > 0 {
+		return fmt.Errorf("SUMMARY CONSISTENCY FAIL (%d mismatches). Examples: %s", report.TotalMismatches(), strings.Join(report.Examples(3), "; "))
+	}
+	return nil
 }
 
 func hashCsvOutputs(dir string) (map[string]string, error) {

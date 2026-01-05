@@ -12,31 +12,38 @@ import (
 )
 
 type funcSummaryRow struct {
-	Func             string
-	RelPath          string
-	TotalExec        int
-	TotalWrite       int
-	TotalDynamic     int
-	DynamicCount     int
-	TotalDynamicSql  int
-	TotalDynamicObj  int
-	ObjectsUsed      string
-	DynamicSignature string
-	DynamicReason    string
+	Func               string
+	RelPath            string
+	TotalExec          int
+	TotalWrite         int
+	TotalDynamic       int
+	DynamicCount       int
+	TotalDynamicSql    int
+	TotalDynamicObj    int
+	DynamicSqlCount    int
+	DynamicObjectCount int
+	ObjectsUsed        string
+	DynamicSignature   string
+	DynamicReason      string
+	TotalObjectsRead   int
+	TotalObjectsWrite  int
+	TotalObjectsExec   int
 }
 
 type objSummaryRow struct {
-	BaseName       string
-	RelPath        string
-	FullObjectName string
-	ExampleFuncs   string
-	Roles          string
-	RolesSummary   string
-	IsPseudo       bool
-	PseudoKind     string
-	TotalReads     int
-	TotalWrites    int
-	TotalExec      int
+	BaseName        string
+	RelPath         string
+	FullObjectName  string
+	ExampleFuncs    string
+	Roles           string
+	RolesSummary    string
+	IsPseudo        bool
+	PseudoKind      string
+	TotalReads      int
+	TotalWrites     int
+	TotalExec       int
+	TotalDynamicSql int
+	TotalDynamicObj int
 }
 
 type samplePaths struct {
@@ -177,7 +184,7 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"Func", "RelPath", "TotalExec", "TotalWrite", "TotalDynamic", "ObjectsUsed", "DynamicSignatures"}
+	required := []string{"Func", "RelPath", "TotalExec", "TotalWrite", "TotalDynamic", "ObjectsUsed", "DynamicSignatures", "DynamicSqlCount", "DynamicObjectCount", "TotalObjectsRead", "TotalObjectsWrite", "TotalObjectsExec"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			t.Fatalf("function summary missing column %s", req)
@@ -193,17 +200,22 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 			t.Fatalf("read record: %v", err)
 		}
 		rows = append(rows, funcSummaryRow{
-			Func:             rec[idx["Func"]],
-			RelPath:          rec[idx["RelPath"]],
-			TotalExec:        atoi(rec[idx["TotalExec"]]),
-			TotalWrite:       atoi(rec[idx["TotalWrite"]]),
-			TotalDynamic:     atoi(rec[idx["TotalDynamic"]]),
-			DynamicCount:     parseInt(pick(rec, idx, "DynamicCount")),
-			TotalDynamicSql:  parseInt(pick(rec, idx, "TotalDynamicSql")),
-			TotalDynamicObj:  parseInt(pick(rec, idx, "TotalDynamicObject")),
-			ObjectsUsed:      rec[idx["ObjectsUsed"]],
-			DynamicSignature: rec[idx["DynamicSignatures"]],
-			DynamicReason:    pick(rec, idx, "DynamicReason"),
+			Func:               rec[idx["Func"]],
+			RelPath:            rec[idx["RelPath"]],
+			TotalExec:          atoi(rec[idx["TotalExec"]]),
+			TotalWrite:         atoi(rec[idx["TotalWrite"]]),
+			TotalDynamic:       atoi(rec[idx["TotalDynamic"]]),
+			DynamicCount:       parseInt(pick(rec, idx, "DynamicCount")),
+			TotalDynamicSql:    parseInt(pick(rec, idx, "TotalDynamicSql")),
+			TotalDynamicObj:    parseInt(pick(rec, idx, "TotalDynamicObject")),
+			DynamicSqlCount:    parseInt(pick(rec, idx, "DynamicSqlCount")),
+			DynamicObjectCount: parseInt(pick(rec, idx, "DynamicObjectCount")),
+			ObjectsUsed:        rec[idx["ObjectsUsed"]],
+			DynamicSignature:   rec[idx["DynamicSignatures"]],
+			DynamicReason:      pick(rec, idx, "DynamicReason"),
+			TotalObjectsRead:   parseInt(pick(rec, idx, "TotalObjectsRead")),
+			TotalObjectsWrite:  parseInt(pick(rec, idx, "TotalObjectsWrite")),
+			TotalObjectsExec:   parseInt(pick(rec, idx, "TotalObjectsExec")),
 		})
 	}
 	return rows
@@ -225,7 +237,7 @@ func loadObjectSummary(t *testing.T, path string) []objSummaryRow {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"BaseName", "RelPath", "ExampleFuncs", "Roles", "RolesSummary", "IsPseudoObject", "PseudoKind", "TotalReads", "TotalWrites", "TotalExec", "FullObjectName"}
+	required := []string{"BaseName", "RelPath", "ExampleFuncs", "Roles", "RolesSummary", "IsPseudoObject", "PseudoKind", "TotalReads", "TotalWrites", "TotalDynamicSql", "TotalDynamicObject", "TotalExec", "FullObjectName"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			t.Fatalf("object summary missing column %s", req)
@@ -241,17 +253,19 @@ func loadObjectSummary(t *testing.T, path string) []objSummaryRow {
 			t.Fatalf("read record: %v", err)
 		}
 		rows = append(rows, objSummaryRow{
-			BaseName:       rec[idx["BaseName"]],
-			RelPath:        rec[idx["RelPath"]],
-			FullObjectName: rec[idx["FullObjectName"]],
-			ExampleFuncs:   rec[idx["ExampleFuncs"]],
-			Roles:          rec[idx["Roles"]],
-			RolesSummary:   rec[idx["RolesSummary"]],
-			IsPseudo:       strings.EqualFold(rec[idx["IsPseudoObject"]], "true"),
-			PseudoKind:     rec[idx["PseudoKind"]],
-			TotalReads:     atoi(rec[idx["TotalReads"]]),
-			TotalWrites:    atoi(rec[idx["TotalWrites"]]),
-			TotalExec:      atoi(rec[idx["TotalExec"]]),
+			BaseName:        rec[idx["BaseName"]],
+			RelPath:         rec[idx["RelPath"]],
+			FullObjectName:  rec[idx["FullObjectName"]],
+			ExampleFuncs:    rec[idx["ExampleFuncs"]],
+			Roles:           rec[idx["Roles"]],
+			RolesSummary:    rec[idx["RolesSummary"]],
+			IsPseudo:        strings.EqualFold(rec[idx["IsPseudoObject"]], "true"),
+			PseudoKind:      rec[idx["PseudoKind"]],
+			TotalReads:      atoi(rec[idx["TotalReads"]]),
+			TotalWrites:     atoi(rec[idx["TotalWrites"]]),
+			TotalDynamicSql: atoi(rec[idx["TotalDynamicSql"]]),
+			TotalDynamicObj: atoi(rec[idx["TotalDynamicObject"]]),
+			TotalExec:       atoi(rec[idx["TotalExec"]]),
 		})
 	}
 	return rows
