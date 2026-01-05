@@ -1979,6 +1979,9 @@ func dynamicKindForQuery(q QueryRow, objects []ObjectRow) string {
 	if dynObjPseudo {
 		return "dynamic-object"
 	}
+	if dynSqlPseudo {
+		return "dynamic-sql"
+	}
 	return "dynamic-sql"
 }
 
@@ -3294,13 +3297,13 @@ func boolToStr(b bool) string {
 func buildFullName(db, schema, base string) string {
 	var parts []string
 	if db != "" {
-		parts = append(parts, db)
+		parts = append(parts, filepath.ToSlash(db))
 	}
 	if schema != "" {
-		parts = append(parts, schema)
+		parts = append(parts, filepath.ToSlash(schema))
 	}
 	if base != "" {
-		parts = append(parts, base)
+		parts = append(parts, filepath.ToSlash(base))
 	}
 	return strings.Join(parts, ".")
 }
