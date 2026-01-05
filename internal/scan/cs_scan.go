@@ -237,6 +237,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		{regexes.execProcDyn, true, true, 0, "ExecProc"},
 		{regexes.newCmd, false, false, 0, "SqlCommand"},
 		{regexes.newCmdIdent, false, false, 0, "SqlCommand"},
+		{regexes.efExecRawIdent, false, false, 0, "CommandText"},
 		{regexes.dapperQuery, false, false, 0, "CommandText"},
 		{regexes.dapperExec, false, false, 0, "CommandText"},
 		{regexes.efFromSql, false, false, 0, "CommandText"},
@@ -258,6 +259,23 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 		return s, false
+	}
+
+	resolveIdentLiteral := func(name string, funcName string, methodText string, fallbackLine int) (string, string, int, bool, bool) {
+		name = strings.TrimSpace(name)
+		if name == "" {
+			return "", "", 0, false, false
+		}
+		if lit, ok := lookupLiteral(funcName, name); ok {
+			return lit.Value, lit.RelPath, lit.Line, true, false
+		}
+		if lit, ok := lookupLiteralAnyMethod(name); ok {
+			return lit.Value, lit.RelPath, lit.Line, true, false
+		}
+		if rebuilt, dyn := rebuildCSharpVariableSql(methodText, name); rebuilt != "" {
+			return rebuilt, relPath, fallbackLine, true, dyn
+		}
+		return "", "", 0, false, false
 	}
 
 	for _, p := range patterns {
@@ -343,11 +361,12 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 				if regexes.identRe.MatchString(raw) {
-					if lit, ok := lookupLiteral(funcName, raw); ok {
-						raw = lit.Value
-						defPath = lit.RelPath
-						defLine = lit.Line
+					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(raw, funcName, methodText, line); okLiteral {
+						raw = lit
+						defPath = litPath
+						defLine = litLine
 						rawLiteral = true
+						isDyn = dyn
 					} else {
 						isDyn = true
 					}
@@ -363,13 +382,27 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
 				if regexes.identRe.MatchString(rawArg) {
-					if lit, ok := lookupLiteral(funcName, rawArg); ok {
-						raw = lit.Value
-						isDyn = false
+					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(rawArg, funcName, methodText, line); okLiteral {
+						raw = lit
+						isDyn = dyn
 						isExecStub = true
 						rawLiteral = true
-						defPath = lit.RelPath
-						defLine = lit.Line
+						defPath = litPath
+						defLine = litLine
+					}
+				}
+			case regexes.efExecRawIdent:
+				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
+				rawLiteral = false
+				if regexes.identRe.MatchString(raw) {
+					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(raw, funcName, methodText, line); okLiteral {
+						raw = lit
+						rawLiteral = true
+						isDyn = dyn
+						defPath = litPath
+						defLine = litLine
+					} else {
+						isDyn = true
 					}
 				}
 			case regexes.execQueryIdent:
@@ -378,32 +411,26 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = expr
 				rawLiteral = false
 				if regexes.identRe.MatchString(expr) {
-					if lit, ok := lookupLiteral(funcName, expr); ok {
-						raw = lit.Value
-						defPath = lit.RelPath
-						defLine = lit.Line
+					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(expr, funcName, methodText, line); okLiteral {
+						raw = lit
+						defPath = litPath
+						defLine = litLine
 						rawLiteral = true
+						isDyn = dyn
 					} else {
-						if lit, ok := lookupLiteralAnyMethod(expr); ok {
-							raw = lit.Value
-							defPath = lit.RelPath
-							defLine = lit.Line
-							rawLiteral = true
-						} else {
-							assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
-							if prefix := clean[:start]; prefix != "" {
-								if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
-									last := matches[len(matches)-1]
-									if len(last) >= 2 {
-										raw = last[1]
-										rawLiteral = true
-										isDyn = false
-									}
+						assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
+						if prefix := clean[:start]; prefix != "" {
+							if matches := assignRe.FindAllStringSubmatch(prefix, -1); len(matches) > 0 {
+								last := matches[len(matches)-1]
+								if len(last) >= 2 {
+									raw = last[1]
+									rawLiteral = true
+									isDyn = false
 								}
 							}
-							if !rawLiteral {
-								isDyn = true
-							}
+						}
+						if !rawLiteral {
+							isDyn = true
 						}
 					}
 				}
@@ -429,20 +456,14 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					rawLiteral = false
 					raw = expr
 					if regexes.identRe.MatchString(expr) {
-						if lit, ok := lookupLiteral(funcName, expr); ok {
-							raw = lit.Value
-							defPath = lit.RelPath
-							defLine = lit.Line
+						if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(expr, funcName, methodText, line); okLiteral {
+							raw = lit
+							defPath = litPath
+							defLine = litLine
 							rawLiteral = true
+							isDyn = dyn
 						} else {
-							if lit, ok := lookupLiteralAnyMethod(expr); ok {
-								raw = lit.Value
-								defPath = lit.RelPath
-								defLine = lit.Line
-								rawLiteral = true
-							} else {
-								isDyn = true
-							}
+							isDyn = true
 						}
 					}
 				}
@@ -978,6 +999,7 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 
 	cleaned := stripCSComments(methodText)
 	assignFinder := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(varName) + `\s*(\+=|=)`)
+	appendFinder := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(varName) + `\s*\.\s*Append(?:Line|Format)?\s*\(`)
 
 	type sqlBuildMatch struct {
 		pos  int
@@ -1002,6 +1024,14 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 			kind = "append"
 		}
 		matches = append(matches, sqlBuildMatch{pos: m[0], expr: expr, kind: kind})
+	}
+	for _, m := range appendFinder.FindAllStringIndex(cleaned, -1) {
+		args := extractCSharpArgs(cleaned, m[0])
+		expr := ""
+		if len(args) > 0 {
+			expr = args[0]
+		}
+		matches = append(matches, sqlBuildMatch{pos: m[0], expr: expr, kind: "append"})
 	}
 
 	sort.Slice(matches, func(i, j int) bool {
@@ -1043,6 +1073,16 @@ func rebuildCSharpVariableSql(methodText, varName string) (string, bool) {
 				if sql, innerDyn := rebuildCSharpVariableSql(methodText, trimmedExpr); sql != "" {
 					frag = sql
 					dyn = dyn || innerDyn
+				}
+			}
+			lowerExpr := strings.ToLower(trimmedExpr)
+			if frag == "" && strings.HasSuffix(lowerExpr, ".tostring()") {
+				base := strings.TrimSpace(trimmedExpr[:len(trimmedExpr)-len(".tostring()")])
+				if regexes.identRe.MatchString(base) {
+					if sql, innerDyn := rebuildCSharpVariableSql(methodText, base); sql != "" {
+						frag = sql
+						dyn = dyn || innerDyn
+					}
 				}
 			}
 		}
