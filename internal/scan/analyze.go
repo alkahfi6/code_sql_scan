@@ -341,14 +341,18 @@ func analyzeCandidate(c *SqlCandidate) {
 
 	updateCrossDbMetadata(c)
 
-	hashInput := c.SqlClean
-	if hashInput == "" {
-		hashInput = c.RawSql
-	}
-	h := sha1.Sum([]byte(hashInput))
-	c.QueryHash = fmt.Sprintf("%x", h[:])
+	c.QueryHash = computeQueryHash(c.SqlClean, c.RawSql)
 
 	c.RiskLevel = classifyRisk(c)
+}
+
+func computeQueryHash(sqlClean, rawSql string) string {
+	hashInput := sqlClean
+	if hashInput == "" {
+		hashInput = rawSql
+	}
+	h := sha1.Sum([]byte(hashInput))
+	return fmt.Sprintf("%x", h[:])
 }
 
 func expandMultiStatementCandidate(c SqlCandidate) []SqlCandidate {
