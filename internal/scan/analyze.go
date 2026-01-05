@@ -10,11 +10,12 @@ import (
 )
 
 var (
-	insertTargetRe   = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
-	updateTargetRe   = regexp.MustCompile(`(?is)update\s+([@A-Za-z0-9_\[\]\.\"#]+)\s+set\s+`)
-	deleteTargetRe   = regexp.MustCompile(`(?is)delete\s+(?:from\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
-	truncateTargetRe = regexp.MustCompile(`(?is)truncate\s+(?:table\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
-	mergeTargetRe    = regexp.MustCompile(`(?is)merge\s+(?:into\s+)?([@A-Za-z0-9_\[\]\.\"#]+)`)
+	objNamePattern   = `[@A-Za-z0-9_\[\]\"#]+(?:\s*\.\s*[@A-Za-z0-9_\[\]\"#]*)*`
+	insertTargetRe   = regexp.MustCompile(`(?is)insert\s+(?:into\s+)?(` + objNamePattern + `)`)
+	updateTargetRe   = regexp.MustCompile(`(?is)update\s+(` + objNamePattern + `)\s+set\s+`)
+	deleteTargetRe   = regexp.MustCompile(`(?is)delete\s+(?:from\s+)?(` + objNamePattern + `)`)
+	truncateTargetRe = regexp.MustCompile(`(?is)truncate\s+(?:table\s+)?(` + objNamePattern + `)`)
+	mergeTargetRe    = regexp.MustCompile(`(?is)merge\s+(?:into\s+)?(` + objNamePattern + `)`)
 )
 
 // ------------------------------------------------------------
@@ -694,7 +695,7 @@ func detectUsageKind(isExecStub bool, sql string) string {
 		return "UNKNOWN"
 	}
 
-	order := []string{"INSERT", "UPDATE", "DELETE", "MERGE", "TRUNCATE", "SELECT", "EXEC"}
+	order := []string{"MERGE", "INSERT", "UPDATE", "DELETE", "TRUNCATE", "SELECT", "EXEC"}
 	for _, kind := range order {
 		if _, ok := foundSet[kind]; ok {
 			return kind
@@ -757,7 +758,7 @@ func findObjectTokens(sql string) []ObjectToken {
 	}
 
 	keywords := []string{
-		"from", "join", "update", "merge", "into",
+		"from", "join", "using", "update", "merge", "into",
 		"truncate",
 		"delete from", "delete",
 		"exec", "execute",
@@ -824,6 +825,10 @@ func findObjectTokens(sql string) []ObjectToken {
 
 			baseKey := trimIdent(tok.BaseName)
 			if baseKey == "into" {
+				start = end
+				continue
+			}
+			if baseKey == "set" {
 				start = end
 				continue
 			}
@@ -1201,10 +1206,6 @@ func buildDynamicSignature(c *SqlCandidate) string {
 				break
 			}
 		}
-	}
-
-	if !hasPseudo {
-		return ""
 	}
 
 	callKind := canonicalCallSiteKind(c.CallSiteKind)
@@ -1791,6 +1792,31 @@ func classifyObjects(c *SqlCandidate, usageKind string, tokens []ObjectToken) {
 			}
 		}
 	}
+	if usageKind == "MERGE" {
+		targetKeys := make(map[string]struct{})
+		for i := range tokens {
+			if strings.EqualFold(tokens[i].Role, "target") {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				targetKeys[key] = struct{}{}
+			}
+		}
+		if len(targetKeys) > 0 {
+			for i := range tokens {
+				key := strings.ToLower(strings.TrimSpace(tokens[i].FullName))
+				if key == "" {
+					key = strings.ToLower(buildFullName(tokens[i].DbName, tokens[i].SchemaName, tokens[i].BaseName))
+				}
+				if _, ok := targetKeys[key]; ok {
+					tokens[i].Role = "target"
+					tokens[i].DmlKind = "MERGE"
+					tokens[i].IsWrite = true
+				}
+			}
+		}
+	}
 	// Mark dynamic object names
 	for i := range tokens {
 		full := tokens[i].FullName
@@ -1866,6 +1892,14 @@ func mergeObjectRoles(tokens []ObjectToken) []ObjectToken {
 	var merged []ObjectToken
 	for _, key := range order {
 		g := groups[key]
+
+		// TRUNCATE statements should stay write-target only even if a generic scan
+		// token also marked the same object as a source.
+		if _, ok := g.dmlSet["TRUNCATE"]; ok {
+			delete(g.dmlSet, "SELECT")
+			g.hasSource = false
+		}
+
 		tok := g.first
 		tok.RepresentativeLine = g.minLine
 		role := "source"
