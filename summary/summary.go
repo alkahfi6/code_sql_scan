@@ -1192,8 +1192,14 @@ func classifyRoles(o ObjectRow) roleFlags {
 		hasRead = true
 	}
 	isExec := hasExec
-	isWrite := (!isExec && hasWrite)
-	isRead := hasRead || (!isExec && !isWrite)
+	isWrite := hasWrite
+	if isExec && !isWrite {
+		isWrite = true
+	}
+	isRead := hasRead
+	if !isRead && !isWrite && !isExec {
+		isRead = true
+	}
 
 	return roleFlags{
 		read:  isRead,
@@ -1211,7 +1217,7 @@ func dynamicPseudoRoleFlags(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
 	case "INSERT", "UPDATE", "DELETE", "TRUNCATE":
 		return roleFlags{write: true}
 	case "EXEC":
-		return roleFlags{exec: true}
+		return roleFlags{exec: true, write: true}
 	case "SELECT":
 		return roleFlags{read: true}
 	default:
@@ -1228,16 +1234,18 @@ func roleFlagsForObject(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
 }
 
 func normalizeRoleFlags(flags roleFlags) roleFlags {
-	if flags.exec {
-		return roleFlags{exec: true}
+	normalized := roleFlags{
+		read:  flags.read,
+		write: flags.write,
+		exec:  flags.exec,
 	}
-	if flags.write {
-		return roleFlags{write: true}
+	if normalized.exec && !normalized.write {
+		normalized.write = true
 	}
-	if flags.read {
-		return roleFlags{read: true}
+	if !normalized.read && !normalized.write && !normalized.exec {
+		normalized.read = true
 	}
-	return roleFlags{read: true}
+	return normalized
 }
 
 func dynamicSignature(q QueryRow) string {
@@ -1876,7 +1884,7 @@ func summarizeRoleCountsCompact(reads, writes, execs int) string {
 
 func summarizeRoleLabel(reads, writes, execs int) string {
 	switch {
-	case execs > 0 && reads == 0 && writes == 0:
+	case execs > 0 && reads == 0 && (writes == 0 || writes == execs):
 		return "exec"
 	case reads > 0 && writes == 0 && execs == 0:
 		return "source"
@@ -1893,16 +1901,19 @@ func ObjectRoleBuckets(o ObjectRow) (int, int, int) {
 
 func ObjectRoleCounts(o ObjectRow, q QueryRow, hasQuery bool) (int, int, int) {
 	flags := roleFlagsForObject(o, q, hasQuery)
-	switch {
-	case flags.exec:
-		return 0, 0, 1
-	case flags.write:
-		return 0, 1, 0
-	case flags.read:
-		return 1, 0, 0
-	default:
-		return 0, 0, 0
+	read := 0
+	write := 0
+	exec := 0
+	if flags.read {
+		read = 1
 	}
+	if flags.write {
+		write = 1
+	}
+	if flags.exec {
+		exec = 1
+	}
+	return read, write, exec
 }
 
 func buildTopObjects(stats map[string]*objectRoleCounter) string {

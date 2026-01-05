@@ -107,13 +107,14 @@ func TestObjectSummaryCountsMatchRaw(t *testing.T) {
 			key := queryObjectKey(obj.AppName, obj.RelPath, obj.File, obj.QueryHash)
 			qRow, hasQuery := queryByKey[key]
 			flags := roleFlagsForObject(obj, qRow, hasQuery)
-			switch {
-			case flags.exec:
-				execs++
-			case flags.write:
-				writes++
-			default:
+			if flags.read {
 				reads++
+			}
+			if flags.write {
+				writes++
+			}
+			if flags.exec {
+				execs++
 			}
 		}
 
