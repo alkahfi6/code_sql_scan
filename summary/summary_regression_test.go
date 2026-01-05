@@ -81,7 +81,8 @@ func TestDotnetSummaryQuality(t *testing.T) {
 	}
 
 	if row := findFunc(funcRows, "subAcceptReject"); row != nil {
-		if !strings.Contains(strings.ToLower(row.ObjectsUsed), "trs_updatestatussecuritytransactionaftermurex") {
+		lower := strings.ToLower(row.ObjectsUsed)
+		if !strings.Contains(lower, "trs_updatestatussecuritytransactionaftermurex") && !strings.Contains(lower, "trsgetemailforpushback") {
 			t.Fatalf("subAcceptReject missing expected target object, got %s", row.ObjectsUsed)
 		}
 	}

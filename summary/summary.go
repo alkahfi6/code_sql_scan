@@ -403,6 +403,9 @@ func LoadQueryUsage(path string) ([]QueryRow, error) {
 		if col, ok := idx["LineEnd"]; ok {
 			row.LineEnd = parseInt(rec[col])
 		}
+		if row.IsDynamic {
+			row.CallSite = saltDynamicCallSite(row.CallSite, row.QueryHash, row.LineStart, len(rows))
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -525,13 +528,18 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	dynamicRawIndex := dynamicRawCountIndex(normQueries)
 	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	objects = NormalizeObjectRows(objects)
-	grouped := make(map[string][]QueryRow)
+	groupedRaw := make(map[string][]QueryRow)
+	groupedDedup := make(map[string][]QueryRow)
 	queryByKey := make(map[string]QueryRow)
 
+	for _, q := range normQueries {
+		key := functionKey(q.AppName, q.RelPath, q.Func)
+		groupedRaw[key] = append(groupedRaw[key], q)
+		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+	}
 	for _, q := range dedupQueries {
 		key := functionKey(q.AppName, q.RelPath, q.Func)
-		grouped[key] = append(grouped[key], q)
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
+		groupedDedup[key] = append(groupedDedup[key], q)
 	}
 
 	objectsByQuery := map[string][]ObjectRow{}
@@ -541,17 +549,20 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	}
 
 	var result []FunctionSummaryRow
-	for key, qRows := range grouped {
+	for key, rawRows := range groupedRaw {
+		qRows := groupedDedup[key]
+		if len(qRows) == 0 {
+			qRows = rawRows
+		}
 		app, rel, fn := splitFunctionKey(key)
 		if strings.EqualFold(strings.TrimSpace(fn), "<unknown-func>") {
-			if recovered := recoverBestFuncName(qRows); recovered != "" {
+			if recovered := recoverBestFuncName(rawRows); recovered != "" {
 				fn = recovered
 			} else {
 				continue
 			}
 		}
 		var totalExec, totalSelect, totalInsert, totalUpdate, totalDelete, totalTruncate, totalDynamic, totalDynamicSql, totalDynamicObject, totalWrite int
-		dynamicCount := 0
 		rawDynamicCount := 0
 		hasCross := false
 		minLine := 0
@@ -565,9 +576,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		dynamicExampleCounts := make(map[string]int)
 		dynamicReasonCounts := make(map[string]int)
 		pseudoKindsPerQuery := make(map[string]map[string]struct{})
-		for _, q := range qRows {
-			rawDynForQuery := 1
-			dynKey := ""
+		for _, q := range rawRows {
 			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
 			baseKinds := make(map[string]struct{})
 			upperUsage := strings.ToUpper(strings.TrimSpace(q.UsageKind))
@@ -576,7 +585,6 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 
 			objectsForQuery := objectsByQuery[qKey]
-			dynSqlPseudo, dynObjPseudo := classifyDynamicPseudoKinds(objectsForQuery)
 			dynKind := dynamicKindForQuery(q, objectsForQuery)
 
 			if len(baseKinds) == 0 {
@@ -622,53 +630,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 			totalWrite += writeKinds
 			if q.IsDynamic {
-				dynamicCount++
-				dynKey = dynamicSummarySignature(q)
-				rawDynForQuery = dynamicRawIndex[key][dynKey]
-				if rawDynForQuery <= 0 {
-					rawDynForQuery = 1
-				}
-				rawDynamicCount += rawDynForQuery
+				rawDynamicCount++
 				switch dynKind {
 				case "dynamic-object":
 					totalDynamicObject++
 				case "dynamic-sql":
 					totalDynamicSql++
-				}
-				groupKey := buildDynamicGroupKey(q)
-				grp := dynamicGroups[groupKey]
-				grp.count += rawDynForQuery
-				grp.usageKind = usageKindWithFallback(q.UsageKind)
-				grp.callSite = callSiteKind(q)
-				grp.pseudoKind = pickDynamicPseudoKind(grp.pseudoKind, dynSqlPseudo, dynObjPseudo)
-				if grp.minLine == 0 || q.LineStart < grp.minLine {
-					grp.minLine = q.LineStart
-				}
-				if grp.maxLine == 0 || q.LineEnd > grp.maxLine {
-					grp.maxLine = q.LineEnd
-				}
-				dynamicGroups[groupKey] = grp
-				sig := dynamicSignature(q)
-				if sig == "" {
-					sig = q.QueryHash
-				}
-				if sig == "" && q.LineStart > 0 {
-					sig = fmt.Sprintf("%s@%d", strings.TrimSpace(q.RelPath), q.LineStart)
-				}
-				if sig != "" {
-					entry := dynamicSigCounts[sig]
-					entry.count += rawDynForQuery
-					if entry.exampleHash == "" {
-						entry.exampleHash = q.QueryHash
-					}
-					dynamicSigCounts[sig] = entry
-				}
-				exampleSig := dynamicExampleSignature(q, objectsByQuery[qKey])
-				if exampleSig != "" {
-					dynamicExampleCounts[exampleSig] += rawDynForQuery
-				}
-				for _, reason := range collectDynamicReasonsForSummary(q, objectsByQuery[qKey]) {
-					dynamicReasonCounts[reason] += rawDynForQuery
 				}
 			}
 			for _, o := range objectsForQuery {
@@ -705,6 +672,50 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				if maxLine == 0 || q.LineEnd > maxLine {
 					maxLine = q.LineEnd
 				}
+			}
+		}
+
+		for _, q := range qRows {
+			rawDynForQuery := dynamicRawIndex[key][dynamicSummarySignature(q)]
+			if rawDynForQuery <= 0 {
+				rawDynForQuery = 1
+			}
+			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+			dynSqlPseudo, dynObjPseudo := classifyDynamicPseudoKinds(objectsByQuery[qKey])
+			groupKey := buildDynamicGroupKey(q)
+			grp := dynamicGroups[groupKey]
+			grp.count += rawDynForQuery
+			grp.usageKind = usageKindWithFallback(q.UsageKind)
+			grp.callSite = callSiteKind(q)
+			grp.pseudoKind = pickDynamicPseudoKind(grp.pseudoKind, dynSqlPseudo, dynObjPseudo)
+			if grp.minLine == 0 || q.LineStart < grp.minLine {
+				grp.minLine = q.LineStart
+			}
+			if grp.maxLine == 0 || q.LineEnd > grp.maxLine {
+				grp.maxLine = q.LineEnd
+			}
+			dynamicGroups[groupKey] = grp
+			sig := dynamicSignature(q)
+			if sig == "" {
+				sig = q.QueryHash
+			}
+			if sig == "" && q.LineStart > 0 {
+				sig = fmt.Sprintf("%s@%d", strings.TrimSpace(q.RelPath), q.LineStart)
+			}
+			if sig != "" {
+				entry := dynamicSigCounts[sig]
+				entry.count += rawDynForQuery
+				if entry.exampleHash == "" {
+					entry.exampleHash = q.QueryHash
+				}
+				dynamicSigCounts[sig] = entry
+			}
+			exampleSig := dynamicExampleSignature(q, objectsByQuery[qKey])
+			if exampleSig != "" {
+				dynamicExampleCounts[exampleSig] += rawDynForQuery
+			}
+			for _, reason := range collectDynamicReasonsForSummary(q, objectsByQuery[qKey]) {
+				dynamicReasonCounts[reason] += rawDynForQuery
 			}
 		}
 
@@ -756,7 +767,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			objectsUsed = appendSummary(objectsUsed, dynamicDisplay)
 		}
 		dbList := setToSortedSlice(dbListSet)
-		totalDynamic = dynamicCount
+		totalDynamic = rawDynamicCount
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		dynamicPseudoSummary := summarizePseudoKindCounts(dynamicPseudoKinds)
 		dynamicExampleSummary := summarizeDynamicExamples(dynamicExampleCounts, 3)
@@ -772,7 +783,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			AppName:                  app,
 			RelPath:                  rel,
 			Func:                     fn,
-			TotalQueries:             len(qRows),
+			TotalQueries:             len(rawRows),
 			TotalExec:                totalExec,
 			TotalSelect:              totalSelect,
 			TotalInsert:              totalInsert,
@@ -785,7 +796,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalDynamicObject:       totalDynamicObject,
 			DynamicSqlCount:          totalDynamicSql,
 			DynamicObjectCount:       totalDynamicObject,
-			DynamicCount:             dynamicCount,
+			DynamicCount:             rawDynamicCount,
 			DynamicSig:               dynamicSig,
 			DynamicReason:            dynamicReasonSummary,
 			DynamicPseudoKinds:       dynamicPseudoSummary,
@@ -830,21 +841,15 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 // It groups queries by (AppName, RelPath, Func) and checks TotalQueries and TotalDynamic against the summary rows.
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
-	dynamicRawIndex := dynamicRawCountIndex(normQueries)
-	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	expectedTotals := make(map[string]int)
 	expectedDynamic := make(map[string]int)
 	expectedRawDynamic := make(map[string]int)
-	for _, q := range dedupQueries {
+	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		expectedTotals[key]++
 		if q.IsDynamic {
 			expectedDynamic[key]++
-			raw := dynamicRawIndex[key][dynamicSummarySignature(q)]
-			if raw == 0 {
-				raw = 1
-			}
-			expectedRawDynamic[key] += raw
+			expectedRawDynamic[key]++
 		}
 	}
 
@@ -1575,6 +1580,8 @@ func canonicalCallSiteKind(kind string) string {
 	if trimmed == "" {
 		return ""
 	}
+	parts := strings.SplitN(trimmed, "|", 2)
+	trimmed = strings.TrimSpace(parts[0])
 	switch strings.ToLower(trimmed) {
 	case "execproc", "exec-proc", "exec":
 		return "ExecProc"
@@ -1585,6 +1592,28 @@ func canonicalCallSiteKind(kind string) string {
 	default:
 		return trimmed
 	}
+}
+
+func saltDynamicCallSite(callSite, queryHash string, line, idx int) string {
+	trimmed := strings.TrimSpace(callSite)
+	hash := strings.TrimSpace(queryHash)
+	if hash == "" && line > 0 {
+		hash = fmt.Sprintf("L%d", line)
+	}
+	if hash == "" {
+		return trimmed
+	}
+	tag := "dyn#" + hash
+	if idx >= 0 {
+		tag = fmt.Sprintf("%s#%d", tag, idx)
+	}
+	if strings.Contains(trimmed, tag) {
+		return trimmed
+	}
+	if trimmed == "" {
+		return tag
+	}
+	return fmt.Sprintf("%s|%s", trimmed, tag)
 }
 
 func summarizeDynamicSignatures(counts map[string]dynamicSignatureInfo) string {
@@ -3145,6 +3174,9 @@ func normalizeQueryFuncs(queries []QueryRow) []QueryRow {
 	res := make([]QueryRow, len(queries))
 	for i, q := range queries {
 		q.Func = resolver.Resolve(q.Func, q.RelPath, q.File, q.LineStart)
+		if q.IsDynamic {
+			q.CallSite = saltDynamicCallSite(q.CallSite, q.QueryHash, q.LineStart, i)
+		}
 		res[i] = q
 	}
 	return res
