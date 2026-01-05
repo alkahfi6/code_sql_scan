@@ -9,8 +9,8 @@ func ensureRelPath(root, p string) string {
 	if p == "" {
 		return ""
 	}
-	clean := filepath.Clean(p)
-	rootClean := filepath.Clean(root)
+	clean := filepath.ToSlash(filepath.Clean(p))
+	rootClean := filepath.ToSlash(filepath.Clean(root))
 	if rootClean == "" {
 		return filepath.ToSlash(clean)
 	}
@@ -20,19 +20,20 @@ func ensureRelPath(root, p string) string {
 		rootAbs = rootClean
 	}
 
+	rootAbs = filepath.ToSlash(rootAbs)
+
 	var absPath string
 	if filepath.IsAbs(clean) {
 		absPath = clean
 	} else {
 		cleanSlash := filepath.ToSlash(clean)
-		rootSlash := filepath.ToSlash(rootClean)
-		if strings.HasPrefix(cleanSlash, rootSlash+"/") {
-			trimmed := strings.TrimPrefix(cleanSlash[len(rootSlash):], "/")
+		if strings.HasPrefix(cleanSlash, rootClean+"/") {
+			trimmed := strings.TrimPrefix(cleanSlash[len(rootClean):], "/")
 			clean = filepath.FromSlash(trimmed)
-		} else if cleanSlash == rootSlash {
+		} else if cleanSlash == rootClean {
 			clean = ""
 		}
-		absPath = filepath.Join(rootAbs, clean)
+		absPath = filepath.ToSlash(filepath.Join(rootAbs, clean))
 	}
 
 	if !isWithinRoot(rootAbs, absPath) {

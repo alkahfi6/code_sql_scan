@@ -1,6 +1,7 @@
 package scan
 
 import (
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -73,6 +74,36 @@ func TestStripCSComments_StripsBlockWithSql(t *testing.T) {
 	}
 }
 
+func TestStripCSComments_StripsDocAndNestedBlocks(t *testing.T) {
+	src := "" +
+		"/// SELECT * FROM Doc\n" +
+		"var keep = \"/* still string */\"; /* outer /* inner SELECT 1 */ end */\n" +
+		"var tail = \"value\"; /* trailing */\n"
+	cleaned := stripCSComments(src)
+	if strings.Contains(cleaned, "Doc") || strings.Contains(cleaned, "inner SELECT 1") {
+		t.Fatalf("doc or nested block comment should be stripped, got %q", cleaned)
+	}
+	if !strings.Contains(cleaned, "/* still string */") {
+		t.Fatalf("string literal with comment content should remain, got %q", cleaned)
+	}
+	if strings.Contains(cleaned, "trailing") {
+		t.Fatalf("block comment content should be stripped, got %q", cleaned)
+	}
+}
+
+func TestStripCSComments_SkipsSqlInsideCommentConcats(t *testing.T) {
+	src := "" +
+		"var sql = \"SELECT 1\"; // + \"FROM table\"\n" +
+		"/* SELECT * FROM Users */ var noop = 1;\n"
+	cleaned := stripCSComments(src)
+	if strings.Contains(cleaned, "FROM table") || strings.Contains(cleaned, "SELECT * FROM Users") {
+		t.Fatalf("SQL inside comments should be removed, got %q", cleaned)
+	}
+	if !strings.Contains(cleaned, "SELECT 1") {
+		t.Fatalf("non-comment SQL should remain, got %q", cleaned)
+	}
+}
+
 func TestCsScan_ResolvesFunctionsInApiServices(t *testing.T) {
 	cfg := &Config{
 		Root:    filepath.Clean(filepath.Join("..", "..", "dotnet_check")),
@@ -98,6 +129,37 @@ func TestCsScan_ResolvesFunctionsInApiServices(t *testing.T) {
 			if strings.EqualFold(strings.TrimSpace(resolved), "<unknown-func>") {
 				t.Fatalf("unexpected <unknown-func> for %s line %d raw func %q resolved to %q", file, cand.LineStart, cand.Func, resolved)
 			}
+		}
+	}
+}
+
+func TestCsScan_DoesNotDetectSqlInComments(t *testing.T) {
+	dir := t.TempDir()
+	src := "" +
+		"using System;\n" +
+		"class Demo {\n" +
+		"  void Run() {\n" +
+		"    var txt = \"harmless\"; // + \"SELECT * FROM Commented\"\n" +
+		"    /* SELECT ignored FROM Block */\n" +
+		"  }\n" +
+		"}\n"
+	path := filepath.Join(dir, "Demo.cs")
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatalf("failed to write temp file: %v", err)
+	}
+
+	cfg := &Config{
+		Root:    dir,
+		AppName: "temp",
+		Lang:    "dotnet",
+	}
+	cands, err := scanCsFile(cfg, path, "Demo.cs")
+	if err != nil {
+		t.Fatalf("scanCsFile returned error: %v", err)
+	}
+	for _, cand := range cands {
+		if strings.Contains(strings.ToUpper(cand.SqlClean), "SELECT") {
+			t.Fatalf("expected no SQL detected from comments, got %q", cand.SqlClean)
 		}
 	}
 }

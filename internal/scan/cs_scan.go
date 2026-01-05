@@ -1176,6 +1176,7 @@ func stripCSComments(src string) string {
 	var b strings.Builder
 	state := stateNormal
 	escaped := false
+	blockDepth := 0
 
 	for i := 0; i < len(src); {
 		c := src[i]
@@ -1193,6 +1194,7 @@ func stripCSComments(src string) string {
 			}
 			if c == '/' && next == '*' {
 				state = stateBlockComment
+				blockDepth = 1
 				i += 2
 				continue
 			}
@@ -1229,9 +1231,17 @@ func stripCSComments(src string) string {
 				i++
 				continue
 			}
-			if c == '*' && next == '/' {
-				state = stateNormal
+			if c == '/' && next == '*' {
+				blockDepth++
 				i += 2
+				continue
+			}
+			if c == '*' && next == '/' {
+				blockDepth--
+				i += 2
+				if blockDepth == 0 {
+					state = stateNormal
+				}
 				continue
 			}
 			i++

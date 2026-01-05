@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
@@ -15,7 +16,7 @@ import (
 // CSV output
 // ------------------------------------------------------------
 
-func writeCSVs(cfg *Config, cands []SqlCandidate) error {
+func writeCSVs(cfg *Config, cands []SqlCandidate) (errRet error) {
 	type objectRow struct {
 		row       []string
 		app       string
@@ -33,12 +34,20 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	if err != nil {
 		return err
 	}
-	defer qf.Close()
+	defer func() {
+		if cerr := qf.Close(); cerr != nil && errRet == nil {
+			errRet = fmt.Errorf("close query csv %s: %w", cfg.OutQuery, cerr)
+		}
+	}()
 	of, err := os.Create(cfg.OutObject)
 	if err != nil {
 		return err
 	}
-	defer of.Close()
+	defer func() {
+		if cerr := of.Close(); cerr != nil && errRet == nil {
+			errRet = fmt.Errorf("close object csv %s: %w", cfg.OutObject, cerr)
+		}
+	}()
 
 	qw := csv.NewWriter(qf)
 	ow := csv.NewWriter(of)
@@ -232,12 +241,12 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 	}
 
 	qw.Flush()
-	ow.Flush()
 	if err := qw.Error(); err != nil {
-		return err
+		return fmt.Errorf("write query csv %s: %w", cfg.OutQuery, err)
 	}
+	ow.Flush()
 	if err := ow.Error(); err != nil {
-		return err
+		return fmt.Errorf("write object csv %s: %w", cfg.OutObject, err)
 	}
 
 	return nil
@@ -246,13 +255,13 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 func buildFullName(db, schema, base string) string {
 	var parts []string
 	if db != "" {
-		parts = append(parts, db)
+		parts = append(parts, filepath.ToSlash(db))
 	}
 	if schema != "" {
-		parts = append(parts, schema)
+		parts = append(parts, filepath.ToSlash(schema))
 	}
 	if base != "" {
-		parts = append(parts, base)
+		parts = append(parts, filepath.ToSlash(base))
 	}
 	return strings.Join(parts, ".")
 }
