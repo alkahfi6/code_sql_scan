@@ -85,7 +85,6 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 
 func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries []FunctionSummaryRow) []string {
 	normQueries := normalizeQueryFuncs(queries)
-	dynamicRawIndex := dynamicRawCountIndex(normQueries)
 	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	objects = NormalizeObjectRows(objects)
 	objectsByQuery := map[string][]ObjectRow{}
@@ -97,7 +96,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 	expected := make(map[string]*functionAgg)
 	objectCounters := make(map[string]map[string]*objectRoleCounter)
 	seenObjectRoles := make(map[string]map[string]map[string]map[string]struct{})
-	for _, q := range dedupQueries {
+	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		entry := expected[key]
 		if entry == nil {
@@ -156,11 +155,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 
 		if isDynamicQuery(q) {
 			entry.dynamicCount++
-			raw := dynamicRawIndex[key][dynamicSummarySignature(q)]
-			if raw == 0 {
-				raw = 1
-			}
-			entry.dynamicRaw += raw
+			entry.dynamicRaw++
 
 			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
 			switch dynamicKindForQuery(q, objectsByQuery[qKey]) {
@@ -171,6 +166,10 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 			}
 		}
 
+	}
+
+	for _, q := range dedupQueries {
+		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		funcObjects := objectCounters[key]
 		if funcObjects == nil {
 			funcObjects = make(map[string]*objectRoleCounter)
