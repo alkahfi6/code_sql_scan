@@ -1704,12 +1704,9 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	}
 	tops := make([]top, 0, len(stats))
 	for name, counter := range stats {
-		total := counter.ExecCount + counter.WriteCount + counter.ReadCount
-		if total == 0 && !(counter.HasExec || counter.HasWrite || counter.HasRead) {
-			continue
-		}
+		total := totalUsageCount(counter)
 		if total == 0 {
-			total = 1
+			continue
 		}
 		tops = append(tops, top{name: name, total: total, roles: counter})
 	}
@@ -1722,36 +1719,25 @@ func buildTopObjectSummary(stats map[string]*objectRoleCounter, limit int) strin
 	if len(tops) == 0 {
 		return ""
 	}
-	formatName := func(name string, counter *objectRoleCounter) string {
-		if counter == nil || !counter.IsPseudo {
-			return name
-		}
-		return "[P] " + name
-	}
 	display := tops
+	overflow := 0
 	if len(display) > limit {
+		overflow = len(display) - limit
 		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, t := range display {
-		name := formatName(t.name, t.roles)
-		roleLabel := describeRolesOrdered(t.roles)
-		roleCount := 0
-		switch roleLabel {
-		case "exec":
-			roleCount = t.roles.ExecCount
-		case "write":
-			roleCount = t.roles.WriteCount
-		case "read":
-			roleCount = t.roles.ReadCount
-		default:
-			roleLabel = "mixed"
-			roleCount = t.roles.ExecCount + t.roles.WriteCount + t.roles.ReadCount
+		name := formatObjectName(t.name, t.roles)
+		roleLabel := primaryRoleLabel(t.roles)
+		roleCount := roleCountWithFallback(t.roles, roleLabel)
+		suffix := roleLabel
+		if roleCount > 1 {
+			suffix = fmt.Sprintf("%s x%d", roleLabel, roleCount)
 		}
-		parts = append(parts, fmt.Sprintf("%s(%s=%d)", name, roleLabel, roleCount))
+		parts = append(parts, fmt.Sprintf("%s(%s)", name, suffix))
 	}
-	if len(tops) > len(display) {
-		parts = append(parts, "...")
+	if overflow > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", overflow))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -1762,27 +1748,35 @@ func buildObjectsUsedDetailed(stats map[string]*objectRoleCounter) string {
 	}
 	type entry struct {
 		name  string
-		score int
+		total int
 		role  *objectRoleCounter
 	}
 	entries := make([]entry, 0, len(stats))
 	for name, counter := range stats {
-		score := objectDisplayScore(counter)
-		if score == 0 && !(counter.HasExec || counter.HasWrite || counter.HasRead) {
+		total := totalUsageCount(counter)
+		if total == 0 {
 			continue
 		}
-		entries = append(entries, entry{name: name, score: score, role: counter})
+		entries = append(entries, entry{name: name, total: total, role: counter})
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].score != entries[j].score {
-			return entries[i].score > entries[j].score
+		if entries[i].total != entries[j].total {
+			return entries[i].total > entries[j].total
 		}
 		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
 	})
+	limit := 10
+	if len(entries) < limit {
+		limit = len(entries)
+	}
 	parts := make([]string, 0, len(entries))
-	for _, e := range entries {
-		roleDetails := describeRoleCountsDetailed(e.role)
-		parts = append(parts, fmt.Sprintf("%s(%s)", e.name, roleDetails))
+	for i := 0; i < limit; i++ {
+		e := entries[i]
+		roleDetails := formatRoleBreakdown(e.role)
+		parts = append(parts, fmt.Sprintf("%s(%s)", formatObjectName(e.name, e.role), roleDetails))
+	}
+	if extra := len(entries) - limit; extra > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", extra))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -1971,8 +1965,19 @@ func buildTopObjectsByRole(stats map[string]*objectRoleCounter, role string, lim
 	}
 	entries := make([]entry, 0, len(stats))
 	for name, counter := range stats {
-		count := roleCount(counter, role)
-		if count == 0 {
+		count := roleCountWithFallback(counter, role)
+		hasRole := false
+		switch strings.ToLower(role) {
+		case "exec":
+			hasRole = counter != nil && (counter.HasExec || counter.ExecCount > 0)
+		case "write":
+			hasRole = counter != nil && (counter.HasWrite || counter.WriteCount > 0)
+		case "read":
+			hasRole = counter != nil && (counter.HasRead || counter.ReadCount > 0)
+		default:
+			hasRole = counter != nil
+		}
+		if count == 0 || !hasRole {
 			continue
 		}
 		entries = append(entries, entry{name: name, count: count, role: counter})
@@ -1991,7 +1996,7 @@ func buildTopObjectsByRole(stats map[string]*objectRoleCounter, role string, lim
 	}
 	parts := make([]string, 0, len(entries))
 	for _, e := range entries {
-		parts = append(parts, fmt.Sprintf("%s(%s=%d)", e.name, role, e.count))
+		parts = append(parts, fmt.Sprintf("%s(%s x%d)", formatObjectName(e.name, e.role), role, e.count))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -2013,6 +2018,17 @@ func objectDisplayScore(counter *objectRoleCounter) int {
 		read = 1
 	}
 	return exec*100000 + write*1000 + read*10
+}
+
+func totalUsageCount(counter *objectRoleCounter) int {
+	if counter == nil {
+		return 0
+	}
+	total := counter.ExecCount + counter.WriteCount + counter.ReadCount
+	if total == 0 && (counter.HasExec || counter.HasWrite || counter.HasRead) {
+		return 1
+	}
+	return total
 }
 
 func objectSummaryScore(r ObjectSummaryRow) int {
@@ -2189,44 +2205,121 @@ func buildTopObjects(stats map[string]*objectRoleCounter) string {
 	}
 	type entry struct {
 		name  string
-		score int
+		total int
 		role  *objectRoleCounter
 	}
 	var entries []entry
 	for name, counter := range stats {
-		score := objectDisplayScore(counter)
-		if score == 0 && !(counter.HasExec || counter.HasWrite || counter.HasRead) {
+		total := totalUsageCount(counter)
+		if total == 0 {
 			continue
 		}
-		entries = append(entries, entry{name: name, score: score, role: counter})
+		entries = append(entries, entry{name: name, total: total, role: counter})
 	}
 	sort.Slice(entries, func(i, j int) bool {
-		if entries[i].score != entries[j].score {
-			return entries[i].score > entries[j].score
+		if entries[i].total != entries[j].total {
+			return entries[i].total > entries[j].total
 		}
 		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
 	})
 	display := entries
 	overflow := 0
-	limit := 5
+	limit := 10
 	if len(display) > limit {
 		overflow = len(display) - limit
 		display = display[:limit]
 	}
 	parts := make([]string, 0, len(display)+1)
 	for _, e := range display {
-		roleLabel := dominantRole(e.role)
-		count := roleCount(e.role, roleLabel)
+		roleLabel := primaryRoleLabel(e.role)
+		count := roleCountWithFallback(e.role, roleLabel)
 		suffix := roleLabel
 		if count > 1 {
 			suffix = fmt.Sprintf("%s x%d", roleLabel, count)
 		}
-		parts = append(parts, fmt.Sprintf("%s (%s)", e.name, suffix))
+		parts = append(parts, fmt.Sprintf("%s(%s)", formatObjectName(e.name, e.role), suffix))
 	}
 	if overflow > 0 {
-		parts = append(parts, "...")
+		parts = append(parts, fmt.Sprintf("+%d others", overflow))
 	}
 	return strings.Join(parts, "; ")
+}
+
+func primaryRoleLabel(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "mixed"
+	}
+	switch {
+	case counter.HasExec:
+		return "exec"
+	case counter.HasWrite:
+		return "write"
+	case counter.HasRead:
+		return "read"
+	default:
+		return "mixed"
+	}
+}
+
+func roleCountWithFallback(counter *objectRoleCounter, role string) int {
+	if counter == nil {
+		return 0
+	}
+	switch strings.ToLower(role) {
+	case "exec":
+		if counter.ExecCount > 0 {
+			return counter.ExecCount
+		}
+		if counter.HasExec {
+			return 1
+		}
+	case "write":
+		if counter.WriteCount > 0 {
+			return counter.WriteCount
+		}
+		if counter.HasWrite {
+			return 1
+		}
+	case "read":
+		if counter.ReadCount > 0 {
+			return counter.ReadCount
+		}
+		if counter.HasRead {
+			return 1
+		}
+	}
+	return totalUsageCount(counter)
+}
+
+func formatObjectName(name string, counter *objectRoleCounter) string {
+	if counter == nil || !counter.IsPseudo {
+		return name
+	}
+	return "[P] " + name
+}
+
+func formatRoleBreakdown(counter *objectRoleCounter) string {
+	if counter == nil {
+		return "mixed"
+	}
+	parts := []string{}
+	add := func(role string, count int) {
+		if count <= 0 {
+			return
+		}
+		if count == 1 {
+			parts = append(parts, role)
+			return
+		}
+		parts = append(parts, fmt.Sprintf("%s x%d", role, count))
+	}
+	add("exec", roleCountWithFallback(counter, "exec"))
+	add("write", roleCountWithFallback(counter, "write"))
+	add("read", roleCountWithFallback(counter, "read"))
+	if len(parts) == 0 {
+		return "mixed"
+	}
+	return strings.Join(parts, "/")
 }
 
 func classifyObjectUsage(counter *objectRoleCounter) string {
