@@ -1,8 +1,11 @@
 package scan
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"code_sql_scan/summary"
 )
 
 func TestStripCSComments_RemovesBlockAndLine(t *testing.T) {
@@ -67,6 +70,35 @@ func TestStripCSComments_StripsBlockWithSql(t *testing.T) {
 	}
 	if !strings.Contains(cleaned, "value") {
 		t.Fatalf("non-comment content should remain, got %q", cleaned)
+	}
+}
+
+func TestCsScan_ResolvesFunctionsInApiServices(t *testing.T) {
+	cfg := &Config{
+		Root:    "./dotnet_check",
+		AppName: "dotnet-sample",
+		Lang:    "dotnet",
+	}
+	resolver := summary.NewFuncResolver(cfg.Root)
+	files := []string{
+		"clsAPIServiceReksa2.cs",
+		"clsAPIServiceNTI.cs",
+	}
+	for _, file := range files {
+		path := filepath.Join(cfg.Root, file)
+		cands, err := scanCsFile(cfg, path, file)
+		if err != nil {
+			t.Fatalf("scanCsFile(%s) returned error: %v", file, err)
+		}
+		if len(cands) == 0 {
+			t.Fatalf("expected candidates for %s, got none", file)
+		}
+		for _, cand := range cands {
+			resolved := resolver.Resolve(cand.Func, cand.RelPath, cand.File, cand.LineStart)
+			if strings.EqualFold(strings.TrimSpace(resolved), "<unknown-func>") {
+				t.Fatalf("unexpected <unknown-func> for %s line %d raw func %q resolved to %q", file, cand.LineStart, cand.Func, resolved)
+			}
+		}
 	}
 }
 
