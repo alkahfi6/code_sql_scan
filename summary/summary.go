@@ -840,6 +840,63 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 	return fmt.Errorf("function summary validation failed: %s", strings.Join(mismatches, "; "))
 }
 
+// ValidateObjectSummaryCounts ensures that the object summary aligns with the raw object rows.
+// It groups objects by their summary grouping key and compares role counts against the summary rows.
+func ValidateObjectSummaryCounts(objects []ObjectRow, summaries []ObjectSummaryRow) error {
+	objects = NormalizeObjectRows(objects)
+	grouped := aggregateObjectsForSummary(objects)
+
+	summaryMap := make(map[string]ObjectSummaryRow)
+	for _, s := range summaries {
+		key := ObjectSummaryRowKey(s)
+		summaryMap[key] = s
+	}
+
+	var mismatches []string
+	for key, agg := range grouped {
+		sum, ok := summaryMap[key]
+		base := strings.TrimSpace(agg.baseName)
+		if base == "" {
+			base = strings.TrimSpace(agg.fullName)
+		}
+		if !ok {
+			mismatches = append(mismatches, fmt.Sprintf("object %s missing in summary (reads=%d writes=%d exec=%d)", base, agg.reads, agg.writes, agg.execs))
+			continue
+		}
+		diff := []string{}
+		if agg.reads != sum.TotalReads {
+			diff = append(diff, fmt.Sprintf("reads raw=%d summary=%d", agg.reads, sum.TotalReads))
+		}
+		if agg.writes != sum.TotalWrites {
+			diff = append(diff, fmt.Sprintf("writes raw=%d summary=%d", agg.writes, sum.TotalWrites))
+		}
+		if agg.execs != sum.TotalExec {
+			diff = append(diff, fmt.Sprintf("exec raw=%d summary=%d", agg.execs, sum.TotalExec))
+		}
+		if len(diff) > 0 {
+			mismatches = append(mismatches, fmt.Sprintf("object %s mismatch (%s)", base, strings.Join(diff, "; ")))
+		}
+	}
+	for key, sum := range summaryMap {
+		if _, ok := grouped[key]; ok {
+			continue
+		}
+		base := strings.TrimSpace(sum.BaseName)
+		if base == "" {
+			base = strings.TrimSpace(sum.FullObjectName)
+		}
+		mismatches = append(mismatches, fmt.Sprintf("object %s present in summary only (reads=%d writes=%d exec=%d)", base, sum.TotalReads, sum.TotalWrites, sum.TotalExec))
+	}
+
+	if len(mismatches) == 0 {
+		return nil
+	}
+	if len(mismatches) > 5 {
+		mismatches = mismatches[:5]
+	}
+	return fmt.Errorf("object summary validation failed: %s", strings.Join(mismatches, "; "))
+}
+
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
 	_ = queries
 
