@@ -779,99 +779,9 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 }
 
 func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummaryRow, error) {
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range normalizeQueryFuncs(queries) {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
+	_ = queries
 
-	type agg struct {
-		appName     string
-		relPath     string
-		fullName    string
-		baseName    string
-		dbName      string
-		schemaName  string
-		funcSet     map[string]struct{}
-		funcCounts  map[string]int
-		firstFunc   string
-		reads       int
-		writes      int
-		execs       int
-		dmlSet      map[string]struct{}
-		dbSet       map[string]struct{}
-		hasCross    bool
-		isPseudo    bool
-		pseudoKinds map[string]int
-	}
-
-	objects = NormalizeObjectRows(objects)
-
-	grouped := make(map[string]*agg)
-	for _, o := range objects {
-		if shouldSkipObject(o) {
-			continue
-		}
-		fullName := chooseFullObjectName(o)
-		if strings.TrimSpace(fullName) == "" {
-			continue
-		}
-
-		key := ObjectSummaryGroupKey(o)
-		entry := grouped[key]
-		if entry == nil {
-			entry = &agg{
-				appName:     o.AppName,
-				relPath:     o.RelPath,
-				fullName:    fullName,
-				baseName:    strings.TrimSpace(o.BaseName),
-				dbName:      strings.TrimSpace(o.DbName),
-				schemaName:  strings.TrimSpace(o.SchemaName),
-				funcSet:     make(map[string]struct{}),
-				funcCounts:  make(map[string]int),
-				dmlSet:      make(map[string]struct{}),
-				dbSet:       make(map[string]struct{}),
-				pseudoKinds: make(map[string]int),
-			}
-			grouped[key] = entry
-		}
-
-		qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
-		read, write, exec := ObjectRoleCounts(o, qRow, hasQuery)
-		entry.reads += read
-		entry.writes += write
-		entry.execs += exec
-
-		if o.IsCrossDb {
-			entry.hasCross = true
-		}
-		if db := strings.TrimSpace(o.DbName); db != "" {
-			entry.dbSet[db] = struct{}{}
-		}
-		upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind))
-		if upperDml != "" {
-			for _, part := range strings.Split(upperDml, ";") {
-				trimmed := strings.TrimSpace(part)
-				if trimmed == "" {
-					continue
-				}
-				entry.dmlSet[trimmed] = struct{}{}
-			}
-		}
-
-		if o.IsPseudoObject {
-			entry.isPseudo = true
-			entry.pseudoKinds[defaultPseudoKind(o.PseudoKind)]++
-		}
-
-		fn := strings.TrimSpace(o.Func)
-		if fn != "" {
-			entry.funcSet[fn] = struct{}{}
-			entry.funcCounts[fn]++
-			if entry.firstFunc == "" {
-				entry.firstFunc = fn
-			}
-		}
-	}
+	grouped := aggregateObjectsForSummary(objects)
 
 	var result []ObjectSummaryRow
 	for _, entry := range grouped {
@@ -895,16 +805,16 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 			pseudoKind = "unknown"
 		}
 
-		roleLabel := summarizeRoleLabel(entry.reads, entry.writes, entry.execs)
 		roleCounts := summarizeRoleCounts(entry.reads, entry.writes, entry.execs)
 		dmlKinds := setToSortedSlice(entry.dmlSet)
+		roles := setToSortedSlice(entry.roleSet)
 
 		result = append(result, ObjectSummaryRow{
 			AppName:        entry.appName,
 			RelPath:        entry.relPath,
 			BaseName:       entry.baseName,
 			FullObjectName: entry.fullName,
-			Roles:          roleLabel,
+			Roles:          strings.Join(roles, ";"),
 			RolesSummary:   roleCounts,
 			DmlKinds:       strings.Join(dmlKinds, ";"),
 			TotalReads:     entry.reads,
@@ -937,6 +847,94 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 	})
 
 	return result, nil
+}
+
+type objectSummaryAgg struct {
+	appName     string
+	relPath     string
+	fullName    string
+	baseName    string
+	funcSet     map[string]struct{}
+	funcCounts  map[string]int
+	firstFunc   string
+	reads       int
+	writes      int
+	execs       int
+	dmlSet      map[string]struct{}
+	roleSet     map[string]struct{}
+	dbSet       map[string]struct{}
+	hasCross    bool
+	isPseudo    bool
+	pseudoKinds map[string]int
+}
+
+func aggregateObjectsForSummary(objects []ObjectRow) map[string]*objectSummaryAgg {
+	objects = NormalizeObjectRows(objects)
+	grouped := make(map[string]*objectSummaryAgg)
+
+	for _, o := range objects {
+		if shouldSkipObject(o) {
+			continue
+		}
+		fullName := chooseFullObjectName(o)
+		if strings.TrimSpace(fullName) == "" {
+			continue
+		}
+
+		key := ObjectSummaryGroupKey(o)
+		entry := grouped[key]
+		if entry == nil {
+			base := strings.TrimSpace(o.BaseName)
+			if base == "" {
+				_, _, parsedBase := splitFullObjectName(fullName)
+				base = parsedBase
+			}
+			entry = &objectSummaryAgg{
+				appName:     o.AppName,
+				relPath:     o.RelPath,
+				fullName:    fullName,
+				baseName:    base,
+				funcSet:     make(map[string]struct{}),
+				funcCounts:  make(map[string]int),
+				dmlSet:      make(map[string]struct{}),
+				roleSet:     make(map[string]struct{}),
+				dbSet:       make(map[string]struct{}),
+				pseudoKinds: make(map[string]int),
+			}
+			grouped[key] = entry
+		}
+
+		entry.reads += objectReadCount(o)
+		entry.writes += objectWriteCount(o)
+		entry.execs += objectExecCount(o)
+
+		if o.IsCrossDb {
+			entry.hasCross = true
+		}
+		if db := strings.TrimSpace(o.DbName); db != "" {
+			entry.dbSet[db] = struct{}{}
+		}
+		for _, part := range splitDmlKinds(o.DmlKind) {
+			entry.dmlSet[part] = struct{}{}
+		}
+		if role := normalizeRoleValue(o.Role); role != "" {
+			entry.roleSet[role] = struct{}{}
+		}
+		if o.IsPseudoObject {
+			entry.isPseudo = true
+			entry.pseudoKinds[defaultPseudoKind(o.PseudoKind)]++
+		}
+
+		if fn := strings.TrimSpace(o.Func); fn != "" {
+			entry.funcSet[fn] = struct{}{}
+			entry.funcCounts[fn]++
+			if entry.firstFunc == "" {
+				entry.firstFunc = fn
+			}
+		}
+	}
+
+	return grouped
 }
 
 func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow, error) {
@@ -1229,8 +1227,14 @@ func dynamicPseudoRoleFlags(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
 }
 
 func roleFlagsForObject(o ObjectRow, q QueryRow, hasQuery bool) roleFlags {
-	flags := dynamicPseudoRoleFlags(o, q, hasQuery)
-	return normalizeRoleFlags(flags)
+	_ = q
+	_ = hasQuery
+	read, write, exec := objectReadCount(o), objectWriteCount(o), objectExecCount(o)
+	return roleFlags{
+		read:  read > 0,
+		write: write > 0,
+		exec:  exec > 0,
+	}
 }
 
 func normalizeRoleFlags(flags roleFlags) roleFlags {
@@ -1895,25 +1899,77 @@ func summarizeRoleLabel(reads, writes, execs int) string {
 	}
 }
 
+func normalizeRoleValue(role string) string {
+	return strings.ToLower(strings.TrimSpace(role))
+}
+
+func splitDmlKinds(dml string) []string {
+	upper := strings.ToUpper(strings.TrimSpace(dml))
+	if upper == "" {
+		return nil
+	}
+	parts := strings.FieldsFunc(upper, func(r rune) bool { return r == ';' })
+	out := make([]string, 0, len(parts))
+	for _, part := range parts {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			out = append(out, trimmed)
+		}
+	}
+	return out
+}
+
+func hasReadDml(dml string) bool {
+	for _, part := range splitDmlKinds(dml) {
+		if part == "SELECT" || part == "READ" {
+			return true
+		}
+	}
+	return false
+}
+
+func hasExecDml(dml string) bool {
+	for _, part := range splitDmlKinds(dml) {
+		if part == "EXEC" {
+			return true
+		}
+	}
+	return false
+}
+
+func objectReadCount(o ObjectRow) int {
+	role := normalizeRoleValue(o.Role)
+	if role == "source" {
+		return 1
+	}
+	if role == "mixed" && hasReadDml(o.DmlKind) {
+		return 1
+	}
+	return 0
+}
+
+func objectWriteCount(o ObjectRow) int {
+	if o.IsWrite {
+		return 1
+	}
+	return 0
+}
+
+func objectExecCount(o ObjectRow) int {
+	role := normalizeRoleValue(o.Role)
+	if role == "exec" || hasExecDml(o.DmlKind) {
+		return 1
+	}
+	return 0
+}
+
 func ObjectRoleBuckets(o ObjectRow) (int, int, int) {
 	return ObjectRoleCounts(o, QueryRow{}, false)
 }
 
 func ObjectRoleCounts(o ObjectRow, q QueryRow, hasQuery bool) (int, int, int) {
-	flags := roleFlagsForObject(o, q, hasQuery)
-	read := 0
-	write := 0
-	exec := 0
-	if flags.read {
-		read = 1
-	}
-	if flags.write {
-		write = 1
-	}
-	if flags.exec {
-		exec = 1
-	}
-	return read, write, exec
+	_ = q
+	_ = hasQuery
+	return objectReadCount(o), objectWriteCount(o), objectExecCount(o)
 }
 
 func buildTopObjects(stats map[string]*objectRoleCounter) string {
