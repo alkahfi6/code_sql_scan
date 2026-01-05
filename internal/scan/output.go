@@ -283,6 +283,40 @@ func canonicalCallSite(kind string) string {
 	}
 }
 
+func canonicalCallSiteKindLocal(kind string) string {
+	trimmed := strings.TrimSpace(kind)
+	if trimmed == "" {
+		return ""
+	}
+	switch strings.ToLower(trimmed) {
+	case "execproc", "exec-proc", "exec":
+		return "ExecProc"
+	case "commandtext", "command-text":
+		return "CommandText"
+	case "sqlcommand", "sql-command":
+		return "SqlCommand"
+	default:
+		return trimmed
+	}
+}
+
+func dynamicSummarySignatureLocal(q summary.QueryRow) string {
+	call := canonicalCallSiteKindLocal(q.CallSite)
+	if call == "" {
+		call = canonicalCallSiteKindLocal(q.SourceKind)
+	}
+	if call == "" {
+		call = canonicalCallSiteKindLocal(q.SourceCat)
+	}
+	if call == "" {
+		call = canonicalCallSiteKindLocal(q.UsageKind)
+	}
+	if call == "" {
+		call = "unknown"
+	}
+	return fmt.Sprintf("%s|%s|%s", strings.TrimSpace(q.RelPath), strings.TrimSpace(q.Func), call)
+}
+
 func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.ObjectRow, funcSummary []summary.FunctionSummaryRow, objectSummary []summary.ObjectSummaryRow) error {
 	validateFuncs := len(funcSummary) > 0
 	validateObjects := len(objectSummary) > 0
@@ -294,18 +328,9 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 
 	var dedupQueries []summary.QueryRow
 	dynSeen := make(map[string]struct{})
-	dynCounts := make(map[string]int)
 	for _, q := range queries {
 		if q.IsDynamic {
-			sig := strings.TrimSpace(q.DynamicSig)
-			if sig == "" {
-				call := canonicalCallSite(q.CallSite)
-				if call == "" {
-					call = "unknown"
-				}
-				sig = fmt.Sprintf("%s|%s|%s@%d", strings.TrimSpace(q.RelPath), strings.TrimSpace(q.Func), call, q.LineStart)
-			}
-			dynCounts[sig]++
+			sig := dynamicSummarySignatureLocal(q)
 			if _, ok := dynSeen[sig]; ok {
 				continue
 			}
@@ -329,6 +354,15 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 
 	var errors []string
 	if validateFuncs {
+		rawDynByFunc := make(map[string]int)
+		for _, q := range queries {
+			fn := resolver.Resolve(q.Func, q.RelPath, q.File, q.LineStart)
+			key := strings.Join([]string{q.AppName, q.RelPath, fn}, "|")
+			if q.IsDynamic {
+				rawDynByFunc[key]++
+			}
+		}
+
 		queryCounts := make(map[string]funcCounts)
 		for _, q := range dedupQueries {
 			fn := resolver.Resolve(q.Func, q.RelPath, q.File, q.LineStart)
@@ -355,19 +389,7 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 			}
 			if q.IsDynamic {
 				counts.dynamic++
-				sig := strings.TrimSpace(q.DynamicSig)
-				if sig == "" {
-					call := canonicalCallSite(q.CallSite)
-					if call == "" {
-						call = "unknown"
-					}
-					sig = fmt.Sprintf("%s|%s|%s@%d", strings.TrimSpace(q.RelPath), strings.TrimSpace(q.Func), call, q.LineStart)
-				}
-				if raw := dynCounts[sig]; raw > 0 {
-					counts.dynRaw += raw
-				} else {
-					counts.dynRaw++
-				}
+				counts.dynRaw = rawDynByFunc[key]
 			}
 			counts.total++
 			queryCounts[key] = counts
@@ -386,13 +408,17 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 				errors = append(errors, fmt.Sprintf("function %s/%s missing in summary (expected total=%d write=%d dynamic=%d)", parts[1], parts[2], expected.total, expected.write, expected.dynamic))
 				continue
 			}
-			if sum.TotalQueries != expected.total || sum.TotalSelect != expected.selectQ || sum.TotalInsert != expected.insert || sum.TotalUpdate != expected.update || sum.TotalDelete != expected.deleteQ || sum.TotalTruncate != expected.truncate || sum.TotalExec != expected.exec || sum.TotalWrite != expected.write || sum.TotalDynamic != expected.dynamic || (sum.DynamicCount != 0 && sum.DynamicCount != expected.dynRaw) {
+			rawDyn := sum.DynamicRawCount
+			if rawDyn == 0 {
+				rawDyn = sum.DynamicCount
+			}
+			if sum.TotalQueries != expected.total || sum.TotalSelect != expected.selectQ || sum.TotalInsert != expected.insert || sum.TotalUpdate != expected.update || sum.TotalDelete != expected.deleteQ || sum.TotalTruncate != expected.truncate || sum.TotalExec != expected.exec || sum.TotalWrite != expected.write || sum.TotalDynamic != expected.dynamic || (rawDyn != 0 && rawDyn != expected.dynRaw) {
 				errors = append(errors, fmt.Sprintf(
 					"function %s/%s count mismatch (expected total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d, summary total=%d select=%d insert=%d update=%d delete=%d truncate=%d exec=%d write=%d dynamic=%d rawDynamic=%d)",
 					sum.RelPath,
 					sum.Func,
 					expected.total, expected.selectQ, expected.insert, expected.update, expected.deleteQ, expected.truncate, expected.exec, expected.write, expected.dynamic, expected.dynRaw,
-					sum.TotalQueries, sum.TotalSelect, sum.TotalInsert, sum.TotalUpdate, sum.TotalDelete, sum.TotalTruncate, sum.TotalExec, sum.TotalWrite, sum.TotalDynamic, sum.DynamicCount,
+					sum.TotalQueries, sum.TotalSelect, sum.TotalInsert, sum.TotalUpdate, sum.TotalDelete, sum.TotalTruncate, sum.TotalExec, sum.TotalWrite, sum.TotalDynamic, rawDyn,
 				))
 			}
 		}

@@ -83,15 +83,17 @@ type FunctionSummaryRow struct {
 	TotalDelete              int
 	TotalTruncate            int
 	TotalDynamic             int
+	DynamicRawCount          int
 	TotalDynamicSql          int
 	TotalDynamicObject       int
 	DynamicCount             int
 	DynamicSig               string
 	TotalWrite               int
 	TotalObjects             int
-	TopObjects               string
+	TopObjectsRead           string
+	TopObjectsWrite          string
+	TopObjectsExec           string
 	ObjectsUsed              string
-	TopObjectsShort          string
 	DynamicPseudoKinds       string
 	DynamicExampleSignatures string
 	DynamicReason            string
@@ -135,8 +137,9 @@ type FormSummaryRow struct {
 	HasDbAccess          bool
 	TotalObjects         int
 	DistinctObjectsUsed  int
-	TopObjects           string
-	TopObjectsByExec     string
+	TopObjectsRead       string
+	TopObjectsWrite      string
+	TopObjectsExec       string
 	DbList               string
 }
 
@@ -461,7 +464,7 @@ func dedupeDynamicQueries(queries []QueryRow) ([]QueryRow, map[string]int) {
 	for _, q := range queries {
 		key := ""
 		if isDynamicQuery(q) {
-			key = dynamicDedupSignature(q)
+			key = dynamicSummarySignature(q)
 			counts[key]++
 			if _, ok := seen[key]; ok {
 				continue
@@ -474,6 +477,22 @@ func dedupeDynamicQueries(queries []QueryRow) ([]QueryRow, map[string]int) {
 	return out, counts
 }
 
+func dynamicRawCountIndex(queries []QueryRow) map[string]map[string]int {
+	index := make(map[string]map[string]int)
+	for _, q := range queries {
+		if !isDynamicQuery(q) {
+			continue
+		}
+		funcKey := functionKey(q.AppName, q.RelPath, q.Func)
+		sig := dynamicSummarySignature(q)
+		if index[funcKey] == nil {
+			index[funcKey] = make(map[string]int)
+		}
+		index[funcKey][sig]++
+	}
+	return index
+}
+
 func dynamicDedupSignature(q QueryRow) string {
 	callKind := canonicalCallSiteKind(q.CallSite)
 	if callKind == "" {
@@ -484,9 +503,20 @@ func dynamicDedupSignature(q QueryRow) string {
 	return fmt.Sprintf("%s|%s|%s@%d", relPath, funcName, callKind, q.LineStart)
 }
 
+func dynamicSummarySignature(q QueryRow) string {
+	callKind := callSiteKind(q)
+	if callKind == "" {
+		callKind = "unknown"
+	}
+	relPath := strings.TrimSpace(q.RelPath)
+	funcName := strings.TrimSpace(q.Func)
+	return fmt.Sprintf("%s|%s|%s", relPath, funcName, callKind)
+}
+
 func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSummaryRow, error) {
 	normQueries := normalizeQueryFuncs(queries)
-	dedupQueries, dynamicCounts := dedupeDynamicQueries(normQueries)
+	dynamicRawIndex := dynamicRawCountIndex(normQueries)
+	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	objects = NormalizeObjectRows(objects)
 	grouped := make(map[string][]QueryRow)
 	queryByKey := make(map[string]QueryRow)
@@ -596,13 +626,12 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			totalWrite += writeKinds
 			if q.IsDynamic {
 				dynamicCount++
-				dynKey = dynamicDedupSignature(q)
-				if c := dynamicCounts[dynKey]; c > 0 {
-					rawDynForQuery = c
-					rawDynamicCount += c
-				} else {
-					rawDynamicCount++
+				dynKey = dynamicSummarySignature(q)
+				rawDynForQuery = dynamicRawIndex[key][dynKey]
+				if rawDynForQuery <= 0 {
+					rawDynForQuery = 1
 				}
+				rawDynamicCount += rawDynForQuery
 				if dynSqlPseudo || (!dynSqlPseudo && !dynObjPseudo) {
 					totalDynamicSql++
 				}
@@ -717,13 +746,15 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			}
 		}
 		displayCounter := filterDynamicPseudoObjects(objectCounter)
-		topObjects := buildTopObjectSummary(displayCounter, 10)
-		topObjectsShort := buildTopObjectSummary(displayCounter, 5)
+		topObjectsRead := buildTopObjectsByRole(displayCounter, "read", 10)
+		topObjectsWrite := buildTopObjectsByRole(displayCounter, "write", 10)
+		topObjectsExec := buildTopObjectsByRole(displayCounter, "exec", 10)
 		objectsUsed := buildObjectsUsedDetailed(displayCounter)
 		dynamicDisplay := summarizeDynamicGroups(dynamicGroups, 3)
 		if dynamicDisplay != "" {
-			topObjects = appendSummary(topObjects, dynamicDisplay)
-			topObjectsShort = appendSummary(topObjectsShort, dynamicDisplay)
+			topObjectsRead = appendSummary(topObjectsRead, dynamicDisplay)
+			topObjectsWrite = appendSummary(topObjectsWrite, dynamicDisplay)
+			topObjectsExec = appendSummary(topObjectsExec, dynamicDisplay)
 			objectsUsed = appendSummary(objectsUsed, dynamicDisplay)
 		}
 		dbList := setToSortedSlice(dbListSet)
@@ -751,17 +782,19 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			TotalDelete:              totalDelete,
 			TotalTruncate:            totalTruncate,
 			TotalDynamic:             totalDynamic,
+			DynamicRawCount:          rawDynamicCount,
 			TotalDynamicSql:          totalDynamicSql,
 			TotalDynamicObject:       totalDynamicObject,
-			DynamicCount:             rawDynamicCount,
+			DynamicCount:             dynamicCount,
 			DynamicSig:               dynamicSig,
 			DynamicReason:            dynamicReasonSummary,
 			DynamicPseudoKinds:       dynamicPseudoSummary,
 			DynamicExampleSignatures: dynamicExampleSummary,
 			TotalWrite:               totalWrite,
 			TotalObjects:             len(objSet),
-			TopObjects:               topObjects,
-			TopObjectsShort:          topObjectsShort,
+			TopObjectsRead:           topObjectsRead,
+			TopObjectsWrite:          topObjectsWrite,
+			TopObjectsExec:           topObjectsExec,
 			ObjectsUsed:              objectsUsed,
 			HasCrossDb:               hasCross,
 			DbList:                   strings.Join(dbList, ";"),
@@ -794,7 +827,8 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 // It groups queries by (AppName, RelPath, Func) and checks TotalQueries and TotalDynamic against the summary rows.
 func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSummaryRow) error {
 	normQueries := normalizeQueryFuncs(queries)
-	dedupQueries, dynamicCounts := dedupeDynamicQueries(normQueries)
+	dynamicRawIndex := dynamicRawCountIndex(normQueries)
+	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	expectedTotals := make(map[string]int)
 	expectedDynamic := make(map[string]int)
 	expectedRawDynamic := make(map[string]int)
@@ -803,7 +837,7 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 		expectedTotals[key]++
 		if q.IsDynamic {
 			expectedDynamic[key]++
-			raw := dynamicCounts[dynamicDedupSignature(q)]
+			raw := dynamicRawIndex[key][dynamicSummarySignature(q)]
 			if raw == 0 {
 				raw = 1
 			}
@@ -828,8 +862,8 @@ func ValidateFunctionSummaryCounts(queries []QueryRow, summaries []FunctionSumma
 		}
 		expectedDyn := expectedDynamic[key]
 		rawDyn := expectedRawDynamic[key]
-		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn || (sum.DynamicCount != 0 && sum.DynamicCount != rawDyn) {
-			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d rawDyn=%d, summary total=%d dyn=%d rawDyn=%d)", rel, fn, total, expectedDyn, rawDyn, sum.TotalQueries, sum.TotalDynamic, sum.DynamicCount))
+		if sum.TotalQueries != total || sum.TotalDynamic != expectedDyn || (sum.DynamicRawCount != 0 && sum.DynamicRawCount != rawDyn) {
+			mismatches = append(mismatches, fmt.Sprintf("%s/%s mismatch (expected total=%d dyn=%d rawDyn=%d, summary total=%d dyn=%d rawDyn=%d)", rel, fn, total, expectedDyn, rawDyn, sum.TotalQueries, sum.TotalDynamic, sum.DynamicRawCount))
 		}
 	}
 	for key, sum := range summaryTotals {
@@ -1205,11 +1239,13 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			dbListSet[db] = struct{}{}
 		}
 
-		topObjects := buildTopObjects(topObjectStats[key])
-		topObjectsByExec := buildTopObjectsByRole(topObjectStats[key], "exec", 5)
+		topObjectsRead := buildTopObjectsByRole(topObjectStats[key], "read", 10)
+		topObjectsWrite := buildTopObjectsByRole(topObjectStats[key], "write", 10)
+		topObjectsExec := buildTopObjectsByRole(topObjectStats[key], "exec", 10)
 		if distinctObjects == 0 {
-			topObjects = ""
-			topObjectsByExec = ""
+			topObjectsRead = ""
+			topObjectsWrite = ""
+			topObjectsExec = ""
 		}
 
 		funcCount := len(funcSetByForm[key])
@@ -1228,8 +1264,9 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			TotalExec:            totalExec,
 			TotalObjects:         totalObjects,
 			DistinctObjectsUsed:  distinctObjects,
-			TopObjects:           topObjects,
-			TopObjectsByExec:     topObjectsByExec,
+			TopObjectsRead:       topObjectsRead,
+			TopObjectsWrite:      topObjectsWrite,
+			TopObjectsExec:       topObjectsExec,
 			HasCrossDb:           hasCross,
 			HasDbAccess:          hasDbAccess,
 			DbList:               strings.Join(setToSortedSlice(dbListSet), ";"),
@@ -2062,12 +2099,18 @@ func buildTopObjectsByRole(stats map[string]*objectRoleCounter, role string, lim
 		}
 		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
 	})
-	if len(entries) > limit {
-		entries = entries[:limit]
+	overflow := 0
+	display := entries
+	if len(display) > limit {
+		overflow = len(display) - limit
+		display = display[:limit]
 	}
-	parts := make([]string, 0, len(entries))
-	for _, e := range entries {
+	parts := make([]string, 0, len(display)+1)
+	for _, e := range display {
 		parts = append(parts, fmt.Sprintf("%s(%s x%d)", formatObjectName(e.name, e.role), role, e.count))
+	}
+	if overflow > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", overflow))
 	}
 	return strings.Join(parts, "; ")
 }
@@ -2512,7 +2555,7 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "TotalDynamicSql", "TotalDynamicObject", "DynamicCount", "DynamicSignatures", "DynamicReason", "TotalObjects", "TopObjects", "ObjectsUsed", "HasCrossDb", "DbList", "TopObjectsShort", "DynamicPseudoKinds", "DynamicExampleSignatures"}
+	header := []string{"AppName", "RelPath", "Func", "LineStart", "LineEnd", "TotalQueries", "TotalSelect", "TotalInsert", "TotalUpdate", "TotalDelete", "TotalTruncate", "TotalExec", "TotalWrite", "TotalDynamic", "DynamicRawCount", "TotalDynamicSql", "TotalDynamicObject", "DynamicCount", "DynamicSignatures", "DynamicReason", "TotalObjects", "TopObjectsRead", "TopObjectsWrite", "TopObjectsExec", "ObjectsUsed", "HasCrossDb", "DbList", "DynamicPseudoKinds", "DynamicExampleSignatures"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -2532,17 +2575,19 @@ func WriteFunctionSummary(path string, rows []FunctionSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalExec),
 			fmt.Sprintf("%d", r.TotalWrite),
 			fmt.Sprintf("%d", r.TotalDynamic),
+			fmt.Sprintf("%d", r.DynamicRawCount),
 			fmt.Sprintf("%d", r.TotalDynamicSql),
 			fmt.Sprintf("%d", r.TotalDynamicObject),
 			fmt.Sprintf("%d", r.DynamicCount),
 			r.DynamicSig,
 			r.DynamicReason,
 			fmt.Sprintf("%d", r.TotalObjects),
-			r.TopObjects,
+			r.TopObjectsRead,
+			r.TopObjectsWrite,
+			r.TopObjectsExec,
 			r.ObjectsUsed,
 			boolToStr(r.HasCrossDb),
 			r.DbList,
-			r.TopObjectsShort,
 			r.DynamicPseudoKinds,
 			r.DynamicExampleSignatures,
 		}
@@ -2601,7 +2646,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasDbAccess", "HasCrossDb", "DbList", "TopObjects", "TopObjectsByExec"}
+	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasDbAccess", "HasCrossDb", "DbList", "TopObjectsRead", "TopObjectsWrite", "TopObjectsExec"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -2620,8 +2665,9 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 			boolToStr(r.HasDbAccess),
 			boolToStr(r.HasCrossDb),
 			r.DbList,
-			r.TopObjects,
-			r.TopObjectsByExec,
+			r.TopObjectsRead,
+			r.TopObjectsWrite,
+			r.TopObjectsExec,
 		}
 		if err := w.Write(rec); err != nil {
 			return err

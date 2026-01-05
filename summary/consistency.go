@@ -82,7 +82,8 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 
 func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries []FunctionSummaryRow) []string {
 	normQueries := normalizeQueryFuncs(queries)
-	dedupQueries, dynamicCounts := dedupeDynamicQueries(normQueries)
+	dynamicRawIndex := dynamicRawCountIndex(normQueries)
+	dedupQueries, _ := dedupeDynamicQueries(normQueries)
 	objectsByQuery := map[string][]ObjectRow{}
 	for _, o := range objects {
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
@@ -149,7 +150,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 
 		if isDynamicQuery(q) {
 			entry.dynamicCount++
-			raw := dynamicCounts[dynamicDedupSignature(q)]
+			raw := dynamicRawIndex[key][dynamicSummarySignature(q)]
 			if raw == 0 {
 				raw = 1
 			}
@@ -237,8 +238,12 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 	check("exec", raw.execCount, summary.TotalExec)
 	check("write", raw.writeCount, summary.TotalWrite)
 	check("dynamic", raw.dynamicCount, summary.TotalDynamic)
-	if summary.DynamicCount != 0 {
-		check("dynamicRaw", raw.dynamicRaw, summary.DynamicCount)
+	rawCount := summary.DynamicRawCount
+	if rawCount == 0 {
+		rawCount = summary.DynamicCount
+	}
+	if rawCount != 0 {
+		check("dynamicRaw", raw.dynamicRaw, rawCount)
 	}
 	if summary.TotalDynamicSql != 0 || raw.dynamicSql != 0 {
 		check("dynamicSql", raw.dynamicSql, summary.TotalDynamicSql)
@@ -438,6 +443,9 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		if col, ok := idx["TotalDynamicObject"]; ok {
 			row.TotalDynamicObject = parseInt(rec[col])
 		}
+		if col, ok := idx["DynamicRawCount"]; ok {
+			row.DynamicRawCount = parseInt(rec[col])
+		}
 		if col, ok := idx["DynamicCount"]; ok {
 			row.DynamicCount = parseInt(rec[col])
 		}
@@ -461,11 +469,14 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		if col, ok := idx["DbList"]; ok {
 			row.DbList = rec[col]
 		}
-		if col, ok := idx["TopObjects"]; ok {
-			row.TopObjects = rec[col]
+		if col, ok := idx["TopObjectsRead"]; ok {
+			row.TopObjectsRead = rec[col]
 		}
-		if col, ok := idx["TopObjectsShort"]; ok {
-			row.TopObjectsShort = rec[col]
+		if col, ok := idx["TopObjectsWrite"]; ok {
+			row.TopObjectsWrite = rec[col]
+		}
+		if col, ok := idx["TopObjectsExec"]; ok {
+			row.TopObjectsExec = rec[col]
 		}
 		if col, ok := idx["DynamicPseudoKinds"]; ok {
 			row.DynamicPseudoKinds = rec[col]
