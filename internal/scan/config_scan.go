@@ -545,6 +545,26 @@ func StripSqlComments(sql string) string {
 		}
 		if !inString && !inBracket {
 			if c == '-' && next == '-' {
+				lineEnd := len(sql)
+				if idx := strings.IndexAny(sql[i:], "\r\n"); idx >= 0 {
+					lineEnd = i + idx
+				}
+				segment := sql[i:lineEnd]
+				if strings.HasPrefix(strings.ToLower(strings.TrimSpace(segment)), "-- name:") {
+					out.WriteString(segment)
+					if lineEnd < len(sql) {
+						out.WriteByte(sql[lineEnd])
+						if sql[lineEnd] == '\r' && lineEnd+1 < len(sql) && sql[lineEnd+1] == '\n' {
+							out.WriteByte(sql[lineEnd+1])
+							i = lineEnd + 1
+						} else {
+							i = lineEnd
+						}
+					} else {
+						i = lineEnd
+					}
+					continue
+				}
 				inLine = true
 				i++
 				continue

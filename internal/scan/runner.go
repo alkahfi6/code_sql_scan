@@ -143,19 +143,11 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 				return nil
 			}
 			if d.Type()&os.ModeSymlink != 0 {
-				target, err := filepath.EvalSymlinks(path)
-				if err != nil {
-					log.Printf("[WARN] stage=resolve-symlink lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
-					return nil
+				log.Printf("[INFO] stage=skip-symlink lang=%s root=%q path=%q", cfg.Lang, cfg.Root, path)
+				if d.IsDir() {
+					return filepath.SkipDir
 				}
-				if !isWithinRoot(cfg.Root, target) {
-					log.Printf("[INFO] stage=skip-symlink-outside lang=%s root=%q link=%q target=%q", cfg.Lang, cfg.Root, path, target)
-					if d.IsDir() {
-						return filepath.SkipDir
-					}
-					return nil
-				}
-				path = target
+				return nil
 			}
 			if d.IsDir() {
 				name := strings.ToLower(d.Name())
@@ -166,8 +158,7 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 				}
 				return nil
 			}
-			ext := strings.ToLower(filepath.Ext(path))
-			if !isAllowedExt(cfg, ext) {
+			if !isAllowedExt(cfg, path) {
 				return nil
 			}
 			total++
@@ -182,19 +173,26 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 	return paths, count
 }
 
-func isAllowedExt(cfg *Config, ext string) bool {
+func isAllowedExt(cfg *Config, path string) bool {
+	ext := strings.ToLower(filepath.Ext(path))
 	if ext == "" {
 		return false
 	}
+	lowerPath := strings.ToLower(path)
 	switch cfg.Lang {
 	case "go":
 		switch ext {
-		case ".go", ".xml", ".config", ".json", ".yaml", ".yml", ".sql":
+		case ".go", ".sql":
+			return true
+		case ".json", ".yaml", ".yml", ".toml", ".ini", ".conf":
+			return true
+		}
+		if strings.HasSuffix(lowerPath, ".sql.go") {
 			return true
 		}
 	case "dotnet":
 		switch ext {
-		case ".cs", ".xml", ".config", ".json", ".yaml", ".yml", ".sql":
+		case ".cs", ".config", ".json", ".yaml", ".yml", ".xml":
 			return true
 		}
 	}

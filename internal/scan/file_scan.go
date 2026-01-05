@@ -31,6 +31,8 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 	ext := strings.ToLower(filepath.Ext(path))
 	relPath := ensureRelPath(cfg.Root, path)
 
+	isSqlGo := strings.HasSuffix(strings.ToLower(path), ".sql.go")
+
 	switch ext {
 	case ".go":
 		if cfg.Lang != "go" {
@@ -42,11 +44,14 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 			return nil, nil
 		}
 		return scanCsFile(cfg, path, relPath)
-	case ".xml", ".config", ".json", ".yaml", ".yml":
+	case ".xml", ".config", ".json", ".yaml", ".yml", ".toml", ".ini", ".conf":
 		return scanConfigFile(cfg, path, relPath)
 	case ".sql":
 		return scanSqlFile(cfg, path, relPath)
 	default:
+		if cfg.Lang == "go" && isSqlGo {
+			return scanSqlFile(cfg, path, relPath)
+		}
 		return nil, nil
 	}
 }

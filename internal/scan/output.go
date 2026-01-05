@@ -16,6 +16,19 @@ import (
 // ------------------------------------------------------------
 
 func writeCSVs(cfg *Config, cands []SqlCandidate) error {
+	type objectRow struct {
+		row       []string
+		app       string
+		rel       string
+		funcName  string
+		line      int
+		queryHash string
+		base      string
+		role      string
+		dml       string
+		fullName  string
+	}
+
 	qf, err := os.Create(cfg.OutQuery)
 	if err != nil {
 		return err
@@ -51,20 +64,29 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 
 	sort.Slice(cands, func(i, j int) bool {
 		a, b := cands[i], cands[j]
+		if a.AppName != b.AppName {
+			return a.AppName < b.AppName
+		}
 		if a.RelPath != b.RelPath {
 			return a.RelPath < b.RelPath
+		}
+		if a.Func != b.Func {
+			return a.Func < b.Func
 		}
 		if a.LineStart != b.LineStart {
 			return a.LineStart < b.LineStart
 		}
-		if a.Func != b.Func {
-			return a.Func < b.Func
+		if a.LineEnd != b.LineEnd {
+			return a.LineEnd < b.LineEnd
+		}
+		if a.UsageKind != b.UsageKind {
+			return a.UsageKind < b.UsageKind
 		}
 		return a.QueryHash < b.QueryHash
 	})
 
 	pseudoWritten := make(map[string]struct{})
-	var objectRows [][]string
+	var objectRows []objectRow
 
 	for _, c := range cands {
 		funcName := resolver.Resolve(c.Func, c.RelPath, c.File, c.LineStart)
@@ -136,6 +158,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 			if o.PseudoKind == "dynamic-sql" && strings.TrimSpace(role) == "" {
 				role = "mixed"
 			}
+			fullName := full
 			oRow := []string{
 				c.AppName,
 				c.RelPath,
@@ -158,22 +181,52 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) error {
 				boolToStr(o.IsLinkedServer),
 				boolToStr(o.IsObjectNameDyn),
 			}
-			objectRows = append(objectRows, oRow)
+			objectRows = append(objectRows, objectRow{
+				row:       oRow,
+				app:       c.AppName,
+				rel:       c.RelPath,
+				funcName:  funcName,
+				line:      o.RepresentativeLine,
+				queryHash: c.QueryHash,
+				base:      o.BaseName,
+				role:      role,
+				dml:       o.DmlKind,
+				fullName:  fullName,
+			})
 		}
 	}
 
 	sort.Slice(objectRows, func(i, j int) bool {
-		if objectRows[i][1] != objectRows[j][1] {
-			return objectRows[i][1] < objectRows[j][1]
+		a, b := objectRows[i], objectRows[j]
+		if a.app != b.app {
+			return a.app < b.app
 		}
-		if objectRows[i][17] != objectRows[j][17] {
-			return objectRows[i][17] < objectRows[j][17]
+		if a.rel != b.rel {
+			return a.rel < b.rel
 		}
-		return objectRows[i][8] < objectRows[j][8]
+		if a.funcName != b.funcName {
+			return a.funcName < b.funcName
+		}
+		if a.line != b.line {
+			return a.line < b.line
+		}
+		if a.queryHash != b.queryHash {
+			return a.queryHash < b.queryHash
+		}
+		if a.base != b.base {
+			return a.base < b.base
+		}
+		if a.role != b.role {
+			return a.role < b.role
+		}
+		if a.dml != b.dml {
+			return a.dml < b.dml
+		}
+		return a.fullName < b.fullName
 	})
 
 	for _, row := range objectRows {
-		if err := ow.Write(row); err != nil {
+		if err := ow.Write(row.row); err != nil {
 			return err
 		}
 	}

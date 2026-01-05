@@ -772,10 +772,19 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i], result[j]
+		if a.AppName != b.AppName {
+			return a.AppName < b.AppName
+		}
 		if a.RelPath != b.RelPath {
 			return a.RelPath < b.RelPath
 		}
-		return a.Func < b.Func
+		if a.Func != b.Func {
+			return a.Func < b.Func
+		}
+		if a.LineStart != b.LineStart {
+			return a.LineStart < b.LineStart
+		}
+		return a.LineEnd < b.LineEnd
 	})
 
 	return result, nil
@@ -960,8 +969,10 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 		if a.FullObjectName != b.FullObjectName {
 			return a.FullObjectName < b.FullObjectName
 		}
-		if a.Roles != b.Roles {
-			return a.Roles < b.Roles
+		dbA, _, _ := splitFullObjectName(a.FullObjectName)
+		dbB, _, _ := splitFullObjectName(b.FullObjectName)
+		if dbA != dbB {
+			return dbA < dbB
 		}
 		return a.RelPath < b.RelPath
 	})
@@ -1227,6 +1238,9 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i], result[j]
+		if a.AppName != b.AppName {
+			return a.AppName < b.AppName
+		}
 		if a.RelPath != b.RelPath {
 			return a.RelPath < b.RelPath
 		}
