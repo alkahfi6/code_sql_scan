@@ -21,6 +21,133 @@ def parse_list(val: str):
     return sorted(set(items))
 
 
+def normalize_role(val: str) -> str:
+    return val.strip().lower()
+
+
+def split_dml(val: str):
+    return [item.strip().upper() for item in val.split(";") if item.strip()]
+
+
+def has_read_dml(val: str) -> bool:
+    return any(item in {"SELECT", "READ"} for item in split_dml(val))
+
+
+def has_exec_dml(val: str) -> bool:
+    return any(item == "EXEC" for item in split_dml(val))
+
+
+def object_read_count(row: dict) -> int:
+    role = normalize_role(row.get("Role", ""))
+    if role == "source":
+        return 1
+    if role == "mixed" and has_read_dml(row.get("DmlKind", "")):
+        return 1
+    return 0
+
+
+def object_write_count(row: dict) -> int:
+    return 1 if parse_bool(row.get("IsWrite", "false")) else 0
+
+
+def object_exec_count(row: dict) -> int:
+    role = normalize_role(row.get("Role", ""))
+    if role == "exec" or has_exec_dml(row.get("DmlKind", "")):
+        return 1
+    return 0
+
+
+def default_pseudo_kind(kind: str) -> str:
+    k = (kind or "").strip().lower()
+    return k if k else "unknown"
+
+
+def pseudo_object_info(base: str, pseudo_kind_hint: str):
+    trimmed = (base or "").strip()
+    if not trimmed:
+        return False, ""
+    lower = trimmed.lower()
+    if lower == "<dynamic-sql>":
+        return True, "dynamic-sql"
+    if lower.startswith("<dynamic-object"):
+        return True, "dynamic-object"
+    if lower.startswith("<") and lower.endswith(">"):
+        kind = lower[1:-1].strip() or "unknown"
+        return True, kind
+    hint = default_pseudo_kind(pseudo_kind_hint)
+    if hint.startswith("dynamic-") and hint != "unknown":
+        return True, hint
+    return False, ""
+
+
+def split_full_object_name(full_name: str):
+    parts = [p for p in (full_name or "").split(".") if p]
+    db_name = schema_name = ""
+    base = full_name or ""
+    if len(parts) == 3:
+        db_name, schema_name, base = parts
+    elif len(parts) == 2:
+        schema_name, base = parts
+    elif len(parts) == 1:
+        base = parts[0]
+    return db_name, schema_name, base
+
+
+def make_object_key(row: dict):
+    full_name = row.get("FullObjectName", "") or ""
+    db_name, schema_name, base_from_full = split_full_object_name(full_name)
+    base = (row.get("BaseName", "") or base_from_full).strip()
+    pseudo_kind_hint = row.get("PseudoKind", "") or ""
+    is_pseudo = parse_bool(row.get("IsPseudoObject", "false"))
+    detected, detected_kind = pseudo_object_info(base, pseudo_kind_hint)
+    if detected:
+        is_pseudo = True
+        pseudo_kind = default_pseudo_kind(detected_kind)
+    elif is_pseudo:
+        pseudo_kind = default_pseudo_kind(pseudo_kind_hint)
+    else:
+        pseudo_kind = ""
+    db_name = row.get("DbName", "") or db_name
+    schema_name = row.get("SchemaName", "") or schema_name
+    key = (
+        row.get("AppName", ""),
+        row.get("RelPath", ""),
+        full_name,
+        db_name,
+        schema_name,
+        base,
+        "true" if is_pseudo else "false",
+        pseudo_kind,
+    )
+    return key, pseudo_kind, is_pseudo
+
+
+def summarize_pseudo_kinds_flat(counts: dict) -> str:
+    if not counts:
+        return ""
+    ordered = sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    return ";".join([name for name, _ in ordered])
+
+
+def is_dynamic_base_name(base: str) -> bool:
+    trimmed = (base or "").strip().lower()
+    return trimmed == "<dynamic-sql>" or trimmed.startswith("<dynamic-object")
+
+
+def should_skip_object(row: dict) -> bool:
+    base = (row.get("BaseName", "") or "").strip()
+    if is_dynamic_base_name(base):
+        return False
+    if not base:
+        return True
+    lower = base.lower()
+    if lower in {"eq", "dbo", "dbo."}:
+        return True
+    if base.endswith("."):
+        return True
+    return False
+
+
 def is_dynamic_query(row: dict) -> bool:
     raw = row.get("RawSql", "").lower()
     clean = row.get("SqlClean", "").lower()
@@ -123,87 +250,81 @@ def check_function_summary(app: str, out_dir: str):
 
 
 def check_object_summary(app: str, out_dir: str):
-    query_rows = load_csv(os.path.join(out_dir, f"{app}-query.csv"))
-    query_by_hash = {
-        (row.get("RelPath", ""), row.get("QueryHash", "")): row for row in query_rows
-    }
     obj_rows = load_csv(os.path.join(out_dir, f"{app}-object.csv"))
     summary_rows = load_csv(os.path.join(out_dir, f"{app}-summary-object.csv"))
 
     grouped = defaultdict(list)
     for row in obj_rows:
-        grouped[row.get("BaseName", "")].append(row)
+        if should_skip_object(row):
+            continue
+        key, pseudo_kind, is_pseudo = make_object_key(row)
+        grouped[key].append((row, pseudo_kind, is_pseudo))
 
     expected = {}
-    for base, rows in grouped.items():
+    for key, grouped_rows in grouped.items():
         roles = set()
+        dml_set = set()
         total_reads = total_writes = total_exec = 0
-        func_set = set()
+        func_counts = defaultdict(int)
         dbs = set()
         has_cross = False
         pseudo = False
-        pseudo_kind = ""
-        full_names = set()
-        for r in rows:
-            role = r.get("Role", "").strip()
+        pseudo_kinds = defaultdict(int)
+        for r, pseudo_kind_value, is_pseudo in grouped_rows:
+            role = normalize_role(r.get("Role", ""))
             if role:
                 roles.add(role)
-            dml = r.get("DmlKind", "").upper()
-            is_write = parse_bool(r.get("IsWrite", "false"))
-            if ((not is_write and dml == "SELECT") or role.lower() == "source"):
-                total_reads += 1
-            if role.lower() in {"target", "mixed"} and dml in {"INSERT", "UPDATE", "DELETE", "TRUNCATE"}:
-                total_writes += 1
-            if role.lower() == "exec":
-                total_exec += 1
+            for part in split_dml(r.get("DmlKind", "")):
+                dml_set.add(part)
+            total_reads += object_read_count(r)
+            total_writes += object_write_count(r)
+            total_exec += object_exec_count(r)
             if parse_bool(r.get("IsCrossDb", "false")):
                 has_cross = True
             db_name = r.get("DbName", "").strip()
             if db_name:
                 dbs.add(db_name)
-            full_name = r.get("FullObjectName") or ""
-            if full_name:
-                full_names.add(full_name)
-            if parse_bool(r.get("IsPseudoObject", "false")):
+            if is_pseudo:
                 pseudo = True
-                pseudo_kind = r.get("PseudoKind", "") or pseudo_kind or "unknown"
-            qkey = (r.get("RelPath", ""), r.get("QueryHash", ""))
-            qrow = query_by_hash.get(qkey)
-            if qrow:
-                fn = (qrow.get("Func", "") or "").strip()
-                if fn:
-                    func_set.add(fn)
-        example_funcs = sorted(func_set)
-        if len(example_funcs) > 5:
-            example_funcs = example_funcs[:5]
-        if pseudo and not pseudo_kind:
-            pseudo_kind = "unknown"
+                pseudo_kinds[default_pseudo_kind(pseudo_kind_value)] += 1
+            fn = (r.get("Func", "") or "").strip()
+            if fn:
+                func_counts[fn] += 1
+        example_funcs = sorted(func_counts.items(), key=lambda kv: (-kv[1], kv[0].lower()))
+        example_funcs = [name for name, _ in example_funcs[:5]]
+        if pseudo and not pseudo_kinds:
+            pseudo_kinds["unknown"] += 1
 
-        expected[base] = {
+        expected[key] = {
             "Roles": ";".join(sorted(roles)) if roles else "",
+            "DmlKinds": ";".join(sorted(dml_set)) if dml_set else "",
             "TotalReads": total_reads,
             "TotalWrites": total_writes,
             "TotalExec": total_exec,
-            "TotalFuncs": len(func_set),
+            "TotalFuncs": len(func_counts),
             "ExampleFuncs": ";".join(example_funcs),
             "IsPseudoObject": "true" if pseudo else "false",
-            "PseudoKind": pseudo_kind if pseudo else "",
+            "PseudoKind": summarize_pseudo_kinds_flat(pseudo_kinds) if pseudo else "",
             "HasCrossDb": has_cross,
             "DbList": ";".join(sorted(dbs)),
-            "FullObjectName": ";".join(sorted(full_names)),
+            "RolesSummary": f"read={total_reads}; write={total_writes}; exec={total_exec}",
         }
 
-    summary_map = {row.get("BaseName", ""): row for row in summary_rows}
+    summary_map = {}
+    for row in summary_rows:
+        key, _, _ = make_object_key(row)
+        summary_map[key] = row
     mismatches = []
-    for base, exp in expected.items():
-        row = summary_map.get(base)
+    for key, exp in expected.items():
+        row = summary_map.get(key)
         if not row:
-            mismatches.append((base, "missing in summary"))
+            mismatches.append((key, "missing in summary"))
             if len(mismatches) >= 20:
                 break
             continue
         for col in [
             "Roles",
+            "DmlKinds",
             "TotalReads",
             "TotalWrites",
             "TotalExec",
@@ -213,22 +334,23 @@ def check_object_summary(app: str, out_dir: str):
             "PseudoKind",
             "HasCrossDb",
             "DbList",
+            "RolesSummary",
         ]:
             val = row.get(col, "")
-            if col in {"Roles", "ExampleFuncs", "DbList"}:
+            if col in {"Roles", "ExampleFuncs", "DbList", "DmlKinds"}:
                 if ";".join(parse_list(val)) != ";".join(parse_list(exp[col])):
-                    mismatches.append((base, f"{col} expected {exp[col]} found {val}"))
+                    mismatches.append((key, f"{col} expected {exp[col]} found {val}"))
             elif col in {"IsPseudoObject", "HasCrossDb"}:
                 if (val or "").strip().lower() not in {"true", "false"}:
-                    mismatches.append((base, f"{col} invalid value {val}"))
+                    mismatches.append((key, f"{col} invalid value {val}"))
                 elif (val or "").strip().lower() != ("true" if exp[col] in [True, "true"] else "false"):
-                    mismatches.append((base, f"{col} expected {exp[col]} found {val}"))
+                    mismatches.append((key, f"{col} expected {exp[col]} found {val}"))
             elif col in {"TotalReads", "TotalWrites", "TotalExec", "TotalFuncs"}:
                 if parse_int(val) != exp[col]:
-                    mismatches.append((base, f"{col} expected {exp[col]} found {val}"))
+                    mismatches.append((key, f"{col} expected {exp[col]} found {val}"))
             else:
                 if (val or "") != (exp[col] or ""):
-                    mismatches.append((base, f"{col} expected {exp[col]} found {val}"))
+                    mismatches.append((key, f"{col} expected {exp[col]} found {val}"))
             if len(mismatches) >= 20:
                 break
         if len(mismatches) >= 20:

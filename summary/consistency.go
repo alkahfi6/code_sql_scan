@@ -212,72 +212,9 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 }
 
 func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []ObjectSummaryRow) []string {
-	queryByKey := make(map[string]QueryRow)
-	for _, q := range normalizeQueryFuncs(queries) {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
-	}
+	_ = queries
 
-	type agg struct {
-		reads      int
-		writes     int
-		execs      int
-		funcSet    map[string]struct{}
-		isPseudo   bool
-		pseudoKind string
-		hasCross   bool
-		dbSet      map[string]struct{}
-		dmlSet     map[string]struct{}
-		baseName   string
-		fullName   string
-	}
-
-	expected := make(map[string]*agg)
-	for _, o := range NormalizeObjectRows(objects) {
-		if shouldSkipObject(o) {
-			continue
-		}
-		fullName := chooseFullObjectName(o)
-		key := ObjectSummaryGroupKey(o)
-		entry := expected[key]
-		if entry == nil {
-			entry = &agg{
-				funcSet:  make(map[string]struct{}),
-				dbSet:    make(map[string]struct{}),
-				dmlSet:   make(map[string]struct{}),
-				baseName: o.BaseName,
-				fullName: fullName,
-			}
-			expected[key] = entry
-		}
-		qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
-		r, w, e := ObjectRoleCounts(o, qRow, hasQuery)
-		entry.reads += r
-		entry.writes += w
-		entry.execs += e
-		if o.IsCrossDb {
-			entry.hasCross = true
-		}
-		if db := strings.TrimSpace(o.DbName); db != "" {
-			entry.dbSet[db] = struct{}{}
-		}
-		if upperDml := strings.ToUpper(strings.TrimSpace(o.DmlKind)); upperDml != "" {
-			for _, part := range strings.Split(upperDml, ";") {
-				trimmed := strings.TrimSpace(part)
-				if trimmed == "" {
-					continue
-				}
-				entry.dmlSet[trimmed] = struct{}{}
-			}
-		}
-
-		if o.IsPseudoObject {
-			entry.isPseudo = true
-			entry.pseudoKind = choosePseudoKind(entry.pseudoKind, defaultPseudoKind(o.PseudoKind))
-		}
-		if fn := strings.TrimSpace(o.Func); fn != "" {
-			entry.funcSet[fn] = struct{}{}
-		}
-	}
+	expected := aggregateObjectsForSummary(objects)
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
@@ -307,25 +244,19 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		if rawFuncCount != summary.TotalFuncs {
 			diffs = append(diffs, fmt.Sprintf("funcs raw=%d summary=%d", rawFuncCount, summary.TotalFuncs))
 		}
-		expectedRoles := summarizeRoleLabel(raw.reads, raw.writes, raw.execs)
-		if strings.TrimSpace(summary.Roles) != expectedRoles {
+		expectedRoles := strings.Join(setToSortedSlice(raw.roleSet), ";")
+		if normalizeRoles(summary.Roles) != expectedRoles {
 			diffs = append(diffs, fmt.Sprintf("roles raw=%s summary=%s", expectedRoles, summary.Roles))
 		}
 		expectedDml := strings.Join(setToSortedSlice(raw.dmlSet), ";")
-		if strings.TrimSpace(summary.DmlKinds) != expectedDml {
+		if normalizeDmlKinds(summary.DmlKinds) != expectedDml {
 			diffs = append(diffs, fmt.Sprintf("dml raw=%s summary=%s", expectedDml, summary.DmlKinds))
 		}
-		expectedPseudoKind := strings.TrimSpace(defaultPseudoKind(raw.pseudoKind))
+		expectedPseudoKind := summarizePseudoKindSummary(raw.isPseudo, raw.pseudoKinds)
 		if raw.isPseudo != summary.IsPseudoObject {
 			diffs = append(diffs, fmt.Sprintf("pseudo raw=%t summary=%t", raw.isPseudo, summary.IsPseudoObject))
 		} else if raw.isPseudo {
-			if strings.TrimSpace(summary.PseudoKind) == "" {
-				summary.PseudoKind = "unknown"
-			}
-			if expectedPseudoKind == "" {
-				expectedPseudoKind = "unknown"
-			}
-			if !strings.EqualFold(expectedPseudoKind, strings.TrimSpace(summary.PseudoKind)) {
+			if normalizePseudoKind(summary.PseudoKind) != expectedPseudoKind {
 				diffs = append(diffs, fmt.Sprintf("pseudoKind raw=%s summary=%s", expectedPseudoKind, summary.PseudoKind))
 			}
 		}
@@ -333,8 +264,12 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 			diffs = append(diffs, fmt.Sprintf("crossdb raw=%t summary=%t", raw.hasCross, summary.HasCrossDb))
 		}
 		expectedDbList := strings.Join(setToSortedSlice(raw.dbSet), ";")
-		if strings.TrimSpace(summary.DbList) != expectedDbList {
+		if normalizeDbList(summary.DbList) != expectedDbList {
 			diffs = append(diffs, fmt.Sprintf("dbList raw=%s summary=%s", expectedDbList, summary.DbList))
+		}
+		expectedRoleSummary := summarizeRoleCounts(raw.reads, raw.writes, raw.execs)
+		if strings.TrimSpace(summary.RolesSummary) != "" && strings.TrimSpace(summary.RolesSummary) != expectedRoleSummary {
+			diffs = append(diffs, fmt.Sprintf("roleSummary raw=%s summary=%s", expectedRoleSummary, summary.RolesSummary))
 		}
 		if len(diffs) > 0 {
 			mismatches = append(mismatches, fmt.Sprintf("object %s mismatch: %s", baseName, strings.Join(diffs, "; ")))
@@ -351,6 +286,52 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 
 	sort.Strings(mismatches)
 	return mismatches
+}
+
+func normalizeRoles(val string) string {
+	set := make(map[string]struct{})
+	for _, role := range strings.Split(val, ";") {
+		if normalized := normalizeRoleValue(role); normalized != "" {
+			set[normalized] = struct{}{}
+		}
+	}
+	return strings.Join(setToSortedSlice(set), ";")
+}
+
+func normalizeDmlKinds(val string) string {
+	set := make(map[string]struct{})
+	for _, part := range splitDmlKinds(val) {
+		set[part] = struct{}{}
+	}
+	return strings.Join(setToSortedSlice(set), ";")
+}
+
+func normalizeDbList(val string) string {
+	set := make(map[string]struct{})
+	for _, part := range strings.Split(val, ";") {
+		if trimmed := strings.TrimSpace(part); trimmed != "" {
+			set[trimmed] = struct{}{}
+		}
+	}
+	return strings.Join(setToSortedSlice(set), ";")
+}
+
+func summarizePseudoKindSummary(isPseudo bool, counts map[string]int) string {
+	if !isPseudo {
+		return ""
+	}
+	kind := summarizePseudoKindsFlat(counts)
+	if strings.TrimSpace(kind) == "" {
+		return "unknown"
+	}
+	return kind
+}
+
+func normalizePseudoKind(val string) string {
+	if strings.TrimSpace(val) == "" {
+		return "unknown"
+	}
+	return strings.ToLower(strings.TrimSpace(val))
 }
 
 // LoadFunctionSummary reads a function summary CSV.
