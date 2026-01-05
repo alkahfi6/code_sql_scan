@@ -28,6 +28,9 @@ type functionAgg struct {
 	dynamicRaw    int
 	dynamicSql    int
 	dynamicObject int
+	objectReads   int
+	objectWrites  int
+	objectExecs   int
 }
 
 // TotalMismatches returns the total number of mismatches found.
@@ -84,6 +87,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 	normQueries := normalizeQueryFuncs(queries)
 	dynamicRawIndex := dynamicRawCountIndex(normQueries)
 	dedupQueries, _ := dedupeDynamicQueries(normQueries)
+	objects = NormalizeObjectRows(objects)
 	objectsByQuery := map[string][]ObjectRow{}
 	for _, o := range objects {
 		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
@@ -91,6 +95,8 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 	}
 
 	expected := make(map[string]*functionAgg)
+	objectCounters := make(map[string]map[string]*objectRoleCounter)
+	seenObjectRoles := make(map[string]map[string]map[string]map[string]struct{})
 	for _, q := range dedupQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		entry := expected[key]
@@ -157,25 +163,47 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 			entry.dynamicRaw += raw
 
 			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
-			dynSqlPseudo := false
-			dynObjPseudo := false
-			for _, o := range objectsByQuery[qKey] {
-				if !o.IsPseudoObject {
-					continue
-				}
-				kind := normalizePseudoKindLabel(o.BaseName, o.PseudoKind)
-				if kind == "dynamic-sql" {
-					dynSqlPseudo = true
-				} else if strings.TrimSpace(kind) != "" {
-					dynObjPseudo = true
-				}
-			}
-			if dynSqlPseudo || (!dynSqlPseudo && !dynObjPseudo) {
+			switch dynamicKindForQuery(q, objectsByQuery[qKey]) {
+			case "dynamic-object":
+				entry.dynamicObject++
+			case "dynamic-sql":
 				entry.dynamicSql++
 			}
-			if dynObjPseudo {
-				entry.dynamicObject++
+		}
+
+		funcObjects := objectCounters[key]
+		if funcObjects == nil {
+			funcObjects = make(map[string]*objectRoleCounter)
+			objectCounters[key] = funcObjects
+		}
+		if _, ok := seenObjectRoles[key]; !ok {
+			seenObjectRoles[key] = make(map[string]map[string]map[string]struct{})
+		}
+		qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
+		for _, o := range objectsByQuery[qKey] {
+			if shouldSkipObject(o) {
+				continue
 			}
+			name := strings.TrimSpace(o.BaseName)
+			if name == "" {
+				continue
+			}
+			counter := funcObjects[name]
+			if counter == nil {
+				counter = &objectRoleCounter{}
+				funcObjects[name] = counter
+			}
+			recordObjectRoles(counter, o, q, true, name, qKey, seenObjectRoles[key])
+		}
+	}
+
+	for key, funcObjects := range objectCounters {
+		display := filterDynamicPseudoObjects(funcObjects)
+		read, write, exec := countObjectsByRole(display)
+		if entry := expected[key]; entry != nil {
+			entry.objectReads = read
+			entry.objectWrites = write
+			entry.objectExecs = exec
 		}
 	}
 
@@ -251,14 +279,29 @@ func compareFunctionCounts(raw *functionAgg, summary FunctionSummaryRow) string 
 	if summary.TotalDynamicObject != 0 || raw.dynamicObject != 0 {
 		check("dynamicObject", raw.dynamicObject, summary.TotalDynamicObject)
 	}
+	if summary.DynamicSqlCount != 0 || raw.dynamicSql != 0 {
+		check("dynamicSqlCount", raw.dynamicSql, summary.DynamicSqlCount)
+	}
+	if summary.DynamicObjectCount != 0 || raw.dynamicObject != 0 {
+		check("dynamicObjectCount", raw.dynamicObject, summary.DynamicObjectCount)
+	}
+	if summary.TotalObjectsRead != 0 || raw.objectReads != 0 {
+		check("objectsRead", raw.objectReads, summary.TotalObjectsRead)
+	}
+	if summary.TotalObjectsWrite != 0 || raw.objectWrites != 0 {
+		check("objectsWrite", raw.objectWrites, summary.TotalObjectsWrite)
+	}
+	if summary.TotalObjectsExec != 0 || raw.objectExecs != 0 {
+		check("objectsExec", raw.objectExecs, summary.TotalObjectsExec)
+	}
 
 	return strings.Join(diffs, "; ")
 }
 
 func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []ObjectSummaryRow) []string {
-	_ = queries
-
-	expected := aggregateObjectsForSummary(objects)
+	objects = NormalizeObjectRows(objects)
+	objectsByQuery := groupObjectsByQuery(objects)
+	expected := aggregateObjectsForSummary(objects, buildDynamicKindIndex(queries, objectsByQuery))
 
 	summaryMap := make(map[string]ObjectSummaryRow)
 	for _, s := range summaries {
@@ -284,6 +327,12 @@ func compareObjectSummary(queries []QueryRow, objects []ObjectRow, summaries []O
 		}
 		if raw.execs != summary.TotalExec {
 			diffs = append(diffs, fmt.Sprintf("exec raw=%d summary=%d", raw.execs, summary.TotalExec))
+		}
+		if raw.dynamicSql != summary.TotalDynamicSql {
+			diffs = append(diffs, fmt.Sprintf("dynamic-sql raw=%d summary=%d", raw.dynamicSql, summary.TotalDynamicSql))
+		}
+		if raw.dynamicObject != summary.TotalDynamicObject {
+			diffs = append(diffs, fmt.Sprintf("dynamic-object raw=%d summary=%d", raw.dynamicObject, summary.TotalDynamicObject))
 		}
 		if rawFuncCount != summary.TotalFuncs {
 			diffs = append(diffs, fmt.Sprintf("funcs raw=%d summary=%d", rawFuncCount, summary.TotalFuncs))
@@ -443,6 +492,12 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		if col, ok := idx["TotalDynamicObject"]; ok {
 			row.TotalDynamicObject = parseInt(rec[col])
 		}
+		if col, ok := idx["DynamicSqlCount"]; ok {
+			row.DynamicSqlCount = parseInt(rec[col])
+		}
+		if col, ok := idx["DynamicObjectCount"]; ok {
+			row.DynamicObjectCount = parseInt(rec[col])
+		}
 		if col, ok := idx["DynamicRawCount"]; ok {
 			row.DynamicRawCount = parseInt(rec[col])
 		}
@@ -457,6 +512,15 @@ func LoadFunctionSummary(path string) ([]FunctionSummaryRow, error) {
 		}
 		if col, ok := idx["TotalObjects"]; ok {
 			row.TotalObjects = parseInt(rec[col])
+		}
+		if col, ok := idx["TotalObjectsRead"]; ok {
+			row.TotalObjectsRead = parseInt(rec[col])
+		}
+		if col, ok := idx["TotalObjectsWrite"]; ok {
+			row.TotalObjectsWrite = parseInt(rec[col])
+		}
+		if col, ok := idx["TotalObjectsExec"]; ok {
+			row.TotalObjectsExec = parseInt(rec[col])
 		}
 		if col, ok := idx["ObjectsUsed"]; ok {
 			row.ObjectsUsed = rec[col]
@@ -506,7 +570,7 @@ func LoadObjectSummary(path string) ([]ObjectSummaryRow, error) {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"AppName", "RelPath", "FullObjectName", "BaseName", "TotalReads", "TotalWrites", "TotalExec", "TotalFuncs"}
+	required := []string{"AppName", "RelPath", "FullObjectName", "BaseName", "TotalReads", "TotalWrites", "TotalDynamicSql", "TotalDynamicObject", "TotalExec", "TotalFuncs"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			return nil, fmt.Errorf("missing column %s in object summary", req)
@@ -523,14 +587,16 @@ func LoadObjectSummary(path string) ([]ObjectSummaryRow, error) {
 			return nil, err
 		}
 		row := ObjectSummaryRow{
-			AppName:        rec[idx["AppName"]],
-			RelPath:        rec[idx["RelPath"]],
-			FullObjectName: rec[idx["FullObjectName"]],
-			BaseName:       rec[idx["BaseName"]],
-			TotalReads:     parseInt(rec[idx["TotalReads"]]),
-			TotalWrites:    parseInt(rec[idx["TotalWrites"]]),
-			TotalExec:      parseInt(rec[idx["TotalExec"]]),
-			TotalFuncs:     parseInt(rec[idx["TotalFuncs"]]),
+			AppName:            rec[idx["AppName"]],
+			RelPath:            rec[idx["RelPath"]],
+			FullObjectName:     rec[idx["FullObjectName"]],
+			BaseName:           rec[idx["BaseName"]],
+			TotalReads:         parseInt(rec[idx["TotalReads"]]),
+			TotalWrites:        parseInt(rec[idx["TotalWrites"]]),
+			TotalDynamicSql:    parseInt(rec[idx["TotalDynamicSql"]]),
+			TotalDynamicObject: parseInt(rec[idx["TotalDynamicObject"]]),
+			TotalExec:          parseInt(rec[idx["TotalExec"]]),
+			TotalFuncs:         parseInt(rec[idx["TotalFuncs"]]),
 		}
 		if col, ok := idx["Roles"]; ok {
 			row.Roles = rec[col]
