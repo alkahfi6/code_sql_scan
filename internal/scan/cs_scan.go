@@ -31,7 +31,10 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			line = 1
 		}
 
-		const maxSearch = 300
+		const (
+			maxSearch        = 300
+			maxBraceLookback = 100
+		)
 		startIdx := line - 1
 		if startIdx >= len(lines) {
 			startIdx = len(lines) - 1
@@ -60,7 +63,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			return ""
 		}
 
-		for lookback := 0; lookback <= 8 && startIdx-lookback >= 0; lookback++ {
+		for lookback := 0; lookback <= maxBraceLookback && startIdx-lookback >= 0; lookback++ {
 			idx := startIdx - lookback
 			if name := tryExtract(idx); name != "" {
 				start := idx + 1
@@ -95,7 +98,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 		if braceIdx >= 0 {
-			for i := braceIdx; i >= 0 && braceIdx-i <= 5; i-- {
+			for i := braceIdx; i >= 0 && braceIdx-i <= maxBraceLookback; i-- {
 				if name := tryExtract(i); name != "" {
 					start := i + 1
 					end := line
