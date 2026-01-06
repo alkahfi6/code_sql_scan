@@ -1,0 +1,17 @@
+{
+  "git_head": "3a6493193e24f775676f007cf3ac67c1e09a43b9",
+  "go_version": "go version go1.25.1 linux/amd64",
+  "files": [
+    "./out_regress/dotnet-sample-object.csv",
+    "./out_regress/dotnet-sample-query.csv",
+    "./out_regress/dotnet-sample-summary-form.csv",
+    "./out_regress/dotnet-sample-summary-function.csv",
+    "./out_regress/dotnet-sample-summary-object.csv",
+    "./out_regress/golang-sample-object.csv",
+    "./out_regress/golang-sample-query.csv",
+    "./out_regress/golang-sample-summary-function.csv",
+    "./out_regress/golang-sample-summary-object.csv"
+  ],
+  "wc": "1329 ./out_regress/dotnet-sample-object.csv\n   3758 ./out_regress/dotnet-sample-query.csv\n     31 ./out_regress/dotnet-sample-summary-form.csv\n    577 ./out_regress/dotnet-sample-summary-function.csv\n    612 ./out_regress/dotnet-sample-summary-object.csv\n    209 ./out_regress/golang-sample-object.csv\n    670 ./out_regress/golang-sample-query.csv\n     87 ./out_regress/golang-sample-summary-function.csv\n     94 ./out_regress/golang-sample-summary-object.csv\n   7367 total",
+  "sha256": "15618da8a6b462343f9560412f95fcacd42069a7cfe2774dd3090e8d8494b841  ./out_regress/golang-sample-summary-object.csv\n7e88b8f1fce9bd00aca6dcb6a0000c0c2669f792f5d0ba4188f68958b6527599  ./out_regress/dotnet-sample-summary-form.csv\n90c731a9a59cce2ff15ecf89fc32cc694adc596c103504228e00f59bc6640613  ./out_regress/golang-sample-query.csv\n917d962763585e3017efd6c36135dadc47f71d9d35ccc4da35fff27e6ae6ff95  ./out_regress/golang-sample-summary-function.csv\na43b76392b73abfdbbdbffa2b1dea76145dcc061ecda5c3c79c910981de7a49f  ./out_regress/dotnet-sample-query.csv\nb21adfb69fba837c2af36f057c316d7679ae32ff6eca4512914b16c795428f42  ./out_regress/dotnet-sample-object.csv\nbbacefefdbc77285af0867b2487c4880533e4b62822f3ac9947aa995399274ef  ./out_regress/golang-sample-object.csv\nd48b262c7bd534bd74c525796106bbd01792fe716fa15ea7ac135980ed1cf175  ./out_regress/dotnet-sample-summary-function.csv\ne6649cadc955d0914aaf6f857bba5fbcf4dbea94613cff0244b050eec2064d7b  ./out_regress/dotnet-sample-summary-object.csv"
+}
