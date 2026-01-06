@@ -16,6 +16,8 @@ type Config struct {
 	IncludeExt       map[string]struct{}
 	LogLevel         string
 	LogSql           bool
+	PseudoThreshold  int
+	FailOnPseudo     bool
 }
 
 type SqlSymbol struct {
@@ -26,6 +28,7 @@ type SqlSymbol struct {
 	IsComplete bool
 	IsProcSpec bool
 	IsDynamic  bool
+	Variants   []string
 }
 
 type staticSet struct {
@@ -59,8 +62,9 @@ type SqlCandidate struct {
 	DbList     []string
 	Objects    []ObjectToken
 	// Flags
-	QueryHash string
-	RiskLevel string
+	QueryHash       string
+	QueryHashStrong string
+	RiskLevel       string
 }
 
 type ObjectToken struct {

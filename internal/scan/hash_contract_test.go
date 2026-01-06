@@ -20,3 +20,16 @@ func TestQueryHash_UsesOnlySqlClean(t *testing.T) {
 		t.Fatalf("expected fallback hash %s, got %s", expected, hash3)
 	}
 }
+
+func TestQueryHashV2_StrongerButContentOnly(t *testing.T) {
+	v1 := computeQueryHashV2("select 1", "select 1")
+	v2 := computeQueryHashV2("select 1", "select 1")
+	if v1 != v2 {
+		t.Fatalf("expected deterministic sha256 hash, got %s vs %s", v1, v2)
+	}
+
+	v3 := computeQueryHashV2("", "select 2")
+	if v3 == "" || len(v3) != 64 {
+		t.Fatalf("expected sha256 hex digest, got %s", v3)
+	}
+}

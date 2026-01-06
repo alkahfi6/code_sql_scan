@@ -2,6 +2,7 @@ package scan
 
 import (
 	"crypto/sha1"
+	"crypto/sha256"
 	"fmt"
 	"regexp"
 	"sort"
@@ -355,16 +356,30 @@ func analyzeCandidate(c *SqlCandidate) {
 	updateCrossDbMetadata(c)
 
 	c.QueryHash = computeQueryHash(c.SqlClean, c.RawSql)
+	c.QueryHashStrong = computeQueryHashV2(c.SqlClean, c.RawSql)
 
 	c.RiskLevel = classifyRisk(c)
 }
 
 func computeQueryHash(sqlClean, rawSql string) string {
+	// Hash must remain content-derived only (no metadata such as file path or function name).
 	hashInput := sqlClean
 	if hashInput == "" {
 		hashInput = rawSql
 	}
 	h := sha1.Sum([]byte(hashInput))
+	return fmt.Sprintf("%x", h[:])
+}
+
+// computeQueryHashV2 provides a stronger SHA-256 hash for internal use cases that
+// still require a stable, content-only fingerprint. The primary QueryHash exposed
+// in CSV outputs intentionally remains SHA-1 for compatibility.
+func computeQueryHashV2(sqlClean, rawSql string) string {
+	hashInput := sqlClean
+	if hashInput == "" {
+		hashInput = rawSql
+	}
+	h := sha256.Sum256([]byte(hashInput))
 	return fmt.Sprintf("%x", h[:])
 }
 
@@ -2814,7 +2829,7 @@ func dedupeObjectTokens(c *SqlCandidate) {
 		if pseudoKind == "" && isDynamicBaseName(o.BaseName) {
 			pseudoKind = "dynamic-sql"
 		}
-		baseKey := fmt.Sprintf("%s|%d|%s|%s|%s", c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
+		baseKey := fmt.Sprintf("%s|%s|%d|%s|%s|%s", c.QueryHash, c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
 		if isPseudoObj(o) {
 			baseKey = fmt.Sprintf("%s|%s|%s", c.QueryHash, pseudoKind, baseKey)
 		}
@@ -2931,6 +2946,12 @@ func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
 
 const pseudoCardinalityWarningThreshold = 100
 
+type pseudoOffender struct {
+	funcKey   string
+	count     int
+	kindCount map[string]int
+}
+
 func pseudoObjectKey(c SqlCandidate, o ObjectToken) (string, string, string, bool) {
 	isPseudo := o.IsPseudoObject || strings.TrimSpace(o.PseudoKind) != "" || isDynamicBaseName(o.BaseName)
 	if !isPseudo {
@@ -2957,8 +2978,12 @@ func pseudoObjectKey(c SqlCandidate, o ObjectToken) (string, string, string, boo
 }
 
 func logPseudoCardinalityWarnings(cands []SqlCandidate) {
+	logPseudoCardinalityWarningsWithThreshold(cands, pseudoCardinalityWarningThreshold, false)
+}
+
+func logPseudoCardinalityWarningsWithThreshold(cands []SqlCandidate, threshold int, fail bool) []pseudoOffender {
 	if len(cands) == 0 {
-		return
+		return nil
 	}
 	seen := make(map[string]map[string]struct{})
 	kindCounts := make(map[string]map[string]int)
@@ -2983,16 +3008,17 @@ func logPseudoCardinalityWarnings(cands []SqlCandidate) {
 	}
 
 	if len(seen) == 0 {
-		return
+		return nil
 	}
 	funcKeys := make([]string, 0, len(seen))
 	for k := range seen {
 		funcKeys = append(funcKeys, k)
 	}
 	sort.Strings(funcKeys)
+	var offenders []pseudoOffender
 	for _, funcKey := range funcKeys {
 		count := len(seen[funcKey])
-		if count <= pseudoCardinalityWarningThreshold {
+		if count <= threshold {
 			continue
 		}
 		parts := strings.SplitN(funcKey, "|", 2)
@@ -3011,5 +3037,22 @@ func logPseudoCardinalityWarnings(cands []SqlCandidate) {
 		}
 		sort.Strings(kindList)
 		logWarnf("[WARN] high pseudo-object cardinality rel=%s func=%s unique=%d pseudoKinds=%s", rel, fn, count, strings.Join(kindList, "; "))
+		offenders = append(offenders, pseudoOffender{
+			funcKey:   funcKey,
+			count:     count,
+			kindCount: kinds,
+		})
 	}
+
+	sort.Slice(offenders, func(i, j int) bool {
+		if offenders[i].count != offenders[j].count {
+			return offenders[i].count > offenders[j].count
+		}
+		return offenders[i].funcKey < offenders[j].funcKey
+	})
+
+	if fail && len(offenders) > 10 {
+		offenders = offenders[:10]
+	}
+	return offenders
 }
