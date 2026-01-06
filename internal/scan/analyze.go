@@ -2506,17 +2506,29 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 		prefixPlaceholder := hasDynamicPlaceholder(dbName) || hasDynamicPlaceholder(schemaName)
 		basePlaceholder := hasDynamicPlaceholder(baseName)
 		pseudoKind := "dynamic-object"
-		switch {
-		case prefixPlaceholder && !basePlaceholder:
-			pseudoKind = "schema-placeholder"
-		case basePlaceholder && !prefixPlaceholder:
-			pseudoKind = "table-placeholder"
-		}
-		if pseudoKind != "schema-placeholder" {
+		if prefixPlaceholder && basePlaceholder {
+			if hasDynamicPlaceholder(dbName) {
+				dbName = ""
+			}
+			if dbName != "" {
+				schemaName = "dbo"
+			} else if hasDynamicPlaceholder(schemaName) {
+				schemaName = ""
+			}
 			baseName = "<dynamic-object>"
-		}
-		if pseudoKind == "schema-placeholder" {
-			schemaName = ""
+		} else {
+			switch {
+			case prefixPlaceholder && !basePlaceholder:
+				pseudoKind = "schema-placeholder"
+			case basePlaceholder && !prefixPlaceholder:
+				pseudoKind = "table-placeholder"
+			}
+			if pseudoKind != "schema-placeholder" {
+				baseName = "<dynamic-object>"
+			}
+			if pseudoKind == "schema-placeholder" {
+				schemaName = ""
+			}
 		}
 		full := buildFullName(dbName, schemaName, baseName)
 
