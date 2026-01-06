@@ -147,7 +147,7 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) (errRet error) {
 				if sig == "" {
 					sig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
 				}
-				key := strings.Join([]string{c.AppName, c.RelPath, funcName, sig, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
+				key := strings.Join([]string{c.AppName, c.RelPath, funcName, sig, c.QueryHash, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
 				if _, ok := pseudoWritten[key]; ok {
 					continue
 				}
