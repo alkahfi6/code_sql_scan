@@ -2796,6 +2796,13 @@ func dedupeObjectTokens(c *SqlCandidate) {
 		return
 	}
 
+	isPseudoObj := func(o ObjectToken) bool {
+		if o.IsPseudoObject || strings.TrimSpace(o.PseudoKind) != "" {
+			return true
+		}
+		return isDynamicBaseName(o.BaseName)
+	}
+
 	seen := make(map[string]bool)
 	var uniq []ObjectToken
 	for _, o := range c.Objects {
@@ -2803,7 +2810,15 @@ func dedupeObjectTokens(c *SqlCandidate) {
 		if full == "" {
 			full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
 		}
-		key := fmt.Sprintf("%s|%s|%d|%s|%s|%s", c.QueryHash, c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
+		pseudoKind := strings.ToLower(strings.TrimSpace(o.PseudoKind))
+		if pseudoKind == "" && isDynamicBaseName(o.BaseName) {
+			pseudoKind = "dynamic-sql"
+		}
+		baseKey := fmt.Sprintf("%s|%d|%s|%s|%s", c.RelPath, o.RepresentativeLine, strings.ToLower(full), o.Role, o.DmlKind)
+		if isPseudoObj(o) {
+			baseKey = fmt.Sprintf("%s|%s|%s", c.QueryHash, pseudoKind, baseKey)
+		}
+		key := baseKey
 		if seen[key] {
 			continue
 		}
@@ -2912,4 +2927,89 @@ func dedupeCandidates(cands []SqlCandidate) []SqlCandidate {
 		uniq = append(uniq, c)
 	}
 	return uniq
+}
+
+const pseudoCardinalityWarningThreshold = 100
+
+func pseudoObjectKey(c SqlCandidate, o ObjectToken) (string, string, string, bool) {
+	isPseudo := o.IsPseudoObject || strings.TrimSpace(o.PseudoKind) != "" || isDynamicBaseName(o.BaseName)
+	if !isPseudo {
+		return "", "", "", false
+	}
+	kind := strings.ToLower(strings.TrimSpace(o.PseudoKind))
+	if kind == "" && isDynamicBaseName(o.BaseName) {
+		kind = "dynamic-sql"
+	}
+	funcKey := fmt.Sprintf("%s|%s", strings.TrimSpace(c.RelPath), strings.TrimSpace(c.Func))
+	full := o.FullName
+	if full == "" {
+		full = buildFullName(o.DbName, o.SchemaName, o.BaseName)
+	}
+	key := strings.Join([]string{
+		strings.TrimSpace(c.QueryHash),
+		kind,
+		strings.ToLower(full),
+		strings.ToLower(o.Role),
+		strings.ToLower(o.DmlKind),
+		fmt.Sprintf("%d", o.RepresentativeLine),
+	}, "|")
+	return funcKey, kind, key, key != "" && isPseudo
+}
+
+func logPseudoCardinalityWarnings(cands []SqlCandidate) {
+	if len(cands) == 0 {
+		return
+	}
+	seen := make(map[string]map[string]struct{})
+	kindCounts := make(map[string]map[string]int)
+	for _, c := range cands {
+		for _, o := range c.Objects {
+			funcKey, kind, pseudoKey, ok := pseudoObjectKey(c, o)
+			if !ok {
+				continue
+			}
+			if _, ok := seen[funcKey]; !ok {
+				seen[funcKey] = make(map[string]struct{})
+			}
+			if _, ok := seen[funcKey][pseudoKey]; ok {
+				continue
+			}
+			seen[funcKey][pseudoKey] = struct{}{}
+			if _, ok := kindCounts[funcKey]; !ok {
+				kindCounts[funcKey] = make(map[string]int)
+			}
+			kindCounts[funcKey][kind]++
+		}
+	}
+
+	if len(seen) == 0 {
+		return
+	}
+	funcKeys := make([]string, 0, len(seen))
+	for k := range seen {
+		funcKeys = append(funcKeys, k)
+	}
+	sort.Strings(funcKeys)
+	for _, funcKey := range funcKeys {
+		count := len(seen[funcKey])
+		if count <= pseudoCardinalityWarningThreshold {
+			continue
+		}
+		parts := strings.SplitN(funcKey, "|", 2)
+		rel := ""
+		fn := ""
+		if len(parts) >= 1 {
+			rel = parts[0]
+		}
+		if len(parts) >= 2 {
+			fn = parts[1]
+		}
+		kinds := kindCounts[funcKey]
+		kindList := make([]string, 0, len(kinds))
+		for kind, v := range kinds {
+			kindList = append(kindList, fmt.Sprintf("%s=%d", kind, v))
+		}
+		sort.Strings(kindList)
+		logWarnf("[WARN] high pseudo-object cardinality rel=%s func=%s unique=%d pseudoKinds=%s", rel, fn, count, strings.Join(kindList, "; "))
+	}
 }

@@ -629,11 +629,8 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = StripSqlComments(raw)
 			}
 
-			if rawFromVariable && !isDyn {
-				isDyn = true
-				if dynReason == "" {
-					dynReason = "runtime variable"
-				}
+			if rawFromVariable && isDyn && dynReason == "" {
+				dynReason = "runtime variable"
 			}
 
 			cand := SqlCandidate{

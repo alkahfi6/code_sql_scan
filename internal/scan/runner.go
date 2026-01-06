@@ -56,6 +56,8 @@ func Run(cfg *Config) ([]string, error) {
 
 	cands = dedupeCandidates(analyzed)
 
+	logPseudoCardinalityWarnings(cands)
+
 	sort.Slice(cands, func(i, j int) bool {
 		a, b := cands[i], cands[j]
 		if a.RelPath != b.RelPath {

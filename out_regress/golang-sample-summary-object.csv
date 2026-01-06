@@ -89,6 +89,6 @@ golang-sample,go3/bond_transaction_repository.go,dbo.tmp,tmp,target (12),read=0;
 golang-sample,go3/bond_transaction_repository.go,dbo.user_nisp_v,user_nisp_v,source (3),read=3; write=0; exec=0,SELECT,3,0,0,0,0,1,GetSecondaryTransactionBlotter,false,,false,
 golang-sample,go2/impl.go,dbo.valas_mapping_parameter,valas_mapping_parameter,source (1),read=1; write=0; exec=0,SELECT,1,0,0,0,0,1,GetValasMappingParameter,false,,false,
 golang-sample,go1/query.go,dbo.<dynamic-object>,<dynamic-object>,source (5),read=5; write=0; exec=0,SELECT,5,0,0,5,0,5,go1/query.go@L160;go1/query.go@L13;go1/query.go@L25;go1/query.go@L85;go1/query.go@L94,true,dynamic-object,false,
-golang-sample,go3/bancaQueries_manual.sql.go,dbo.<dynamic-object>,<dynamic-object>,target (2),read=0; write=2; exec=0,INSERT,0,2,0,0,0,2,InsertDeleteTT;go3/bancaQueries_manual.sql.go@L16,true,dynamic-object,false,
+golang-sample,go3/bancaQueries_manual.sql.go,dbo.<dynamic-object>,<dynamic-object>,target (4),read=0; write=4; exec=0,INSERT,0,4,0,0,0,2,InsertDeleteTT;go3/bancaQueries_manual.sql.go@L16,true,dynamic-object,false,
 golang-sample,go3/bond_transaction_repository.go,dbo.<dynamic-object>,<dynamic-object>,source (16); target (3),read=16; write=3; exec=0,INSERT;SELECT;UPDATE,16,3,0,0,0,1,GetSecondaryTransactionBlotter,true,dynamic-object,false,
 golang-sample,go1/source.go,dbo.<dynamic-sql>,<dynamic-sql>,source (7),read=7; write=0; exec=0,UNKNOWN,7,0,1,0,0,7,GetMK005A;ExecuteSPMurexConfoMK;GetMurexAvgPrice;GetMK005AConfo;GetMK006AConfo,true,dynamic-sql,false,
