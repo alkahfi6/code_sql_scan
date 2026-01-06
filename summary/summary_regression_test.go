@@ -28,6 +28,10 @@ type funcSummaryRow struct {
 	TotalObjectsRead   int
 	TotalObjectsWrite  int
 	TotalObjectsExec   int
+	TopObjectsRead     string
+	TopObjectsWrite    string
+	TopObjectsExec     string
+	DynamicExamples    string
 }
 
 type objSummaryRow struct {
@@ -185,7 +189,7 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 	for i, h := range header {
 		idx[h] = i
 	}
-	required := []string{"Func", "RelPath", "TotalExec", "TotalWrite", "TotalDynamic", "ObjectsUsed", "DynamicSignatures", "DynamicSqlCount", "DynamicObjectCount", "TotalObjectsRead", "TotalObjectsWrite", "TotalObjectsExec"}
+	required := []string{"Func", "RelPath", "TotalExec", "TotalWrite", "TotalDynamic", "ObjectsUsed", "DynamicSignatures", "DynamicSqlCount", "DynamicObjectCount", "TotalObjectsRead", "TotalObjectsWrite", "TotalObjectsExec", "TopObjectsRead", "TopObjectsWrite", "TopObjectsExec", "DynamicExampleSignatures"}
 	for _, req := range required {
 		if _, ok := idx[req]; !ok {
 			t.Fatalf("function summary missing column %s", req)
@@ -217,6 +221,10 @@ func loadFunctionSummary(t *testing.T, path string) []funcSummaryRow {
 			TotalObjectsRead:   parseInt(pick(rec, idx, "TotalObjectsRead")),
 			TotalObjectsWrite:  parseInt(pick(rec, idx, "TotalObjectsWrite")),
 			TotalObjectsExec:   parseInt(pick(rec, idx, "TotalObjectsExec")),
+			TopObjectsRead:     pick(rec, idx, "TopObjectsRead"),
+			TopObjectsWrite:    pick(rec, idx, "TopObjectsWrite"),
+			TopObjectsExec:     pick(rec, idx, "TopObjectsExec"),
+			DynamicExamples:    pick(rec, idx, "DynamicExampleSignatures"),
 		})
 	}
 	return rows
