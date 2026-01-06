@@ -339,6 +339,19 @@ func analyzeCandidate(c *SqlCandidate) {
 		c.CallSiteKind = canonicalCallSiteKind(c.CallSiteKind)
 	}
 
+	if c.IsWrite && !hasTargetOrExecObject(c.Objects) {
+		c.Objects = append(c.Objects, ObjectToken{
+			BaseName:           "<missing-target>",
+			FullName:           "<missing-target>",
+			Role:               "target",
+			DmlKind:            strings.ToUpper(strings.TrimSpace(c.UsageKind)),
+			IsWrite:            true,
+			IsPseudoObject:     true,
+			PseudoKind:         "missing-target",
+			RepresentativeLine: c.LineStart,
+		})
+	}
+
 	updateCrossDbMetadata(c)
 
 	c.QueryHash = computeQueryHash(c.SqlClean, c.RawSql)
@@ -2798,6 +2811,16 @@ func dedupeObjectTokens(c *SqlCandidate) {
 		uniq = append(uniq, o)
 	}
 	c.Objects = uniq
+}
+
+func hasTargetOrExecObject(objs []ObjectToken) bool {
+	for _, o := range objs {
+		role := strings.ToLower(strings.TrimSpace(o.Role))
+		if role == "target" || role == "exec" || strings.EqualFold(o.DmlKind, "EXEC") {
+			return true
+		}
+	}
+	return false
 }
 
 func choosePseudoKindLocal(current, candidate string) string {
