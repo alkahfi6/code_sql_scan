@@ -850,711 +850,702 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,DeleteDataValasTransactionV2
 dotnet-sample,clsValasService.cs,clsValasService.cs,EmptyDataValasToday,2452,2452,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|EmptyDataValasToday|CommandText@2452,concat runtime,this._connSFX,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,EmptyDataValasToday,2565,2565,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|EmptyDataValasToday|CommandText@2565,concat runtime,this._connObli,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,EmptyDataValasToday,2678,2678,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|EmptyDataValasToday|CommandText@2678,concat runtime,this._connSibs,,HIGH,clsValasService.cs,3996
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4332,4332,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4332,4332,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    DECLARE 
-	                    @nDocHandle	INT
+DECLARE
+@nDocHandle INT
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4398,4398,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4332,[[table]] placeholder; concat runtime,this._connSFX,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4398,4398,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    DECLARE 
-	                    @nDocHandle	INT
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+DECLARE
+@nDocHandle INT
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4465,4465,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    DECLARE 
-	                    @nDocHandle	INT
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4398,[[table]] placeholder; concat runtime,this._connObli,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV2,4465,4465,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+DECLARE
+@nDocHandle INT
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4748,4748,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    DECLARE 
-	                    @nDocHandle	INT
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4465,[[table]] placeholder; concat runtime,this._connSibs,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4748,4748,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4814,4814,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+DECLARE
+@nDocHandle INT
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    DECLARE 
-	                    @nDocHandle	INT
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4748,[[table]] placeholder; concat runtime,this._connSFX,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4814,4814,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4880,4880,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+DECLARE
+@nDocHandle INT
 
-                    DECLARE 
-	                    @nDocHandle	INT
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,8811
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4814,[[table]] placeholder; concat runtime,this._connObli,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryV2,4880,4880,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
+
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
+
+DECLARE
+@nDocHandle INT
+
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
+
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
+
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@4880,[[table]] placeholder; concat runtime,this._connSibs,,HIGH,clsValasService.cs,8934
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5477,5477,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5565,5565,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultV2,5653,5653,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3996
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6622,6622,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6622,6622,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    DECLARE 
-	                    @nDocHandle	INT
+DECLARE
+@nDocHandle INT
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6688,6688,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@6622,[[table]] placeholder; concat runtime,this._connSFX,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6688,6688,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    DECLARE 
-	                    @nDocHandle	INT
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+DECLARE
+@nDocHandle INT
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,8811
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6754,6754,"
-                    IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
-	                    DROP TABLE #tmpSummary
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
 
-                    CREATE TABLE #tmpSummary                     
-                    (    
-                        [customer_id]			    [varchar](20)		
-	                    , [product]			        [varchar](25)		
-	                    , [buy_sell]			    [varchar](1)		
-	                    , [currency]			    [varchar](3)	
-                        , [lcs_flag]                [bit]
-	                    , [total_in_usd]		    [money]				
-	                    , [total_in_usd_jisdor]     [money]				
-	                    , [branch]			        [varchar](5)		
-	                    , [name]				    [varchar](20)		
-	                    , [office_name]		        [varchar](50)		
-	                    , [no_npwp]			        [varchar](30)		
-	                    , [no_identity]		        [varchar](50)		
-	                    , [process_time]		    [datetime]			
-	                    , [guid_process]		    [uniqueidentifier]	
-                    )   
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
 
-                    DECLARE 
-	                    @nDocHandle	INT
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@6688,[[table]] placeholder; concat runtime,this._connObli,,HIGH,clsValasService.cs,8934
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryFXOptionV2,6754,6754,"IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL
+DROP TABLE #tmpSummary
 
-                    EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+CREATE TABLE #tmpSummary
+(
+[customer_id] [varchar](20)
+, [product] [varchar](25)
+, [buy_sell] [varchar](1)
+, [currency] [varchar](3)
+, [lcs_flag] [bit]
+, [total_in_usd] [money]
+, [total_in_usd_jisdor] [money]
+, [branch] [varchar](5)
+, [name] [varchar](20)
+, [office_name] [varchar](50)
+, [no_npwp] [varchar](30)
+, [no_identity] [varchar](50)
+, [process_time] [datetime]
+, [guid_process] [uniqueidentifier]
+)
 
-                    INSERT INTO #tmpSummary
-                    (
-                        [customer_id]			
-	                    , [product]				
-	                    , [buy_sell]				
-	                    , [currency]	
-                        , [lcs_flag]
-	                    , [total_in_usd]			
-	                    , [total_in_usd_jisdor]	
-	                    , [branch]				
-	                    , [name]					
-	                    , [office_name]			
-	                    , [no_npwp]				
-	                    , [no_identity]			
-	                    , [process_time]			
-	                    , [guid_process]			
-                    )
-                    SELECT
-	                    customer_id
-                        , Product
-                        , BuySellCode
-                        , Currency
-                        , FlagLCS
-	                    , InUSD
-                        , InUSDJISDOR		                    
-                        , ISNULL(branch, '') AS branch
-	                    , ISNULL([name], '') AS [name]
-	                    , office_name
-	                    , npwp
-	                    , identity_1
-	                    , strProcessTime
-                        , @pcGuidProcess
-                    FROM openxml(@nDocHandle, N'/Data/Summaries',2)           
-                    WITH (
-	                    customer_id		    VARCHAR(20)
-                        , Product           VARCHAR(25)
-                        , BuySellCode       VARCHAR(1)
-                        , Currency          VARCHAR(3)
-                        , FlagLCS           BIT
-	                    , InUSD			    MONEY
-	                    , branch		    VARCHAR(5)
-	                    , [name]		    VARCHAR(20)
-	                    , office_name	    VARCHAR(50)
-	                    , npwp			    VARCHAR(30)
-	                    , identity_1	    VARCHAR(50)
-	                    
-                        , strProcessTime	VARCHAR(50)	                    
-                        , InUSDJISDOR	    MONEY   
-                    )  
+DECLARE
+@nDocHandle INT
 
-                    ","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY )",INSERT,true,false,false,,4,a18dd5133f8c6299e749f4195b7ac4fbee85c825,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,8811
+EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput
+
+INSERT INTO #tmpSummary
+(
+[customer_id]
+, [product]
+, [buy_sell]
+, [currency]
+, [lcs_flag]
+, [total_in_usd]
+, [total_in_usd_jisdor]
+, [branch]
+, [name]
+, [office_name]
+, [no_npwp]
+, [no_identity]
+, [process_time]
+, [guid_process]
+)
+SELECT
+customer_id
+, Product
+, BuySellCode
+, Currency
+, FlagLCS
+, InUSD
+, InUSDJISDOR
+, ISNULL(branch, '') AS branch
+, ISNULL([name], '') AS [name]
+, office_name
+, npwp
+, identity_1
+, strProcessTime
+, @pcGuidProcess
+FROM openxml(@nDocHandle, N'/Data/Summaries',2)
+WITH (
+customer_id VARCHAR(20)
+, Product VARCHAR(25)
+, BuySellCode VARCHAR(1)
+, Currency VARCHAR(3)
+, FlagLCS BIT
+, InUSD MONEY
+, branch VARCHAR(5)
+, [name] VARCHAR(20)
+, office_name VARCHAR(50)
+, npwp VARCHAR(30)
+, identity_1 VARCHAR(50)
+
+, strProcessTime VARCHAR(50)
+, InUSDJISDOR MONEY
+)
+
+<expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>","IF OBJECT_ID('tempdb..#tmpSummary') IS NOT NULL DROP TABLE #tmpSummary CREATE TABLE #tmpSummary ( [customer_id] [varchar](20) , [product] [varchar](25) , [buy_sell] [varchar](1) , [currency] [varchar](3) , [lcs_flag] [bit] , [total_in_usd] [money] , [total_in_usd_jisdor] [money] , [branch] [varchar](5) , [name] [varchar](20) , [office_name] [varchar](50) , [no_npwp] [varchar](30) , [no_identity] [varchar](50) , [process_time] [datetime] , [guid_process] [uniqueidentifier] ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( [customer_id] , [product] , [buy_sell] , [currency] , [lcs_flag] , [total_in_usd] , [total_in_usd_jisdor] , [branch] , [name] , [office_name] , [no_npwp] , [no_identity] , [process_time] , [guid_process] ) SELECT customer_id , Product , BuySellCode , Currency , FlagLCS , InUSD , InUSDJISDOR , ISNULL(branch, '') AS branch , ISNULL([name], '') AS [name] , office_name , npwp , identity_1 , strProcessTime , @pcGuidProcess FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , Product VARCHAR(25) , BuySellCode VARCHAR(1) , Currency VARCHAR(3) , FlagLCS BIT , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) , strProcessTime VARCHAR(50) , InUSDJISDOR MONEY ) <expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr><expr>",INSERT,true,true,false,,3,fd9c2ebf5ec41ff8c073e779e060f12b55cb5d03,code,csharp,CommandText,clsValasService.cs|Exception|CommandText@6754,[[table]] placeholder; concat runtime,this._connSibs,,HIGH,clsValasService.cs,8934
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7232,7232,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,9310
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7313,7313,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,9327
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionV3,7394,7394,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,9344
@@ -1568,18 +1559,18 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9075,9075
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9156,9156,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,9327
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertSummaryValas,9237,9237,TRUNCATE TABLE dbo.,TRUNCATE TABLE dbo.,TRUNCATE,true,false,false,,1,83bdbe11b7b031499bc61deaaafcdd04ad5d8d4e,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,9344
 dotnet-sample,clsValasService.cs,clsValasService.cs,InquiryVLSTransactionONFX276,352,352,"SELECT src, dealno, customer_id, acc_id, trx_branch, trx_date, trx_datetime, currency_code, amount, rate, InUSD, SourceKey, JISDORRate, InUSDJISDOR, m_pl_key, NIKAgent, GuidProcess, m_pl_key1 FROM dbo.VLSTransactions_TR_BackupONFX276","SELECT src, dealno, customer_id, acc_id, trx_branch, trx_date, trx_datetime, currency_code, amount, rate, InUSD, SourceKey, JISDORRate, InUSDJISDOR, m_pl_key, NIKAgent, GuidProcess, m_pl_key1 FROM dbo.VLSTransactions_TR_BackupONFX276",SELECT,false,true,false,,2,ccdc3dc66dd1b71ea36ca39974761388d23dbe69,code,csharp,CommandText,clsValasService.cs|InquiryVLSTransactionONFX276|CommandText@352,runtime variable,this._connSFX,,LOW,clsValasService.cs,316
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResult,2263,2274,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpResult ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , KetUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent ) SELECT branch , customer_id , [name] , acc_id , trx_branch , strTrx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , strProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Results',2) WITH ( branch VARCHAR(5) , customer_id VARCHAR(20) , [name] VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(5) ","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpResult ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , KetUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent ) SELECT branch , customer_id , [name] , acc_id , trx_branch , strTrx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , strProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Results',2) WITH ( branch VARCHAR(5) , customer_id VARCHAR(20) , [name] VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(5)",INSERT,true,true,false,,4,63e67b5e051dcb2573776f797229eefb7ac45710,code,csharp,CommandText,clsValasService.cs|InsertValasResult|CommandText@2263,concat runtime,,,HIGH,clsValasService.cs,2263
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResult,2263,2274,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpResult ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , KetUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent ) SELECT branch , customer_id , [name] , acc_id , trx_branch , strTrx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , strProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Results',2) WITH ( branch VARCHAR(5) , customer_id VARCHAR(20) , [name] VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(5) ","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpResult ( branch , customer_id , [name] , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , KetUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent ) SELECT branch , customer_id , [name] , acc_id , trx_branch , strTrx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , strProcessTime , underlying , ketUnderlying , Purpose , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Results',2) WITH ( branch VARCHAR(5) , customer_id VARCHAR(20) , [name] VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(5)",INSERT,true,true,false,,3,63e67b5e051dcb2573776f797229eefb7ac45710,code,csharp,CommandText,clsValasService.cs|InsertValasResult|CommandText@2263,concat runtime,,,HIGH,clsValasService.cs,2263
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3418,3418,"INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno","INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno",INSERT,true,true,false,,2,20d092b1b5149b85735f0198b1e976e12c6b3f00,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3418,concat runtime,this._connSFX,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3418,3418,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3418,concat runtime,this._connSFX,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3468,3468,"INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno","INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno",INSERT,true,true,false,,2,20d092b1b5149b85735f0198b1e976e12c6b3f00,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3468,concat runtime,this._connObli,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3468,3468,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3468,concat runtime,this._connObli,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3518,3518,"INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno","INSERT INTO dbo.VLSResultFinal_TH ( branch , customer_id , name , acc_id , trx_branch , trx_date , currency_code , amount , rate , InUSD , dealno , office_name , npwp , identity_1 , isHit , ProcessTime , underlying , JISDORRate , InUSDJISDOR , isHitJISDOR , m_pl_key , NIKAgent ) SELECT tt.branch , tt.customer_id , tt.name , tt.acc_id , tt.trx_branch , tt.trx_date , tt.currency_code , tt.amount , tt.rate , tt.InUSD , tt.dealno , tt.office_name , tt.npwp , tt.identity_1 , tt.isHit , tt.ProcessTime , tt.underlying , tt.JISDORRate , tt.InUSDJISDOR , tt.isHitJISDOR , tt.m_pl_key , tt.NIKAgent FROM dbo.[[tabelDaily]] AS tt LEFT JOIN dbo.VLSResultFinal_TH AS th ON tt.dealno = th.dealno",INSERT,true,true,false,,2,20d092b1b5149b85735f0198b1e976e12c6b3f00,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3518,concat runtime,this._connSibs,,HIGH,clsValasService.cs,3996
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasResultHistory,3518,3518,TRUNCATE TABLE dbo.<expr>,TRUNCATE TABLE dbo.<expr>,TRUNCATE,true,true,false,,1,d0b51d6f6782f9577b0076a337c460116fd55ba7,code,csharp,CommandText,clsValasService.cs|InsertValasResultHistory|CommandText@3518,concat runtime,this._connSibs,,HIGH,clsValasService.cs,3996
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummary,2013,2016,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , strProcessTime , InUSDJISDOR FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) ","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , strProcessTime , InUSDJISDOR FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50)",INSERT,true,true,false,,4,90f9a16cf2e2c3faa5bd1eb8b0809004910bac99,code,csharp,CommandText,clsValasService.cs|InsertValasSummary|CommandText@2013,concat runtime,,,HIGH,clsValasService.cs,2013
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummary,2013,2016,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , strProcessTime , InUSDJISDOR FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50) ","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpSummary ( customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT customer_id , InUSD , branch , [name] , office_name , npwp , identity_1 , strProcessTime , InUSDJISDOR FROM openxml(@nDocHandle, N'/Data/Summaries',2) WITH ( customer_id VARCHAR(20) , InUSD MONEY , branch VARCHAR(5) , [name] VARCHAR(20) , office_name VARCHAR(50) , npwp VARCHAR(30) , identity_1 VARCHAR(50)",INSERT,true,true,false,,3,90f9a16cf2e2c3faa5bd1eb8b0809004910bac99,code,csharp,CommandText,clsValasService.cs|InsertValasSummary|CommandText@2013,concat runtime,,,HIGH,clsValasService.cs,2013
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryHistory,3086,3086,"INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = '' ","INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = ''",INSERT,true,true,false,,3,53bda76c000c8b435a376c71ca150b779f170d26,code,csharp,CommandText,clsValasService.cs|InsertValasSummaryHistory|CommandText@3086,runtime variable,this._connSFX,,HIGH,clsValasService.cs,2878
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryHistory,3092,3092,"INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = '' ","INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = ''",INSERT,true,true,false,,3,53bda76c000c8b435a376c71ca150b779f170d26,code,csharp,CommandText,clsValasService.cs|InsertValasSummaryHistory|CommandText@3092,runtime variable,this._connObli,,HIGH,clsValasService.cs,2878
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasSummaryHistory,3098,3098,"INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = '' ","INSERT INTO dbo.VLSSummary_TH ( customer_id , InUSD , branch , name , office_name , npwp , identity_1 , ProcessTime , InUSDJISDOR ) SELECT tm.customer_id , tm.InUSD , tm.branch , tm.name , tm.office_name , tm.npwp , tm.identity_1 , tm.ProcessTime , tm.InUSDJISDOR FROM dbo.VLSSummary_TM AS tm LEFT JOIN dbo.VLSSummary_TH AS th ON tm.customer_id = th.customer_id AND th.ProcessTime >= DATEADD(MONTH, DATEDIFF(MONTH, 0, GETDATE())-1, 0) WHERE ISNULL(th.customer_id, '') = ''",INSERT,true,true,false,,3,53bda76c000c8b435a376c71ca150b779f170d26,code,csharp,CommandText,clsValasService.cs|InsertValasSummaryHistory|CommandText@3098,runtime variable,this._connSibs,,HIGH,clsValasService.cs,2878
-dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransaction,1874,1877,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,true,false,,4,ac108f5eb8ac2df8cbdd825478fd65cd83577f4c,code,csharp,CommandText,clsValasService.cs|InsertValasTransaction|CommandText@1874,concat runtime,,,HIGH,clsValasService.cs,1874
+dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransaction,1874,1877,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,true,false,,3,ac108f5eb8ac2df8cbdd825478fd65cd83577f4c,code,csharp,CommandText,clsValasService.cs|InsertValasTransaction|CommandText@1874,concat runtime,,,HIGH,clsValasService.cs,1874
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionHistory,2821,2821,"INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno ","INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno",INSERT,true,true,false,,3,4737a4d8cfc5548dddb5d49c5eca8d612576cdda,code,csharp,CommandText,clsValasService.cs|InsertValasTransactionHistory|CommandText@2821,runtime variable,this._connSFX,,HIGH,clsValasService.cs,2723
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionHistory,2827,2827,"INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno ","INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno",INSERT,true,true,false,,3,4737a4d8cfc5548dddb5d49c5eca8d612576cdda,code,csharp,CommandText,clsValasService.cs|InsertValasTransactionHistory|CommandText@2827,runtime variable,this._connObli,,HIGH,clsValasService.cs,2723
 dotnet-sample,clsValasService.cs,clsValasService.cs,InsertValasTransactionHistory,2833,2833,"INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno ","INSERT INTO dbo.VLSTransactions_TH ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , NIKAgent ) SELECT tr.src , tr.dealno , tr.customer_id , tr.acc_id , tr.trx_branch , tr.trx_date , tr.trx_datetime , tr.currency_code , tr.amount , tr.rate , tr.InUSD , tr.SourceKey , tr.JISDORRate , tr.InUSDJISDOR , tr.m_pl_key , tr.NIKAgent FROM dbo.VLSTransactions_TR AS tr LEFT JOIN dbo.VLSTransactions_TH AS th ON tr.dealno = th.dealno",INSERT,true,true,false,,3,4737a4d8cfc5548dddb5d49c5eca8d612576cdda,code,csharp,CommandText,clsValasService.cs|InsertValasTransactionHistory|CommandText@2833,runtime variable,this._connSibs,,HIGH,clsValasService.cs,2723
@@ -1629,7 +1620,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,167,167,"
                         
                     FROM dbo.TDeal AS t
                     JOIN #tmpZFXMASTDeal AS tmp
-                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,5,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
+                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,4,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,283,283,"
                     IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL
 	                    DROP TABLE #tmpZFXMASTDeal
@@ -1676,7 +1667,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,283,283,"
                         
                     FROM dbo.TDeal AS t
                     JOIN #tmpZFXMASTDeal AS tmp
-                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,5,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,94
+                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,4,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,94
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,451,451,"
                     IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL
 	                    DROP TABLE #tmpZFXMASTDeal
@@ -1723,7 +1714,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,451,451,"
                         
                     FROM dbo.TDeal AS t
                     JOIN #tmpZFXMASTDeal AS tmp
-                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,5,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,94
+                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,4,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,94
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,765,765,"
                     IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL
 	                    DROP TABLE #tmpZFXMASTDeal
@@ -1770,7 +1761,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,765,765,"
                         
                     FROM dbo.TDeal AS t
                     JOIN #tmpZFXMASTDeal AS tmp
-                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,5,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
+                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,4,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,873,873,"
                     IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL
 	                    DROP TABLE #tmpZFXMASTDeal
@@ -1817,7 +1808,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,873,873,"
                         
                     FROM dbo.TDeal AS t
                     JOIN #tmpZFXMASTDeal AS tmp
-                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,5,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
+                    ON t.FId = tmp.[FXDEALN]                ","IF OBJECT_ID('tempdb..#tmpZFXMASTDeal') IS NOT NULL DROP TABLE #tmpZFXMASTDeal CREATE TABLE #tmpZFXMASTDeal ( [FXDEALN] BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @xmlInput INSERT INTO #tmpZFXMASTDeal ( [FXDEALN] ) SELECT DEALNO FROM openxml(@nDocHandle, N'/Data/ZFXMAST',2) WITH ( DEALNO BIGINT ) SELECT FId , FPairId , FCustAcc , FAmount , FIORate , FBranchRate , FCustRate , FStatus , FUSDAmount , FIdentifier , FAgentId , FDocumentId , FDocumentName , FLastDocumentId , FLastDocumentName , FCustCIF FROM dbo.TDeal AS t JOIN #tmpZFXMASTDeal AS tmp ON t.FId = tmp.[FXDEALN]",INSERT,true,false,false,,4,0d7f89497bd540fa530db301943b2f3216538690,code,csharp,CommandText,,,this._connSmartFX,,MEDIUM,clsValasService.cs,94
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1054,1054,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -1901,7 +1892,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1054,1054,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1060,1060,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -1985,7 +1976,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1060,1060,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1066,1066,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2069,7 +2060,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1066,1066,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1214,1214,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2153,7 +2144,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1214,1214,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1220,1220,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2237,7 +2228,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1220,1220,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1226,1226,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2321,7 +2312,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1226,1226,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1439,1439,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2405,7 +2396,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1439,1439,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1445,1445,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2489,7 +2480,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1445,1445,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1451,1451,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2573,7 +2564,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1451,1451,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1511,1511,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2657,7 +2648,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1511,1511,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1517,1517,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2741,7 +2732,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1517,1517,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1523,1523,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2825,7 +2816,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1523,1523,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1582,1582,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2909,7 +2900,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1582,1582,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1588,1588,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -2993,7 +2984,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1588,1588,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1594,1594,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3077,7 +3068,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1594,1594,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1653,1653,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3161,7 +3152,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1653,1653,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSFX,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1659,1659,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3245,7 +3236,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1659,1659,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1665,1665,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3329,7 +3320,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,1665,1665,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connSibs,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,3621,3621,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3413,8 +3404,8 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,3621,3621,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
-dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,3757,3757,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,true,false,,4,ac108f5eb8ac2df8cbdd825478fd65cd83577f4c,code,csharp,CommandText,clsValasService.cs|SqlParameter|CommandText@3757,runtime variable,this._connSFX,,HIGH,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,3757,3757,"EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )","EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,true,false,,3,ac108f5eb8ac2df8cbdd825478fd65cd83577f4c,code,csharp,CommandText,clsValasService.cs|SqlParameter|CommandText@3757,runtime variable,this._connSFX,,HIGH,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,6371,6371,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3498,7 +3489,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,6371,6371,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,9462,9462,"
                     IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL
 	                    DROP TABLE #tmpTrans
@@ -3582,7 +3573,7 @@ dotnet-sample,clsValasService.cs,clsValasService.cs,SqlParameter,9462,9462,"
 	                    , InUSDJISDOR		MONEY      
                         , m_pl_key			NVARCHAR(50)
                         , nik_agent         BIGINT
-                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,4,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
+                    )  ","IF OBJECT_ID('tempdb..#tmpTrans') IS NOT NULL DROP TABLE #tmpTrans CREATE TABLE #tmpTrans ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , trx_date DATETIME , trx_datetime DATETIME , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT ) DECLARE @nDocHandle INT EXEC sp_xml_preparedocument @nDocHandle output, @pcXmlInput INSERT INTO #tmpTrans ( src , dealno , customer_id , acc_id , trx_branch , trx_date , trx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent ) SELECT src , dealno , customer_id , acc_id , trx_branch , strTrx_date , strTrx_datetime , currency_code , amount , rate , InUSD , SourceKey , JISDORRate , InUSDJISDOR , m_pl_key , nik_agent FROM openxml(@nDocHandle, N'/Data/Trans',2) WITH ( src VARCHAR(20) , dealno VARCHAR(20) , customer_id VARCHAR(20) , acc_id VARCHAR(20) , trx_branch VARCHAR(20) , strTrx_date VARCHAR(20) , strTrx_datetime VARCHAR(50) , currency_code VARCHAR(20) , amount MONEY , rate FLOAT , InUSD MONEY , SourceKey VARCHAR(20) , JISDORRate FLOAT , InUSDJISDOR MONEY , m_pl_key NVARCHAR(50) , nik_agent BIGINT )",INSERT,true,false,false,,3,c3bc598148487bae6e4c821010428b0059052c75,code,csharp,CommandText,,,this._connObli,,MEDIUM,clsValasService.cs,3669
 dotnet-sample,frmMasterNasabah.cs,frmMasterNasabah.cs,CekElecAddress,1113,1113,dbo.ReksaGetWarningElec,dbo.ReksaGetWarningElec,EXEC,true,false,false,,1,de2305bcd19742a621349da88f463d95018c2e41,code,csharp,ExecProc,,,ClQ,,MEDIUM,frmMasterNasabah.cs,1113
 dotnet-sample,frmMasterNasabah.cs,frmMasterNasabah.cs,GenerateSHDID,3326,3326,ReksaGenerateShareholderID,ReksaGenerateShareholderID,EXEC,true,true,false,,2,6eec2cf35aad03cd373b48ba00e6b43db4f347a1,code,csharp,ExecProc,frmMasterNasabah.cs|GenerateSHDID|ExecProc@3326,dynamic sql,ClQ,,HIGH,frmMasterNasabah.cs,3326
 dotnet-sample,frmMasterNasabah.cs,frmMasterNasabah.cs,GenerateSHDID,3326,3326,<dynamic-sql>,<dynamic-sql>,EXEC,true,true,false,,1,829e30d2ed137a41defc3a465e6c3746bc753ccf,code,csharp,ExecProc,frmMasterNasabah.cs|GenerateSHDID|ExecProc@3326,dynamic sql,ClQ,,HIGH,frmMasterNasabah.cs,3326

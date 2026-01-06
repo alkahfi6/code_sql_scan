@@ -23,6 +23,7 @@ type SqlSymbol struct {
 	Line       int
 	IsComplete bool
 	IsProcSpec bool
+	IsDynamic  bool
 }
 
 type staticSet struct {

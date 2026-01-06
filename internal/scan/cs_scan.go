@@ -134,7 +134,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 	// Track simple string assignments per method (e.g., var cmd = "dbo.MyProc";)
 	literalInMethod := make(map[string]map[string]SqlSymbol)
 	globalLiterals := make(map[string]SqlSymbol)
-	recordLiteral := func(method, name, val string, line int) {
+	recordLiteral := func(method, name, val string, line int, isDyn bool) {
 		if name == "" {
 			return
 		}
@@ -151,6 +151,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			RelPath:    relPath,
 			Line:       line,
 			IsComplete: true,
+			IsDynamic:  isDyn,
 		}
 	}
 
@@ -204,7 +205,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		}
 		name := cleanedGroup(clean, m, 1)
 		val := decodeCSharpLiteralContent(cleanedGroup(clean, m, 2), true)
-		recordLiteral(funcName, name, val, line)
+		recordLiteral(funcName, name, val, line, false)
 	}
 	for i, line := range lines {
 		method := ""
@@ -220,14 +221,28 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 		if m := regexes.simpleDeclAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1)
+			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1, false)
 			continue
 		}
 		if strings.Contains(line, "==") || strings.Contains(line, "!=") || strings.Contains(line, "+=") || strings.Contains(line, "-=") || strings.Contains(line, "*=") || strings.Contains(line, "/=") {
 			continue
 		}
 		if m := regexes.bareAssign.FindStringSubmatch(line); len(m) == 3 {
-			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1)
+			recordLiteral(method, m[1], decodeCSharpLiteralContent(m[2], false), i+1, false)
+			continue
+		}
+		if name, expr, ok := parseCsBinaryAssignment(line); ok {
+			if val, dyn, merged := mergeCSharpBinaryConcat(expr, func(id string) (SqlSymbol, bool) {
+				if sym, ok := lookupLiteral(method, id); ok {
+					return sym, true
+				}
+				if sym, ok := lookupLiteralAnyMethod(id); ok {
+					return sym, true
+				}
+				return SqlSymbol{}, false
+			}); merged {
+				recordLiteral(method, name, val, i+1, dyn)
+			}
 		}
 	}
 
@@ -275,10 +290,10 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			return "", "", 0, false, false
 		}
 		if lit, ok := lookupLiteral(funcName, name); ok {
-			return lit.Value, lit.RelPath, lit.Line, true, false
+			return lit.Value, lit.RelPath, lit.Line, true, lit.IsDynamic
 		}
 		if lit, ok := lookupLiteralAnyMethod(name); ok {
-			return lit.Value, lit.RelPath, lit.Line, true, false
+			return lit.Value, lit.RelPath, lit.Line, true, lit.IsDynamic
 		}
 		if rebuilt, dyn := rebuildCSharpVariableSql(methodText, name); rebuilt != "" {
 			return rebuilt, relPath, fallbackLine, true, dyn
@@ -937,6 +952,77 @@ func scanBackwardForMethod(lines []string, line int) *methodRange {
 	return nil
 }
 
+func parseCsBinaryAssignment(line string) (string, string, bool) {
+	clean := stripCSComments(line)
+	if strings.Contains(clean, "=>") {
+		return "", "", false
+	}
+	idx := strings.Index(clean, "=")
+	if idx <= 0 {
+		return "", "", false
+	}
+	left := strings.TrimSpace(clean[:idx])
+	right := strings.TrimSpace(clean[idx+1:])
+	if strings.HasSuffix(left, "!") || strings.HasSuffix(left, ">") || strings.HasSuffix(left, "<") {
+		return "", "", false
+	}
+	if strings.HasPrefix(right, "=") {
+		return "", "", false
+	}
+	right = strings.TrimSuffix(right, ";")
+	if right == "" || !strings.Contains(right, "+") {
+		return "", "", false
+	}
+	leftFields := strings.Fields(left)
+	if len(leftFields) == 0 {
+		return "", "", false
+	}
+	name := leftFields[len(leftFields)-1]
+	if !regexes.identRe.MatchString(name) {
+		return "", "", false
+	}
+	return name, right, true
+}
+
+func mergeCSharpBinaryConcat(expr string, resolver func(string) (SqlSymbol, bool)) (string, bool, bool) {
+	trimmed := strings.TrimSpace(expr)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	if trimmed == "" {
+		return "", false, false
+	}
+	parts := splitTopLevelConcat(trimmed)
+	if len(parts) == 0 {
+		return "", false, false
+	}
+
+	var fragments []string
+	dyn := false
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			continue
+		}
+		if lit, ok := extractPureStringLiteral(part); ok {
+			fragments = append(fragments, lit)
+			continue
+		}
+		if sym, ok := resolver(part); ok {
+			fragments = append(fragments, sym.Value)
+			dyn = dyn || sym.IsDynamic
+			continue
+		}
+		if looksNumericLiteral(part) {
+			return "", false, false
+		}
+		dyn = true
+		fragments = append(fragments, "<expr>")
+	}
+	if len(fragments) == 0 {
+		return "", dyn, false
+	}
+	return normalizeSqlSkeleton(strings.Join(fragments, "")), dyn, true
+}
+
 func extractCSharpArgs(src string, matchStart int) []string {
 	if matchStart < 0 || matchStart >= len(src) {
 		return nil
@@ -1351,6 +1437,56 @@ func extractCSharpStatementExpr(src string, start int) (string, int) {
 	}
 
 	return strings.TrimSpace(src[exprStart:]), len(src)
+}
+
+func splitTopLevelConcat(expr string) []string {
+	var parts []string
+	start := 0
+	for i := 0; i < len(expr); {
+		if isQuoteStart(expr, i) || isInterpolatedStart(expr, i) {
+			_, next, _, ok := parseAnyStringLiteral(expr, i)
+			if !ok {
+				i++
+				continue
+			}
+			i = next
+			continue
+		}
+		if expr[i] == '+' {
+			segment := strings.TrimSpace(expr[start:i])
+			if segment != "" {
+				parts = append(parts, segment)
+			}
+			i++
+			start = i
+			continue
+		}
+		i++
+	}
+	if tail := strings.TrimSpace(expr[start:]); tail != "" {
+		parts = append(parts, tail)
+	}
+	return parts
+}
+
+func looksNumericLiteral(part string) bool {
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return false
+	}
+	if strings.HasPrefix(part, "\"") || strings.HasPrefix(part, "@\"") || strings.HasPrefix(part, "$\"") {
+		return false
+	}
+	for _, r := range part {
+		if unicode.IsDigit(r) {
+			continue
+		}
+		if r == '.' || r == '_' {
+			continue
+		}
+		return false
+	}
+	return true
 }
 
 func extractSqlFragmentFromCSharpExpr(expr string) (string, bool) {

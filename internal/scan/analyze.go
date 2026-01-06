@@ -2450,22 +2450,15 @@ func isDynamicObjectName(name string) bool {
 func detectDynamicObjectPlaceholders(sql string, usage string, line int) []ObjectToken {
 	cleaned := StripSqlComments(sql)
 	var tokens []ObjectToken
-	re := regexp.MustCompile(`(?is)(insert\s+into|update|delete\s+from|truncate\s+table|from|join)\s+([^\s;]+)`)
+	re := regexp.MustCompile(`(?is)(insert(?:\s+into)?|update|delete\s+from|truncate\s+table|merge\s+into|from|join)\s+([^\s;]+)`)
+	placeholderObjRe := regexp.MustCompile(`(?i)(?:[A-Za-z0-9_\[\]"#]+\s*\.\s*)*\[\[[^\]]+\]\](?:\s*\.\s*[A-Za-z0-9_\[\]"#]+)*`)
+	usageUpper := strings.ToUpper(strings.TrimSpace(usage))
 
-	matches := re.FindAllStringSubmatch(cleaned, -1)
-	for _, m := range matches {
-		if len(m) < 3 {
-			continue
-		}
-		keyword := strings.ToLower(strings.TrimSpace(m[1]))
-		objText := strings.TrimSpace(m[2])
+	addToken := func(objText string, keyword string) {
+		objText = strings.TrimSpace(objText)
 		if objText == "" {
-			continue
+			return
 		}
-		if !isDynamicObjectName(objText) {
-			continue
-		}
-
 		dbName, schemaName, baseName, isLinked := splitObjectNameParts(objText)
 		normalized := normalizeFullObjectName(objText)
 		parts := strings.Split(normalized, ".")
@@ -2510,19 +2503,8 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			RepresentativeLine: line,
 			IsLinkedServer:     isLinked,
 		}
-
-		if tok.PseudoKind == "schema-placeholder" {
-			tok.SchemaName = ""
-		}
-
-		tok = normalizeObjectToken(tok)
-		if tok.PseudoKind == "schema-placeholder" {
-			tok.SchemaName = ""
-			tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
-		}
-
 		switch keyword {
-		case "insert into":
+		case "insert", "insert into":
 			tok.Role = "target"
 			tok.DmlKind = "INSERT"
 			tok.IsWrite = true
@@ -2538,35 +2520,53 @@ func detectDynamicObjectPlaceholders(sql string, usage string, line int) []Objec
 			tok.Role = "target"
 			tok.DmlKind = "TRUNCATE"
 			tok.IsWrite = true
+		case "merge into":
+			tok.Role = "target"
+			tok.DmlKind = "MERGE"
+			tok.IsWrite = true
 		default:
-			tok.Role = "source"
-			tok.DmlKind = "SELECT"
-			tok.IsWrite = false
+			if usageUpper == "INSERT" || usageUpper == "UPDATE" || usageUpper == "DELETE" || usageUpper == "TRUNCATE" || usageUpper == "MERGE" {
+				tok.Role = "target"
+				tok.DmlKind = usageUpper
+				tok.IsWrite = true
+			} else {
+				tok.Role = "source"
+				tok.DmlKind = "SELECT"
+			}
 		}
 
 		if tok.DbName != "" {
 			tok.IsCrossDb = true
 		}
-
-		if tok.DbName == "" && strings.Contains(objText, ".") && isDynamicObjectName(objText) {
-			prefix := objText[:strings.Index(objText, ".")]
-			prefix = strings.TrimSpace(prefix)
-			prefix = strings.Trim(prefix, "[]")
-			prefix = strings.Trim(prefix, `"`)
-			if prefix != "" {
-				tok.DbName = prefix
-				if strings.EqualFold(strings.TrimSpace(tok.SchemaName), strings.TrimSpace(prefix)) {
-					tok.SchemaName = ""
-				}
-				tok.FullName = buildFullName(tok.DbName, tok.SchemaName, tok.BaseName)
-				tok.IsCrossDb = true
-			}
-		}
-
+		tok = normalizeObjectToken(tok)
 		tokens = append(tokens, tok)
 	}
 
-	return tokens
+	matches := re.FindAllStringSubmatch(cleaned, -1)
+	for _, m := range matches {
+		if len(m) < 3 {
+			continue
+		}
+		keyword := strings.ToLower(strings.TrimSpace(m[1]))
+		objText := strings.TrimSpace(m[2])
+		if objText == "" {
+			continue
+		}
+		if !isDynamicObjectName(objText) {
+			continue
+		}
+		addToken(objText, keyword)
+	}
+
+	for _, m := range placeholderObjRe.FindAllString(cleaned, -1) {
+		addToken(m, usageUpper)
+	}
+
+	if len(tokens) == 0 && strings.Contains(cleaned, "<expr>") {
+		tokens = append(tokens, buildDynamicObjectPseudo(usage, line))
+	}
+
+	return condenseDynamicPseudoTokens(tokens, true)
 }
 
 func inferDynamicObjectFallbacks(sqlClean, rawSql, usage string, line int) []ObjectToken {
