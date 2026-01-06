@@ -94,6 +94,12 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) (errRet error) {
 	})
 
 	pseudoWritten := make(map[string]struct{})
+	pseudoDedupKinds := map[string]struct{}{
+		"dynamic-sql":        {},
+		"dynamic-object":     {},
+		"schema-placeholder": {},
+		"table-placeholder":  {},
+	}
 	var objectRows []objectRow
 
 	for _, c := range cands {
@@ -142,16 +148,19 @@ func writeCSVs(cfg *Config, cands []SqlCandidate) (errRet error) {
 					isPseudo = true
 				}
 			}
-			if o.IsPseudoObject && (o.PseudoKind == "dynamic-sql" || o.PseudoKind == "dynamic-object") {
-				sig := dynSig
-				if sig == "" {
-					sig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
+			if o.IsPseudoObject {
+				kindLower := strings.ToLower(strings.TrimSpace(o.PseudoKind))
+				if _, ok := pseudoDedupKinds[kindLower]; ok {
+					sig := dynSig
+					if sig == "" {
+						sig = fmt.Sprintf("%s@%d", c.RelPath, c.LineStart)
+					}
+					key := strings.Join([]string{c.AppName, c.RelPath, funcName, sig, c.QueryHash, kindLower, strings.TrimSpace(o.DmlKind)}, "|")
+					if _, ok := pseudoWritten[key]; ok {
+						continue
+					}
+					pseudoWritten[key] = struct{}{}
 				}
-				key := strings.Join([]string{c.AppName, c.RelPath, funcName, sig, c.QueryHash, o.PseudoKind, strings.TrimSpace(o.DmlKind)}, "|")
-				if _, ok := pseudoWritten[key]; ok {
-					continue
-				}
-				pseudoWritten[key] = struct{}{}
 			}
 
 			full := o.FullName
