@@ -3,6 +3,9 @@ package summary
 import (
 	"encoding/csv"
 	"fmt"
+	"go/ast"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
@@ -255,7 +258,7 @@ func (r *fileScopeResolver) fallbackLabel(q QueryRow, line int) string {
 	if line <= 0 {
 		return label
 	}
-	return fmt.Sprintf("%s::%d", label, line)
+	return fmt.Sprintf("%s@L%d", label, line)
 }
 
 func (r *fileScopeResolver) lookupMethodName(relPath, file string, line int) string {
@@ -331,10 +334,8 @@ func (r *fileScopeResolver) loadFileIndex(path string) *fileMethodIndex {
 		return info
 	}
 	lines := strings.Split(string(data), "\n")
-	info := &fileMethodIndex{
-		lines:        lines,
-		methodAtLine: buildSequentialMethodIndex(lines),
-	}
+	index := buildMethodIndex(path, lines, data)
+	info := &fileMethodIndex{lines: lines, methodAtLine: index}
 	r.cache[path] = info
 	return info
 }
@@ -2899,6 +2900,117 @@ func extractLineNumberFromFunc(name string) int {
 		return 0
 	}
 	return parseInt(m[1])
+}
+
+func buildMethodIndex(path string, lines []string, data []byte) []*methodRange {
+	ext := strings.ToLower(filepath.Ext(path))
+	switch ext {
+	case ".go":
+		if idx := buildGoMethodIndex(path, len(lines), data); len(idx) > 0 {
+			return idx
+		}
+	case ".cs":
+		if idx := buildCsMethodIndex(lines); len(idx) > 0 {
+			return idx
+		}
+	}
+	return buildSequentialMethodIndex(lines)
+}
+
+func buildGoMethodIndex(path string, totalLines int, data []byte) []*methodRange {
+	if totalLines <= 0 {
+		return nil
+	}
+	methodAtLine := make([]*methodRange, totalLines)
+	fset := token.NewFileSet()
+	fileAst, err := parser.ParseFile(fset, path, data, parser.ParseComments)
+	if err != nil {
+		return methodAtLine
+	}
+	fill := func(start, end int, name string) {
+		if name == "" {
+			return
+		}
+		if start < 1 {
+			start = 1
+		}
+		if end < start {
+			end = start
+		}
+		if end > totalLines {
+			end = totalLines
+		}
+		mr := &methodRange{Name: name, Start: start, End: end}
+		for i := start - 1; i < end && i < len(methodAtLine); i++ {
+			methodAtLine[i] = mr
+		}
+	}
+	for _, decl := range fileAst.Decls {
+		fd, ok := decl.(*ast.FuncDecl)
+		if !ok {
+			continue
+		}
+		pos := fset.Position(fd.Pos())
+		end := fset.Position(fd.End())
+		startLine := pos.Line
+		endLine := end.Line
+		if endLine < startLine {
+			endLine = startLine
+		}
+		fill(startLine, endLine, fd.Name.Name)
+	}
+	return methodAtLine
+}
+
+func buildCsMethodIndex(lines []string) []*methodRange {
+	if len(lines) == 0 {
+		return nil
+	}
+	methodAtLine := make([]*methodRange, len(lines))
+	i := 0
+	inString := false
+	verbatim := false
+	escaped := false
+
+	for i < len(lines) {
+		name, braceLine := detectCsMethodSignature(lines, i)
+		if name == "" {
+			_, _, inString, verbatim, escaped = countBracesAndStringState(lines[i], inString, verbatim, escaped)
+			i++
+			continue
+		}
+
+		startLine := i + 1
+		endLine := startLine
+		depth := 0
+		for idx := i; idx < len(lines); idx++ {
+			open, close, nextInString, nextVerbatim, nextEscaped := countBracesAndStringState(lines[idx], inString, verbatim, escaped)
+			inString, verbatim, escaped = nextInString, nextVerbatim, nextEscaped
+			depth += open
+			depth -= close
+			if idx == braceLine && depth == 0 {
+				depth = 1
+			}
+			if depth == 0 && idx >= braceLine {
+				endLine = idx + 1
+				break
+			}
+			if idx == len(lines)-1 {
+				endLine = len(lines)
+			}
+		}
+
+		mr := &methodRange{Name: name, Start: startLine, End: endLine}
+		for line := startLine - 1; line < endLine && line < len(methodAtLine); line++ {
+			methodAtLine[line] = mr
+		}
+		if endLine <= startLine {
+			endLine = startLine
+		}
+		i = endLine
+	}
+
+	return methodAtLine
 }
 
 func buildSequentialMethodIndex(lines []string) []*methodRange {
