@@ -91,12 +91,10 @@ func TestDotnetSummaryQuality(t *testing.T) {
 		}
 	}
 
-	dyn := findDynamicObjectWithExample(objRows, "subpopulategridmain")
-	if dyn == nil {
-		t.Fatalf("expected dynamic-sql pseudo object to exist with subPopulateGridMain example")
-	}
-	if !dyn.IsPseudo || dyn.PseudoKind == "" {
-		t.Fatalf("dynamic pseudo object flags not set properly: %+v", dyn)
+	if row := findObjectWithExample(objRows, "trs_UpdateStatusSecurityTransactionAfterMurex", "subpopulategridmain"); row == nil {
+		t.Fatalf("expected concrete object row for trs_UpdateStatusSecurityTransactionAfterMurex with subPopulateGridMain example")
+	} else if row.IsPseudo || strings.Contains(strings.ToLower(row.PseudoKind), "dynamic") {
+		t.Fatalf("expected real object for subPopulateGridMain, got pseudo %+v", row)
 	}
 }
 
@@ -305,6 +303,20 @@ func findDynamicObjectWithExample(rows []objSummaryRow, needle string) *objSumma
 			continue
 		}
 		if strings.Contains(strings.ToLower(rows[i].ExampleFuncs), lowerNeedle) {
+			return &rows[i]
+		}
+	}
+	return nil
+}
+
+func findObjectWithExample(rows []objSummaryRow, base, example string) *objSummaryRow {
+	lowerBase := strings.ToLower(strings.TrimSpace(base))
+	lowerExample := strings.ToLower(strings.TrimSpace(example))
+	for i := range rows {
+		if strings.ToLower(strings.TrimSpace(rows[i].BaseName)) != lowerBase {
+			continue
+		}
+		if strings.Contains(strings.ToLower(rows[i].ExampleFuncs), lowerExample) {
 			return &rows[i]
 		}
 	}
