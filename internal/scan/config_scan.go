@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -28,7 +27,7 @@ func scanConfigFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		clean := StripJsonLineComments(string(data))
 		var obj interface{}
 		if err := json.Unmarshal([]byte(clean), &obj); err != nil {
-			log.Printf("[WARN] stage=parse-json lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
+			logWarnf("[WARN] stage=parse-json lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, err)
 			return nil, nil
 		}
 		walkJSONForSQL(cfg, obj, "", relPath, fileName, &cands)

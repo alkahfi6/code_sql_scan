@@ -26,6 +26,8 @@ func ParseFlags() *scan.Config {
 	maxSize := flag.Int64("max-size", 2*1024*1024, "max file size in bytes")
 	workers := flag.Int("workers", 4, "number of workers")
 	includeExt := flag.String("include-ext", "", "additional extensions, comma-separated, e.g. .cshtml,.razor")
+	logLevel := flag.String("log-level", "info", "log level: debug | info | warn | error | fatal | none")
+	logSql := flag.Bool("log-sql", false, "log SQL text (RawSql/SqlClean) in debug/error paths")
 
 	flag.Parse()
 
@@ -109,6 +111,8 @@ func ParseFlags() *scan.Config {
 		MaxFileSize:      *maxSize,
 		Workers:          w,
 		IncludeExt:       inc,
+		LogLevel:         strings.ToLower(*logLevel),
+		LogSql:           *logSql,
 	}
 }
 

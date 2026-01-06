@@ -3,7 +3,6 @@ package scan
 import (
 	"fmt"
 	"io"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -15,16 +14,16 @@ func scanFile(cfg *Config, path string) ([]SqlCandidate, error) {
 		return nil, fmt.Errorf("stage=stat file=%q err=%w", path, err)
 	}
 	if info.Size() > cfg.MaxFileSize {
-		log.Printf("[INFO] stage=skip-too-large lang=%s root=%q file=%q size=%d", cfg.Lang, cfg.Root, path, info.Size())
+		logInfof("[INFO] stage=skip-too-large lang=%s root=%q file=%q size=%d", cfg.Lang, cfg.Root, path, info.Size())
 		return nil, nil
 	}
 	isBin, binErr := isBinaryFile(path)
 	if binErr != nil {
-		log.Printf("[WARN] stage=read-bytes lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, binErr)
+		logWarnf("[WARN] stage=read-bytes lang=%s root=%q file=%q err=%v", cfg.Lang, cfg.Root, path, binErr)
 		return nil, nil
 	}
 	if isBin {
-		log.Printf("[INFO] stage=skip-binary lang=%s root=%q file=%q", cfg.Lang, cfg.Root, path)
+		logInfof("[INFO] stage=skip-binary lang=%s root=%q file=%q", cfg.Lang, cfg.Root, path)
 		return nil, nil
 	}
 
