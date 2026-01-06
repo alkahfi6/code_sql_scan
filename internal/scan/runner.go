@@ -2,7 +2,6 @@ package scan
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 	"runtime/debug"
@@ -15,16 +14,17 @@ import (
 // Run orchestrates the end-to-end scan and summary generation.
 func Run(cfg *Config) ([]string, error) {
 	initRegexes()
+	ConfigureLogging(cfg.LogLevel, cfg.LogSql)
 
 	start := time.Now()
-	log.Printf("[INFO] starting scan root=%s app=%s lang=%s workers=%d maxSize=%d", cfg.Root, cfg.AppName, cfg.Lang, cfg.Workers, cfg.MaxFileSize)
+	logInfof("[INFO] starting scan root=%s app=%s lang=%s workers=%d maxSize=%d", cfg.Root, cfg.AppName, cfg.Lang, cfg.Workers, cfg.MaxFileSize)
 
 	resetGlobalStores()
 
 	pathCh, countCh := streamFiles(cfg)
 	cands := runWorkers(cfg, pathCh)
 	fileCount := <-countCh
-	log.Printf("[INFO] total files to scan: %d", fileCount)
+	logInfof("[INFO] total files to scan: %d", fileCount)
 
 	var analyzed []SqlCandidate
 	for i := range cands {
@@ -77,7 +77,7 @@ func Run(cfg *Config) ([]string, error) {
 		return nil, fmt.Errorf("write summary failed: %w", err)
 	}
 
-	log.Printf("[INFO] done in %s", time.Since(start))
+	logInfof("[INFO] done in %s", time.Since(start))
 	return CollectOutputPaths(cfg), nil
 }
 
@@ -126,7 +126,8 @@ func workerRecover(id int, cfg *Config, stage *string, currentPath *string) {
 	if r := recover(); r != nil {
 		msg := fmt.Sprint(r)
 		pattern := extractRegexpPattern(msg)
-		log.Printf("[ERROR] stage=%s lang=%s worker=%d root=%q file=%q err=%q pattern=%q stack=%q", *stage, cfg.Lang, id, cfg.Root, *currentPath, msg, pattern, stackSingleLine())
+		errVal := redactSql(msg)
+		logErrorf("[ERROR] stage=%s lang=%s worker=%d root=%q file=%q err=%q pattern=%q stack=%q", *stage, cfg.Lang, id, cfg.Root, *currentPath, errVal, pattern, stackSingleLine())
 	}
 }
 
@@ -139,11 +140,11 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 		total := 0
 		err := filepath.WalkDir(cfg.Root, func(path string, d os.DirEntry, err error) error {
 			if err != nil {
-				log.Printf("[WARN] walk error on %s: %v", path, err)
+				logWarnf("[WARN] walk error on %s: %v", path, err)
 				return nil
 			}
 			if d.Type()&os.ModeSymlink != 0 {
-				log.Printf("[INFO] stage=skip-symlink lang=%s root=%q path=%q", cfg.Lang, cfg.Root, path)
+				logDebugf("[INFO] stage=skip-symlink lang=%s root=%q path=%q", cfg.Lang, cfg.Root, path)
 				if d.IsDir() {
 					return filepath.SkipDir
 				}
@@ -166,7 +167,7 @@ func streamFiles(cfg *Config) (<-chan string, <-chan int) {
 			return nil
 		})
 		if err != nil {
-			log.Printf("[WARN] walkdir error: %v", err)
+			logErrorf("[ERROR] walkdir error: %v", err)
 		}
 		count <- total
 	}()
@@ -232,7 +233,7 @@ func runWorkers(cfg *Config, paths <-chan string) []SqlCandidate {
 				stage = fmt.Sprintf("scan-%s-file", cfg.Lang)
 				cs, err := scanFile(cfg, path)
 				if err != nil {
-					log.Printf("[WARN] stage=%s lang=%s worker=%d root=%q file=%q err=%v", stage, cfg.Lang, id, cfg.Root, path, err)
+					logErrorf("[ERROR] stage=%s lang=%s worker=%d root=%q file=%q err=%v", stage, cfg.Lang, id, cfg.Root, path, err)
 					continue
 				}
 				if len(cs) > 0 {

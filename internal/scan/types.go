@@ -14,6 +14,8 @@ type Config struct {
 	MaxFileSize      int64
 	Workers          int
 	IncludeExt       map[string]struct{}
+	LogLevel         string
+	LogSql           bool
 }
 
 type SqlSymbol struct {
