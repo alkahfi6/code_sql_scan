@@ -548,12 +548,31 @@ func validateSummary(cfg *Config, queries []summary.QueryRow, objects []summary.
 		}
 	}
 
+	for _, q := range queries {
+		if !q.IsWrite {
+			continue
+		}
+		key := strings.Join([]string{q.AppName, q.RelPath, q.File, q.QueryHash}, "|")
+		hasTarget := false
+		for _, o := range objectsByQuery[key] {
+			role := strings.ToLower(strings.TrimSpace(o.Role))
+			if role == "target" || role == "exec" || strings.EqualFold(o.DmlKind, "EXEC") {
+				hasTarget = true
+				break
+			}
+		}
+		if !hasTarget {
+			errors = append(errors, fmt.Sprintf("missing target for write query %s@L%d", q.RelPath, q.LineStart))
+		}
+	}
+
 	if len(errors) == 0 {
 		return nil
 	}
 
 	for _, msg := range errors {
 		fmt.Fprintf(os.Stderr, "[ERROR] %s\n", msg)
+		log.Printf("[ERROR] %s", msg)
 	}
 
 	if len(errors) > 5 {
