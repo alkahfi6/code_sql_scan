@@ -71,6 +71,7 @@ type ObjectRow struct {
 	IsObjectNameDyn bool
 	IsPseudoObject  bool
 	PseudoKind      string
+	Line            int
 }
 
 // FunctionSummaryRow represents aggregated information per function.
@@ -143,6 +144,8 @@ type FormSummaryRow struct {
 	TotalExec            int
 	TotalWrite           int
 	TotalDynamic         int
+	TotalDynamicSql      int
+	TotalDynamicObject   int
 	HasCrossDb           bool
 	HasDbAccess          bool
 	TotalObjects         int
@@ -151,6 +154,14 @@ type FormSummaryRow struct {
 	TopObjectsWrite      string
 	TopObjectsExec       string
 	DbList               string
+}
+
+type objectRoleUsage struct {
+	read        int
+	write       int
+	exec        int
+	isPseudo    bool
+	pseudoKinds map[string]int
 }
 
 type methodRange struct {
@@ -462,6 +473,9 @@ func LoadObjectUsage(path string) ([]ObjectRow, error) {
 			IsPseudoObject:  parseBool(rec[idx["IsPseudoObject"]]),
 			PseudoKind:      rec[idx["PseudoKind"]],
 		}
+		if col, ok := idx["Line"]; ok {
+			row.Line = parseInt(rec[col])
+		}
 		rows = append(rows, row)
 	}
 	return rows, nil
@@ -531,12 +545,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 	objects = NormalizeObjectRows(objects)
 	groupedRaw := make(map[string][]QueryRow)
 	groupedDedup := make(map[string][]QueryRow)
-	queryByKey := make(map[string]QueryRow)
-
 	for _, q := range normQueries {
 		key := functionKey(q.AppName, q.RelPath, q.Func)
 		groupedRaw[key] = append(groupedRaw[key], q)
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
 	}
 	for _, q := range dedupQueries {
 		key := functionKey(q.AppName, q.RelPath, q.Func)
@@ -569,12 +580,10 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 		minLine := 0
 		maxLine := 0
 		dbListSet := make(map[string]struct{})
-		objectCounter := make(map[string]*objectRoleCounter)
-		seenObjectRoles := make(map[string]map[string]map[string]struct{})
-		dynamicGroups := make(map[string]dynamicGroup)
+		roleUsage := make(map[string]*objectRoleUsage)
 		dynamicSigCounts := make(map[string]dynamicSignatureInfo)
 		dynamicPseudoKinds := make(map[string]int)
-		dynamicExampleCounts := make(map[string]int)
+		dynamicExampleSigCounts := make(map[string]int)
 		dynamicReasonCounts := make(map[string]int)
 		pseudoKindsPerQuery := make(map[string]map[string]struct{})
 		for _, q := range rawRows {
@@ -638,6 +647,9 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				case "dynamic-sql":
 					totalDynamicSql++
 				}
+				if sig := strings.TrimSpace(q.DynamicSig); sig != "" {
+					dynamicExampleSigCounts[sig]++
+				}
 			}
 			for _, o := range objectsForQuery {
 				if !o.IsPseudoObject {
@@ -682,20 +694,6 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				rawDynForQuery = 1
 			}
 			qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
-			dynSqlPseudo, dynObjPseudo := classifyDynamicPseudoKinds(objectsByQuery[qKey])
-			groupKey := buildDynamicGroupKey(q)
-			grp := dynamicGroups[groupKey]
-			grp.count += rawDynForQuery
-			grp.usageKind = usageKindWithFallback(q.UsageKind)
-			grp.callSite = callSiteKind(q)
-			grp.pseudoKind = pickDynamicPseudoKind(grp.pseudoKind, dynSqlPseudo, dynObjPseudo)
-			if grp.minLine == 0 || q.LineStart < grp.minLine {
-				grp.minLine = q.LineStart
-			}
-			if grp.maxLine == 0 || q.LineEnd > grp.maxLine {
-				grp.maxLine = q.LineEnd
-			}
-			dynamicGroups[groupKey] = grp
 			sig := dynamicSignature(q)
 			if sig == "" {
 				sig = q.QueryHash
@@ -710,10 +708,6 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 					entry.exampleHash = q.QueryHash
 				}
 				dynamicSigCounts[sig] = entry
-			}
-			exampleSig := dynamicExampleSignature(q, objectsByQuery[qKey])
-			if exampleSig != "" {
-				dynamicExampleCounts[exampleSig] += rawDynForQuery
 			}
 			for _, reason := range collectDynamicReasonsForSummary(q, objectsByQuery[qKey]) {
 				dynamicReasonCounts[reason] += rawDynForQuery
@@ -740,13 +734,7 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 			if o.DbName != "" {
 				dbListSet[o.DbName] = struct{}{}
 			}
-			counter := objectCounter[name]
-			if counter == nil {
-				counter = &objectRoleCounter{}
-				objectCounter[name] = counter
-			}
-			qRow, hasQuery := queryByKey[queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)]
-			recordObjectRoles(counter, o, qRow, hasQuery, name, queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash), seenObjectRoles)
+			registerObjectRoleUsage(roleUsage, o)
 		}
 		for _, q := range qRows {
 			qKey := queryObjectKey(app, rel, q.File, q.QueryHash)
@@ -754,24 +742,16 @@ func BuildFunctionSummary(queries []QueryRow, objects []ObjectRow) ([]FunctionSu
 				consumeObj(o)
 			}
 		}
-		displayCounter := filterDynamicPseudoObjects(objectCounter)
-		totalObjectsRead, totalObjectsWrite, totalObjectsExec := countObjectsByRole(displayCounter)
-		topObjectsRead := buildTopObjectsByRole(displayCounter, "read", 10)
-		topObjectsWrite := buildTopObjectsByRole(displayCounter, "write", 10)
-		topObjectsExec := buildTopObjectsByRole(displayCounter, "exec", 10)
-		objectsUsed := buildObjectsUsedDetailed(displayCounter)
-		dynamicDisplay := summarizeDynamicGroups(dynamicGroups, 3)
-		if dynamicDisplay != "" {
-			topObjectsRead = appendSummary(topObjectsRead, dynamicDisplay)
-			topObjectsWrite = appendSummary(topObjectsWrite, dynamicDisplay)
-			topObjectsExec = appendSummary(topObjectsExec, dynamicDisplay)
-			objectsUsed = appendSummary(objectsUsed, dynamicDisplay)
-		}
+		totalObjectsRead, totalObjectsWrite, totalObjectsExec := countObjectsByRoleUsage(roleUsage)
+		topObjectsRead := buildTopObjectsByRoleUsage(roleUsage, "read", 5)
+		topObjectsWrite := buildTopObjectsByRoleUsage(roleUsage, "write", 5)
+		topObjectsExec := buildTopObjectsByRoleUsage(roleUsage, "exec", 5)
+		objectsUsed := buildObjectsUsedByRoleUsage(roleUsage, 10)
 		dbList := setToSortedSlice(dbListSet)
 		totalDynamic = rawDynamicCount
 		dynamicSig := summarizeDynamicSignatures(dynamicSigCounts)
 		dynamicPseudoSummary := summarizePseudoKindCounts(dynamicPseudoKinds)
-		dynamicExampleSummary := summarizeDynamicExamples(dynamicExampleCounts, 3)
+		dynamicExampleSummary := summarizeDynamicExamples(dynamicExampleSigCounts, 3)
 		dynamicReasonSummary := summarizeReasons(dynamicReasonCounts, 5)
 		if maxLine == 0 && minLine > 0 {
 			maxLine = minLine
@@ -963,21 +943,22 @@ func BuildObjectSummary(queries []QueryRow, objects []ObjectRow) ([]ObjectSummar
 	grouped := aggregateObjectsForSummary(objects, dynamicKinds)
 
 	var result []ObjectSummaryRow
-	const exampleLimit = 8
+	const exampleLimit = 5
 	for _, entry := range grouped {
 		funcs := sortedFuncNames(entry.funcSet)
 		exampleFuncs := topFuncExamples(entry.funcCounts, exampleLimit)
 		if len(exampleFuncs) == 0 {
 			exampleFuncs = funcs
-			if len(exampleFuncs) > exampleLimit {
-				exampleFuncs = exampleFuncs[:exampleLimit]
-			}
 		}
-		if len(exampleFuncs) == 0 && entry.firstFunc != "" {
-			exampleFuncs = append([]string{entry.firstFunc}, exampleFuncs...)
-			if len(exampleFuncs) > exampleLimit {
-				exampleFuncs = exampleFuncs[:exampleLimit]
-			}
+		if entry.firstFunc != "" {
+			exampleFuncs = prependIfMissing(exampleFuncs, entry.firstFunc)
+		}
+		if maxLineFunc := maxLineFunction(entry.funcMaxLine); maxLineFunc != "" {
+			exampleFuncs = prependIfMissing(exampleFuncs, maxLineFunc)
+		}
+		exampleFuncs = dedupeCaseInsensitive(exampleFuncs)
+		if len(exampleFuncs) > exampleLimit {
+			exampleFuncs = exampleFuncs[:exampleLimit]
 		}
 
 		pseudoKind := summarizePseudoKindsFlat(entry.pseudoKinds)
@@ -1040,6 +1021,7 @@ type objectSummaryAgg struct {
 	baseName      string
 	funcSet       map[string]struct{}
 	funcCounts    map[string]int
+	funcMaxLine   map[string]int
 	firstFunc     string
 	reads         int
 	writes        int
@@ -1084,6 +1066,7 @@ func aggregateObjectsForSummary(objects []ObjectRow, dynamicKinds map[string]str
 				baseName:    base,
 				funcSet:     make(map[string]struct{}),
 				funcCounts:  make(map[string]int),
+				funcMaxLine: make(map[string]int),
 				dmlSet:      make(map[string]struct{}),
 				roleSet:     make(map[string]struct{}),
 				roleCounts:  make(map[string]int),
@@ -1138,6 +1121,9 @@ func aggregateObjectsForSummary(objects []ObjectRow, dynamicKinds map[string]str
 			if entry.firstFunc == "" {
 				entry.firstFunc = fn
 			}
+			if o.Line > entry.funcMaxLine[fn] {
+				entry.funcMaxLine[fn] = o.Line
+			}
 		}
 	}
 
@@ -1171,14 +1157,13 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 	objectSetByForm := make(map[string]map[string]struct{})
 	objectCountByForm := make(map[string]int)
 	hasCrossByForm := make(map[string]bool)
-	topObjectStats := make(map[string]map[string]*objectRoleCounter)
+	roleUsageByForm := make(map[string]map[string]*objectRoleUsage)
 	dbListByForm := make(map[string]map[string]struct{})
 	funcSetByForm := make(map[string]map[string]struct{})
 	fileByForm := make(map[string]string)
-	queryByKey := make(map[string]QueryRow)
+	objectsByQuery := make(map[string][]ObjectRow)
 
 	for _, q := range normQueries {
-		queryByKey[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)] = q
 		key := formKey(q.AppName, q.RelPath, q.File)
 		groupQueries[key] = append(groupQueries[key], q)
 		if _, ok := funcSetByForm[key]; !ok {
@@ -1210,6 +1195,8 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 		if shouldSkipObject(o) {
 			continue
 		}
+		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
+		objectsByQuery[qKey] = append(objectsByQuery[qKey], o)
 		key := formKey(o.AppName, o.RelPath, o.File)
 		if _, ok := objectSetByForm[key]; !ok {
 			objectSetByForm[key] = make(map[string]struct{})
@@ -1229,18 +1216,10 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			hasCrossByForm[key] = true
 		}
 
-		baseName := strings.TrimSpace(o.BaseName)
-		if _, ok := topObjectStats[key]; !ok {
-			topObjectStats[key] = make(map[string]*objectRoleCounter)
+		if _, ok := roleUsageByForm[key]; !ok {
+			roleUsageByForm[key] = make(map[string]*objectRoleUsage)
 		}
-		counter := topObjectStats[key][baseName]
-		if counter == nil {
-			counter = &objectRoleCounter{}
-			topObjectStats[key][baseName] = counter
-		}
-		qKey := queryObjectKey(o.AppName, o.RelPath, o.File, o.QueryHash)
-		qRow, hasQuery := queryByKey[qKey]
-		counter.Register(o, qRow, hasQuery)
+		registerObjectRoleUsage(roleUsageByForm[key], o)
 	}
 
 	allKeys := make(map[string]struct{})
@@ -1261,6 +1240,8 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 		totalExec := 0
 		totalWrite := 0
 		totalDynamic := 0
+		totalDynamicSql := 0
+		totalDynamicObject := 0
 		totalInsert := 0
 		totalUpdate := 0
 		totalDelete := 0
@@ -1279,8 +1260,14 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			case "TRUNCATE":
 				totalTruncate++
 			}
-			if isDynamicQuery(q) {
-				totalDynamic++
+			if q.IsDynamic {
+				kind := dynamicKindForQuery(q, objectsByQuery[queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)])
+				switch kind {
+				case "dynamic-object":
+					totalDynamicObject++
+				default:
+					totalDynamicSql++
+				}
 			}
 			for _, db := range q.DbList {
 				if db != "" {
@@ -1291,6 +1278,7 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 				dbListSet[q.ConnDb] = struct{}{}
 			}
 		}
+		totalDynamic = totalDynamicSql + totalDynamicObject
 		totalWrite = totalInsert + totalUpdate + totalDelete + totalTruncate + totalExec
 		distinctObjects := len(objectSetByForm[key])
 		hasCross := hasCrossByForm[key]
@@ -1298,9 +1286,9 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			dbListSet[db] = struct{}{}
 		}
 
-		topObjectsRead := buildTopObjectsByRole(topObjectStats[key], "read", 10)
-		topObjectsWrite := buildTopObjectsByRole(topObjectStats[key], "write", 10)
-		topObjectsExec := buildTopObjectsByRole(topObjectStats[key], "exec", 10)
+		topObjectsRead := buildTopObjectsByRoleUsage(roleUsageByForm[key], "read", 5)
+		topObjectsWrite := buildTopObjectsByRoleUsage(roleUsageByForm[key], "write", 5)
+		topObjectsExec := buildTopObjectsByRoleUsage(roleUsageByForm[key], "exec", 5)
 		if distinctObjects == 0 {
 			topObjectsRead = ""
 			topObjectsWrite = ""
@@ -1320,6 +1308,8 @@ func BuildFormSummary(queries []QueryRow, objects []ObjectRow) ([]FormSummaryRow
 			TotalQueries:         totalQueries,
 			TotalWrite:           totalWrite,
 			TotalDynamic:         totalDynamic,
+			TotalDynamicSql:      totalDynamicSql,
+			TotalDynamicObject:   totalDynamicObject,
 			TotalExec:            totalExec,
 			TotalObjects:         totalObjects,
 			DistinctObjectsUsed:  distinctObjects,
@@ -2179,6 +2169,187 @@ func appendSummary(base, extra string) string {
 	}
 }
 
+func registerObjectRoleUsage(stats map[string]*objectRoleUsage, o ObjectRow) {
+	if stats == nil {
+		return
+	}
+	name := strings.TrimSpace(o.BaseName)
+	if name == "" {
+		return
+	}
+	entry := stats[name]
+	if entry == nil {
+		entry = &objectRoleUsage{}
+		stats[name] = entry
+	}
+	entry.read += objectReadCount(o)
+	entry.write += objectWriteCount(o)
+	entry.exec += objectExecCount(o)
+	if o.IsPseudoObject || isDynamicBaseName(o.BaseName) {
+		entry.isPseudo = true
+		if entry.pseudoKinds == nil {
+			entry.pseudoKinds = make(map[string]int)
+		}
+		if kind := normalizePseudoKindLabel(o.BaseName, o.PseudoKind); kind != "" {
+			entry.pseudoKinds[kind]++
+		}
+	}
+}
+
+func countObjectsByRoleUsage(stats map[string]*objectRoleUsage) (int, int, int) {
+	read := 0
+	write := 0
+	exec := 0
+	for _, usage := range stats {
+		if usage == nil {
+			continue
+		}
+		if usage.read > 0 {
+			read++
+		}
+		if usage.write > 0 {
+			write++
+		}
+		if usage.exec > 0 {
+			exec++
+		}
+	}
+	return read, write, exec
+}
+
+func objectUsageTotal(usage *objectRoleUsage) int {
+	if usage == nil {
+		return 0
+	}
+	return usage.read + usage.write + usage.exec
+}
+
+func objectUsageName(name string, usage *objectRoleUsage) string {
+	if usage == nil {
+		return name
+	}
+	if usage.isPseudo {
+		return "[P] " + name
+	}
+	return name
+}
+
+func roleUsageCount(usage *objectRoleUsage, role string) int {
+	if usage == nil {
+		return 0
+	}
+	switch strings.ToLower(role) {
+	case "read":
+		return usage.read
+	case "write":
+		return usage.write
+	case "exec":
+		return usage.exec
+	default:
+		return objectUsageTotal(usage)
+	}
+}
+
+func buildTopObjectsByRoleUsage(stats map[string]*objectRoleUsage, role string, limit int) string {
+	if len(stats) == 0 || limit <= 0 {
+		return ""
+	}
+	type entry struct {
+		name  string
+		count int
+		usage *objectRoleUsage
+	}
+	entries := make([]entry, 0, len(stats))
+	for name, usage := range stats {
+		count := roleUsageCount(usage, role)
+		if count <= 0 {
+			continue
+		}
+		entries = append(entries, entry{name: name, count: count, usage: usage})
+	}
+	if len(entries) == 0 {
+		return ""
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].count != entries[j].count {
+			return entries[i].count > entries[j].count
+		}
+		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
+	})
+	totalEntries := len(entries)
+	if len(entries) > limit {
+		entries = entries[:limit]
+	}
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, fmt.Sprintf("%s(%d)", objectUsageName(e.name, e.usage), e.count))
+	}
+	if overflow := totalEntries - len(entries); overflow > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", overflow))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func buildObjectsUsedByRoleUsage(stats map[string]*objectRoleUsage, limit int) string {
+	if len(stats) == 0 {
+		return ""
+	}
+	type entry struct {
+		name  string
+		total int
+		usage *objectRoleUsage
+	}
+	entries := make([]entry, 0, len(stats))
+	for name, usage := range stats {
+		total := objectUsageTotal(usage)
+		if total == 0 {
+			continue
+		}
+		entries = append(entries, entry{name: name, total: total, usage: usage})
+	}
+	if len(entries) == 0 {
+		return ""
+	}
+	sort.Slice(entries, func(i, j int) bool {
+		if entries[i].total != entries[j].total {
+			return entries[i].total > entries[j].total
+		}
+		return strings.ToLower(entries[i].name) < strings.ToLower(entries[j].name)
+	})
+	totalEntries := len(entries)
+	if limit > 0 && len(entries) > limit {
+		entries = entries[:limit]
+	}
+	parts := make([]string, 0, len(entries))
+	for _, e := range entries {
+		parts = append(parts, fmt.Sprintf("%s(%s)", objectUsageName(e.name, e.usage), roleUsageBreakdown(e.usage)))
+	}
+	if overflow := totalEntries - len(entries); overflow > 0 {
+		parts = append(parts, fmt.Sprintf("+%d others", overflow))
+	}
+	return strings.Join(parts, "; ")
+}
+
+func roleUsageBreakdown(usage *objectRoleUsage) string {
+	if usage == nil {
+		return "read=0/write=0/exec=0"
+	}
+	parts := []string{}
+	if usage.read > 0 {
+		parts = append(parts, fmt.Sprintf("read=%d", usage.read))
+	}
+	if usage.write > 0 {
+		parts = append(parts, fmt.Sprintf("write=%d", usage.write))
+	}
+	if usage.exec > 0 {
+		parts = append(parts, fmt.Sprintf("exec=%d", usage.exec))
+	}
+	if len(parts) == 0 {
+		return "read=0/write=0/exec=0"
+	}
+	return strings.Join(parts, "/")
+}
+
 func buildTopObjectsByRole(stats map[string]*objectRoleCounter, role string, limit int) string {
 	if len(stats) == 0 || limit <= 0 {
 		return ""
@@ -2791,7 +2962,7 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 	defer f.Close()
 
 	w := csv.NewWriter(f)
-	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "DistinctObjectsUsed", "HasDbAccess", "HasCrossDb", "DbList", "TopObjectsRead", "TopObjectsWrite", "TopObjectsExec"}
+	header := []string{"AppName", "RelPath", "File", "TotalFunctionsWithDB", "TotalQueries", "TotalObjects", "TotalExec", "TotalWrite", "TotalDynamic", "TotalDynamicSql", "TotalDynamicObject", "DistinctObjectsUsed", "HasDbAccess", "HasCrossDb", "DbList", "TopObjectsRead", "TopObjectsWrite", "TopObjectsExec"}
 	if err := w.Write(header); err != nil {
 		return err
 	}
@@ -2806,6 +2977,8 @@ func WriteFormSummary(path string, rows []FormSummaryRow) error {
 			fmt.Sprintf("%d", r.TotalWrite),
 			fmt.Sprintf("%d", r.TotalExec),
 			fmt.Sprintf("%d", r.TotalDynamic),
+			fmt.Sprintf("%d", r.TotalDynamicSql),
+			fmt.Sprintf("%d", r.TotalDynamicObject),
 			fmt.Sprintf("%d", r.DistinctObjectsUsed),
 			boolToStr(r.HasDbAccess),
 			boolToStr(r.HasCrossDb),
@@ -3245,6 +3418,9 @@ func topFuncExamples(counts map[string]int, limit int) []string {
 		if list[i].quality != list[j].quality {
 			return list[i].quality < list[j].quality
 		}
+		if len(list[i].name) != len(list[j].name) {
+			return len(list[i].name) > len(list[j].name)
+		}
 		return strings.ToLower(list[i].name) < strings.ToLower(list[j].name)
 	})
 	if len(list) > limit {
@@ -3255,6 +3431,58 @@ func topFuncExamples(counts map[string]int, limit int) []string {
 		names = append(names, item.name)
 	}
 	return names
+}
+
+func maxLineFunction(lines map[string]int) string {
+	if len(lines) == 0 {
+		return ""
+	}
+	maxLine := 0
+	best := ""
+	for fn, line := range lines {
+		if line > maxLine || (line == maxLine && strings.ToLower(fn) < strings.ToLower(best)) {
+			maxLine = line
+			best = fn
+		}
+	}
+	return best
+}
+
+func containsFuncName(list []string, name string) bool {
+	target := strings.ToLower(strings.TrimSpace(name))
+	if target == "" {
+		return false
+	}
+	for _, item := range list {
+		if strings.ToLower(strings.TrimSpace(item)) == target {
+			return true
+		}
+	}
+	return false
+}
+
+func prependIfMissing(list []string, value string) []string {
+	if strings.TrimSpace(value) == "" || containsFuncName(list, value) {
+		return list
+	}
+	return append([]string{value}, list...)
+}
+
+func dedupeCaseInsensitive(list []string) []string {
+	seen := make(map[string]struct{}, len(list))
+	result := make([]string, 0, len(list))
+	for _, item := range list {
+		key := strings.ToLower(strings.TrimSpace(item))
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		seen[key] = struct{}{}
+		result = append(result, item)
+	}
+	return result
 }
 
 func funcNameQuality(name string) int {

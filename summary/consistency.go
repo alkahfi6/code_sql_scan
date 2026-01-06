@@ -94,8 +94,7 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 	}
 
 	expected := make(map[string]*functionAgg)
-	objectCounters := make(map[string]map[string]*objectRoleCounter)
-	seenObjectRoles := make(map[string]map[string]map[string]map[string]struct{})
+	objectCounters := make(map[string]map[string]*objectRoleUsage)
 	for _, q := range normQueries {
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		entry := expected[key]
@@ -172,33 +171,20 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 		key := strings.Join([]string{q.AppName, q.RelPath, q.Func}, "|")
 		funcObjects := objectCounters[key]
 		if funcObjects == nil {
-			funcObjects = make(map[string]*objectRoleCounter)
+			funcObjects = make(map[string]*objectRoleUsage)
 			objectCounters[key] = funcObjects
-		}
-		if _, ok := seenObjectRoles[key]; !ok {
-			seenObjectRoles[key] = make(map[string]map[string]map[string]struct{})
 		}
 		qKey := queryObjectKey(q.AppName, q.RelPath, q.File, q.QueryHash)
 		for _, o := range objectsByQuery[qKey] {
 			if shouldSkipObject(o) {
 				continue
 			}
-			name := strings.TrimSpace(o.BaseName)
-			if name == "" {
-				continue
-			}
-			counter := funcObjects[name]
-			if counter == nil {
-				counter = &objectRoleCounter{}
-				funcObjects[name] = counter
-			}
-			recordObjectRoles(counter, o, q, true, name, qKey, seenObjectRoles[key])
+			registerObjectRoleUsage(funcObjects, o)
 		}
 	}
 
 	for key, funcObjects := range objectCounters {
-		display := filterDynamicPseudoObjects(funcObjects)
-		read, write, exec := countObjectsByRole(display)
+		read, write, exec := countObjectsByRoleUsage(funcObjects)
 		if entry := expected[key]; entry != nil {
 			entry.objectReads = read
 			entry.objectWrites = write
