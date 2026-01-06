@@ -28,6 +28,8 @@ func ParseFlags() *scan.Config {
 	includeExt := flag.String("include-ext", "", "additional extensions, comma-separated, e.g. .cshtml,.razor")
 	logLevel := flag.String("log-level", "info", "log level: debug | info | warn | error | fatal | none")
 	logSql := flag.Bool("log-sql", false, "log SQL text (RawSql/SqlClean) in debug/error paths")
+	pseudoThreshold := flag.Int("pseudo-threshold", 100, "threshold for unique pseudo-objects before warning/fail")
+	failOnPseudo := flag.Bool("fail-on-pseudo-explosion", false, "exit non-zero when pseudo-object cardinality exceeds threshold")
 
 	flag.Parse()
 
@@ -97,6 +99,9 @@ func ParseFlags() *scan.Config {
 	if *maxSize <= 0 {
 		*maxSize = 2 * 1024 * 1024
 	}
+	if *pseudoThreshold <= 0 {
+		*pseudoThreshold = 100
+	}
 
 	return &scan.Config{
 		Root:             *root,
@@ -113,6 +118,8 @@ func ParseFlags() *scan.Config {
 		IncludeExt:       inc,
 		LogLevel:         strings.ToLower(*logLevel),
 		LogSql:           *logSql,
+		PseudoThreshold:  *pseudoThreshold,
+		FailOnPseudo:     *failOnPseudo,
 	}
 }
 

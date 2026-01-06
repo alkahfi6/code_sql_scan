@@ -56,7 +56,32 @@ func Run(cfg *Config) ([]string, error) {
 
 	cands = dedupeCandidates(analyzed)
 
-	logPseudoCardinalityWarnings(cands)
+	threshold := cfg.PseudoThreshold
+	if threshold <= 0 {
+		threshold = pseudoCardinalityWarningThreshold
+	}
+	offenders := logPseudoCardinalityWarningsWithThreshold(cands, threshold, cfg.FailOnPseudo)
+	if cfg.FailOnPseudo && len(offenders) > 0 {
+		fmt.Fprintf(os.Stderr, "[ERROR] pseudo-object explosion detected (threshold=%d)\n", threshold)
+		for i, off := range offenders {
+			parts := strings.SplitN(off.funcKey, "|", 2)
+			rel := ""
+			fn := ""
+			if len(parts) >= 1 {
+				rel = parts[0]
+			}
+			if len(parts) >= 2 {
+				fn = parts[1]
+			}
+			var kindList []string
+			for kind, v := range off.kindCount {
+				kindList = append(kindList, fmt.Sprintf("%s=%d", kind, v))
+			}
+			sort.Strings(kindList)
+			fmt.Fprintf(os.Stderr, "  #%d rel=%s func=%s unique=%d pseudoKinds=%s\n", i+1, rel, fn, off.count, strings.Join(kindList, "; "))
+		}
+		return nil, fmt.Errorf("pseudo-object cardinality exceeded threshold")
+	}
 
 	sort.Slice(cands, func(i, j int) bool {
 		a, b := cands[i], cands[j]

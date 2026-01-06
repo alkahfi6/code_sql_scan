@@ -3,6 +3,7 @@ package scan
 import (
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"testing"
 
@@ -160,6 +161,74 @@ func TestCsScan_DoesNotDetectSqlInComments(t *testing.T) {
 	for _, cand := range cands {
 		if strings.Contains(strings.ToUpper(cand.SqlClean), "SELECT") {
 			t.Fatalf("expected no SQL detected from comments, got %q", cand.SqlClean)
+		}
+	}
+}
+
+func TestExecProcConstantPropagation(t *testing.T) {
+	src := `
+using System;
+class Demo {
+  void Run(bool flag, string input) {
+    var conn = new Db();
+    var fixedName = "dbo.FixedProc";
+    conn.ExecProc(fixedName);
+    var ternary = flag ? "dbo.TernA" : "dbo.TernB";
+    conn.ExecProc(ternary);
+    string sw;
+    switch (input) {
+      case "x": sw = "dbo.SwitchX"; break;
+      case "y": sw = "dbo.SwitchY"; break;
+      default: sw = "dbo.SwitchDef"; break;
+    }
+    conn.ExecProc(sw);
+    var interp = "dbo.Interp";
+    conn.ExecProc($"exec {interp}");
+    var fmt = "dbo.Format";
+    conn.ExecProc(string.Format("exec {0}", fmt));
+  }
+}
+class Db { public void ExecProc(string s) {} }
+`
+
+	dir := t.TempDir()
+	path := filepath.Join(dir, "Demo.cs")
+	if err := os.WriteFile(path, []byte(src), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+
+	cfg := &Config{
+		Root:    dir,
+		AppName: "app",
+		Lang:    "dotnet",
+	}
+	cands, err := scanCsFile(cfg, path, "Demo.cs")
+	if err != nil {
+		t.Fatalf("scanCsFile: %v", err)
+	}
+	var procs []string
+	for i := range cands {
+		analyzeCandidate(&cands[i])
+		if !strings.EqualFold(cands[i].UsageKind, "EXEC") {
+			continue
+		}
+		if cands[i].IsDynamic {
+			t.Fatalf("expected resolved exec proc, got dynamic cand: %+v", cands[i])
+		}
+		for _, o := range cands[i].Objects {
+			if strings.EqualFold(o.Role, "exec") && strings.TrimSpace(o.BaseName) != "" {
+				procs = append(procs, o.BaseName)
+			}
+		}
+	}
+	sort.Strings(procs)
+	expected := []string{"FixedProc", "Format", "Interp", "SwitchDef", "SwitchX", "SwitchY", "TernA", "TernB"}
+	if len(procs) != len(expected) {
+		t.Fatalf("expected %d proc calls, got %d (%v)", len(expected), len(procs), procs)
+	}
+	for i := range expected {
+		if procs[i] != expected[i] {
+			t.Fatalf("proc mismatch at %d: got %s want %s (all=%v)", i, procs[i], expected[i], procs)
 		}
 	}
 }

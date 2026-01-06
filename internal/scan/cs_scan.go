@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strconv"
 	"strings"
 	"unicode"
 )
@@ -148,6 +149,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		target[name] = SqlSymbol{
 			Name:       name,
 			Value:      val,
+			Variants:   []string{val},
 			RelPath:    relPath,
 			Line:       line,
 			IsComplete: true,
@@ -184,6 +186,49 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			}
 		}
 		return SqlSymbol{}, false
+	}
+
+	resolveLiteralExpr := func(expr string, funcName string, methodText string, fallbackLine int) literalResolution {
+		baseLookup := func(name string) literalResolution {
+			if sym, ok := lookupLiteral(funcName, name); ok {
+				vals := sym.Variants
+				if len(vals) == 0 && sym.Value != "" {
+					vals = []string{sym.Value}
+				}
+				return literalResolution{
+					values:   vals,
+					dynamic:  sym.IsDynamic,
+					resolved: len(vals) > 0,
+					defPath:  sym.RelPath,
+					defLine:  sym.Line,
+				}
+			}
+			if sym, ok := lookupLiteralAnyMethod(name); ok {
+				vals := sym.Variants
+				if len(vals) == 0 && sym.Value != "" {
+					vals = []string{sym.Value}
+				}
+				return literalResolution{
+					values:   vals,
+					dynamic:  sym.IsDynamic,
+					resolved: len(vals) > 0,
+					defPath:  sym.RelPath,
+					defLine:  sym.Line,
+				}
+			}
+			return literalResolution{}
+		}
+
+		res := resolveLiteralValues(expr, methodText, baseLookup, nil, 5)
+		if res.resolved {
+			if res.defPath == "" {
+				res.defPath = relPath
+			}
+			if res.defLine == 0 {
+				res.defLine = fallbackLine
+			}
+		}
+		return res
 	}
 	for _, m := range regexes.verbatimAssign.FindAllStringSubmatchIndex(clean, -1) {
 		line := countLinesUpTo(clean, m[0])
@@ -284,21 +329,24 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 		return s, false
 	}
 
-	resolveIdentLiteral := func(name string, funcName string, methodText string, fallbackLine int) (string, string, int, bool, bool) {
+	resolveIdentLiteral := func(name string, funcName string, methodText string, fallbackLine int) literalResolution {
 		name = strings.TrimSpace(name)
 		if name == "" {
-			return "", "", 0, false, false
+			return literalResolution{}
 		}
-		if lit, ok := lookupLiteral(funcName, name); ok {
-			return lit.Value, lit.RelPath, lit.Line, true, lit.IsDynamic
+		res := resolveLiteralExpr(name, funcName, methodText, fallbackLine)
+		if !res.resolved {
+			if rebuilt, dyn := rebuildCSharpVariableSql(methodText, name); rebuilt != "" {
+				res = literalResolution{
+					values:   []string{rebuilt},
+					dynamic:  dyn,
+					resolved: true,
+					defPath:  relPath,
+					defLine:  fallbackLine,
+				}
+			}
 		}
-		if lit, ok := lookupLiteralAnyMethod(name); ok {
-			return lit.Value, lit.RelPath, lit.Line, true, lit.IsDynamic
-		}
-		if rebuilt, dyn := rebuildCSharpVariableSql(methodText, name); rebuilt != "" {
-			return rebuilt, relPath, fallbackLine, true, dyn
-		}
-		return "", "", 0, false, false
+		return res
 	}
 
 	for _, p := range patterns {
@@ -313,6 +361,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				connName string
 				raw      string
 				rawExpr  string
+				procExpr string
 			)
 
 			var (
@@ -375,6 +424,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			defLine := line
 			dynReason := ""
 			rawFromVariable := false
+			var literalOptions []string
 
 			switch p.re {
 			case regexes.newCmd:
@@ -386,12 +436,13 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 2))
 				if regexes.identRe.MatchString(raw) {
-					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(raw, funcName, methodText, line); okLiteral {
-						raw = lit
-						defPath = litPath
-						defLine = litLine
-						rawLiteral = true
-						isDyn = dyn
+					if res := resolveIdentLiteral(raw, funcName, methodText, line); res.resolved {
+						literalOptions = append(literalOptions, res.values...)
+						raw = res.primary()
+						defPath = res.defPath
+						defLine = res.defLine
+						rawLiteral = len(res.values) > 0
+						isDyn = res.dynamic
 					} else {
 						isDyn = true
 					}
@@ -400,6 +451,7 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				// group1 = conn, group2 = verbatim flag, group3 = arg (SP literal or expr)
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 3))
+				procExpr = rawArg
 				raw = decodeCSharpLiteralContent(rawArg, cleanedGroup(clean, m, 2) == "@")
 				rawLiteral = strings.HasPrefix(rawArg, "\"") || strings.HasPrefix(rawArg, "@\"")
 				if regexes.identRe.MatchString(rawArg) && !rawLiteral {
@@ -410,27 +462,30 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				connName = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawArg := strings.TrimSpace(cleanedGroup(clean, m, 2))
 				raw = rawArg
+				procExpr = rawArg
 				rawFromVariable = true
 				if regexes.identRe.MatchString(rawArg) {
-					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(rawArg, funcName, methodText, line); okLiteral {
-						raw = lit
-						isDyn = dyn
+					if res := resolveIdentLiteral(rawArg, funcName, methodText, line); res.resolved {
+						literalOptions = append(literalOptions, res.values...)
+						raw = res.primary()
+						isDyn = res.dynamic
 						isExecStub = true
-						rawLiteral = true
-						defPath = litPath
-						defLine = litLine
+						rawLiteral = len(res.values) > 0
+						defPath = res.defPath
+						defLine = res.defLine
 					}
 				}
 			case regexes.efExecRawIdent:
 				raw = strings.TrimSpace(cleanedGroup(clean, m, 1))
 				rawLiteral = false
 				if regexes.identRe.MatchString(raw) {
-					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(raw, funcName, methodText, line); okLiteral {
-						raw = lit
-						rawLiteral = true
-						isDyn = dyn
-						defPath = litPath
-						defLine = litLine
+					if res := resolveIdentLiteral(raw, funcName, methodText, line); res.resolved {
+						literalOptions = append(literalOptions, res.values...)
+						raw = res.primary()
+						rawLiteral = len(res.values) > 0
+						isDyn = res.dynamic
+						defPath = res.defPath
+						defLine = res.defLine
 					} else {
 						isDyn = true
 					}
@@ -441,12 +496,13 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				raw = expr
 				rawLiteral = false
 				if regexes.identRe.MatchString(expr) {
-					if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(expr, funcName, methodText, line); okLiteral {
-						raw = lit
-						defPath = litPath
-						defLine = litLine
-						rawLiteral = true
-						isDyn = dyn
+					if res := resolveIdentLiteral(expr, funcName, methodText, line); res.resolved {
+						literalOptions = append(literalOptions, res.values...)
+						raw = res.primary()
+						defPath = res.defPath
+						defLine = res.defLine
+						rawLiteral = len(res.values) > 0
+						isDyn = res.dynamic
 					} else {
 						assignRe := regexp.MustCompile("(?is)" + regexp.QuoteMeta(expr) + `\s*=\s*@?"([^"]+)"`)
 						if prefix := clean[:start]; prefix != "" {
@@ -486,15 +542,33 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 					rawLiteral = false
 					raw = expr
 					if regexes.identRe.MatchString(expr) {
-						if lit, litPath, litLine, okLiteral, dyn := resolveIdentLiteral(expr, funcName, methodText, line); okLiteral {
-							raw = lit
-							defPath = litPath
-							defLine = litLine
-							rawLiteral = true
-							isDyn = dyn
+						if res := resolveIdentLiteral(expr, funcName, methodText, line); res.resolved {
+							literalOptions = append(literalOptions, res.values...)
+							raw = res.primary()
+							defPath = res.defPath
+							defLine = res.defLine
+							rawLiteral = len(res.values) > 0
+							isDyn = res.dynamic
 						} else {
 							isDyn = true
 						}
+					}
+				}
+			}
+
+			if p.execStub {
+				expr := strings.TrimSpace(procExpr)
+				if expr == "" {
+					expr = raw
+				}
+				if expr != "" {
+					if res := resolveLiteralExpr(expr, funcName, methodText, line); res.resolved && !res.dynamic {
+						literalOptions = append(literalOptions, res.values...)
+						raw = res.primary()
+						rawLiteral = len(res.values) > 0
+						isDyn = false
+						defPath = res.defPath
+						defLine = res.defLine
 					}
 				}
 			}
@@ -504,6 +578,17 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 			if p.sqlArgIndex >= 0 {
 				if args := extractCSharpArgs(clean, start); len(args) > p.sqlArgIndex {
 					argExpr = strings.TrimSpace(args[p.sqlArgIndex])
+				}
+			}
+
+			if p.execStub && len(literalOptions) == 0 && strings.TrimSpace(argExpr) != "" {
+				if res := resolveLiteralExpr(argExpr, funcName, methodText, line); res.resolved && !res.dynamic {
+					literalOptions = append(literalOptions, res.values...)
+					raw = res.primary()
+					rawLiteral = len(res.values) > 0
+					isDyn = false
+					defPath = res.defPath
+					defLine = res.defLine
 				}
 			}
 
@@ -633,6 +718,10 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				dynReason = "runtime variable"
 			}
 
+			if len(literalOptions) > 0 {
+				literalOptions = dedupeStrings(literalOptions)
+			}
+
 			cand := SqlCandidate{
 				AppName:       cfg.AppName,
 				RelPath:       relPath,
@@ -651,6 +740,20 @@ func scanCsFile(cfg *Config, path, relPath string) ([]SqlCandidate, error) {
 				ConnDb:        "",
 				DefinedPath:   defPath,
 				DefinedLine:   defLine,
+			}
+			if p.execStub && len(literalOptions) > 1 && !isDyn {
+				for _, opt := range literalOptions {
+					if strings.TrimSpace(opt) == "" {
+						continue
+					}
+					copyCand := cand
+					copyCand.RawSql = opt
+					cands = append(cands, copyCand)
+				}
+				continue
+			}
+			if len(literalOptions) > 0 && strings.TrimSpace(cand.RawSql) == "" {
+				cand.RawSql = literalOptions[0]
 			}
 			cands = append(cands, cand)
 		}
@@ -1018,6 +1121,394 @@ func mergeCSharpBinaryConcat(expr string, resolver func(string) (SqlSymbol, bool
 		return "", dyn, false
 	}
 	return normalizeSqlSkeleton(strings.Join(fragments, "")), dyn, true
+}
+
+type literalResolution struct {
+	values   []string
+	dynamic  bool
+	resolved bool
+	defPath  string
+	defLine  int
+}
+
+func (r literalResolution) primary() string {
+	if len(r.values) == 0 {
+		return ""
+	}
+	return r.values[0]
+}
+
+func dedupeStrings(vals []string) []string {
+	set := make(map[string]struct{}, len(vals))
+	for _, v := range vals {
+		v = strings.TrimSpace(v)
+		if v == "" {
+			continue
+		}
+		set[v] = struct{}{}
+	}
+	out := make([]string, 0, len(set))
+	for v := range set {
+		out = append(out, v)
+	}
+	sort.Strings(out)
+	return out
+}
+
+func resolveLiteralValues(expr string, methodText string, baseLookup func(string) literalResolution, visited map[string]struct{}, depth int) literalResolution {
+	if depth <= 0 {
+		return literalResolution{}
+	}
+	trimmed := strings.TrimSpace(expr)
+	trimmed = strings.TrimSuffix(trimmed, ";")
+	if trimmed == "" {
+		return literalResolution{}
+	}
+
+	if strings.HasPrefix(trimmed, "$\"") || strings.HasPrefix(trimmed, "$@\"") {
+		if res, ok := resolveInterpolatedLiteral(trimmed, methodText, baseLookup, visited, depth-1); ok {
+			return res
+		}
+	}
+
+	if res, ok := resolveStringFormatLiteral(trimmed, methodText, baseLookup, visited, depth-1); ok {
+		return res
+	}
+
+	if lit, _, dyn, ok := parseAnyStringLiteral(trimmed, 0); ok {
+		return literalResolution{
+			values:   []string{normalizeSqlWhitespace(lit)},
+			dynamic:  dyn || strings.Contains(lit, "<expr>"),
+			resolved: true,
+		}
+	}
+
+	if pre, trueExpr, falseExpr, ok := splitTopLevelTernary(trimmed); ok {
+		trueRes := resolveLiteralValues(trueExpr, methodText, baseLookup, visited, depth-1)
+		falseRes := resolveLiteralValues(falseExpr, methodText, baseLookup, visited, depth-1)
+		if trueRes.resolved && falseRes.resolved {
+			values := append([]string{}, trueRes.values...)
+			values = append(values, falseRes.values...)
+			return literalResolution{
+				values:   dedupeStrings(values),
+				dynamic:  trueRes.dynamic || falseRes.dynamic,
+				resolved: true,
+			}
+		}
+		// failed to resolve branches -> keep searching other paths below
+		_ = pre
+	}
+
+	if regexes.identRe.MatchString(trimmed) && !strings.ContainsAny(trimmed, " \t(") {
+		name := trimmed
+		if visited == nil {
+			visited = make(map[string]struct{})
+		}
+		if _, ok := visited[strings.ToLower(name)]; ok {
+			return literalResolution{}
+		}
+		visited[strings.ToLower(name)] = struct{}{}
+
+		base := baseLookup(name)
+		assignRes := resolveAssignmentsForIdentifier(name, methodText, baseLookup, visited, depth-1)
+		if base.resolved && assignRes.resolved {
+			values := dedupeStrings(append([]string{}, base.values...))
+			values = append(values, assignRes.values...)
+			return literalResolution{
+				values:   dedupeStrings(values),
+				dynamic:  base.dynamic || assignRes.dynamic,
+				resolved: true,
+				defPath:  base.defPath,
+				defLine:  base.defLine,
+			}
+		}
+		if assignRes.resolved {
+			return assignRes
+		}
+		if base.resolved {
+			return base
+		}
+		return literalResolution{}
+	}
+
+	return literalResolution{}
+}
+
+func resolveAssignmentsForIdentifier(name string, methodText string, baseLookup func(string) literalResolution, visited map[string]struct{}, depth int) literalResolution {
+	if depth <= 0 {
+		return literalResolution{}
+	}
+	cleaned := stripCSComments(methodText)
+	assignRe := regexp.MustCompile(`(?is)\b` + regexp.QuoteMeta(name) + `\s*=\s*([^;]+);`)
+	var values []string
+	dyn := false
+	for _, m := range assignRe.FindAllStringSubmatchIndex(cleaned, -1) {
+		if len(m) < 4 {
+			continue
+		}
+		// filter out comparisons (==, >=, <=, !=)
+		if m[0] > 0 {
+			prev := cleaned[m[0]-1]
+			if prev == '=' || prev == '!' || prev == '<' || prev == '>' {
+				continue
+			}
+		}
+		rhs := strings.TrimSpace(cleaned[m[2]:m[3]])
+		res := resolveLiteralValues(rhs, methodText, baseLookup, visited, depth-1)
+		if res.resolved {
+			values = append(values, res.values...)
+			dyn = dyn || res.dynamic
+		}
+	}
+	values = dedupeStrings(values)
+	if len(values) == 0 {
+		return literalResolution{}
+	}
+	return literalResolution{
+		values:   values,
+		dynamic:  dyn,
+		resolved: true,
+	}
+}
+
+func splitTopLevelTernary(expr string) (string, string, string, bool) {
+	trimmed := strings.TrimSpace(expr)
+	if !strings.Contains(trimmed, "?") || !strings.Contains(trimmed, ":") {
+		return "", "", "", false
+	}
+	inString := false
+	verbatim := false
+	escaped := false
+	depth := 0
+	qIdx := -1
+	for i := 0; i < len(trimmed); i++ {
+		c := trimmed[i]
+		if inString {
+			if verbatim {
+				if c == '"' {
+					if i+1 < len(trimmed) && trimmed[i+1] == '"' {
+						i++
+						continue
+					}
+					inString = false
+					verbatim = false
+				}
+				continue
+			}
+			if escaped {
+				escaped = false
+				continue
+			}
+			if c == '\\' {
+				escaped = true
+				continue
+			}
+			if c == '"' {
+				inString = false
+			}
+			continue
+		}
+		switch c {
+		case '"':
+			inString = true
+			verbatim = i > 0 && trimmed[i-1] == '@'
+		case '(':
+			depth++
+		case ')':
+			if depth > 0 {
+				depth--
+			}
+		case '?':
+			if depth == 0 && qIdx == -1 {
+				qIdx = i
+			}
+		case ':':
+			if depth == 0 && qIdx >= 0 {
+				trueExpr := strings.TrimSpace(trimmed[qIdx+1 : i])
+				falseExpr := strings.TrimSpace(trimmed[i+1:])
+				return strings.TrimSpace(trimmed[:qIdx]), trueExpr, falseExpr, true
+			}
+		}
+	}
+	return "", "", "", false
+}
+
+func resolveInterpolatedLiteral(expr string, methodText string, baseLookup func(string) literalResolution, visited map[string]struct{}, depth int) (literalResolution, bool) {
+	if depth <= 0 {
+		return literalResolution{}, false
+	}
+	src := strings.TrimSpace(expr)
+	if !(strings.HasPrefix(src, "$\"") || strings.HasPrefix(src, "$@\"")) {
+		return literalResolution{}, false
+	}
+
+	verbatim := strings.HasPrefix(src, "$@\"")
+	start := 2
+	if verbatim {
+		start = 3
+	}
+	if start >= len(src) || src[len(src)-1] != '"' {
+		return literalResolution{}, false
+	}
+	content := src[start : len(src)-1]
+	var b strings.Builder
+	inPlaceholder := false
+	var placeholder strings.Builder
+
+	appendPlaceholderValue := func(name string) bool {
+		res := resolveLiteralValues(name, methodText, baseLookup, visited, depth-1)
+		if !res.resolved || len(res.values) != 1 || res.dynamic {
+			return false
+		}
+		b.WriteString(res.values[0])
+		return true
+	}
+
+	i := 0
+	for i < len(content) {
+		c := content[i]
+		if inPlaceholder {
+			if c == '}' {
+				if placeholder.Len() == 0 {
+					inPlaceholder = false
+					i++
+					continue
+				}
+				name := strings.TrimSpace(strings.SplitN(placeholder.String(), ":", 2)[0])
+				if !regexes.identRe.MatchString(name) {
+					return literalResolution{}, false
+				}
+				if !appendPlaceholderValue(name) {
+					return literalResolution{}, false
+				}
+				placeholder.Reset()
+				inPlaceholder = false
+				i++
+				continue
+			}
+			placeholder.WriteByte(c)
+			i++
+			continue
+		}
+
+		if c == '{' {
+			if i+1 < len(content) && content[i+1] == '{' {
+				b.WriteByte('{')
+				i += 2
+				continue
+			}
+			inPlaceholder = true
+			i++
+			continue
+		}
+		if c == '}' {
+			if i+1 < len(content) && content[i+1] == '}' {
+				b.WriteByte('}')
+				i += 2
+				continue
+			}
+		}
+		if !verbatim && c == '\\' && i+1 < len(content) {
+			switch content[i+1] {
+			case 'n':
+				b.WriteByte('\n')
+			case 'r':
+				b.WriteByte('\r')
+			case 't':
+				b.WriteByte('\t')
+			case '\\', '"':
+				b.WriteByte(content[i+1])
+			default:
+				b.WriteByte(content[i+1])
+			}
+			i += 2
+			continue
+		}
+		b.WriteByte(c)
+		i++
+	}
+
+	if inPlaceholder {
+		return literalResolution{}, false
+	}
+	return literalResolution{
+		values:   []string{normalizeSqlWhitespace(b.String())},
+		resolved: true,
+	}, true
+}
+
+func resolveStringFormatLiteral(expr string, methodText string, baseLookup func(string) literalResolution, visited map[string]struct{}, depth int) (literalResolution, bool) {
+	if depth <= 0 {
+		return literalResolution{}, false
+	}
+	m := formatCallRe.FindStringSubmatch(expr)
+	if len(m) < 2 {
+		return literalResolution{}, false
+	}
+	start := strings.Index(strings.ToLower(expr), "string.format")
+	if start < 0 {
+		return literalResolution{}, false
+	}
+	args := extractCSharpArgs(expr, start)
+	if len(args) < 1 {
+		return literalResolution{}, false
+	}
+
+	formatRaw := strings.TrimSpace(args[0])
+	if formatRaw == "" {
+		return literalResolution{}, false
+	}
+	formatVal, err := strconvUnquoteSafe(formatRaw)
+	if err != nil {
+		formatVal = decodeCSharpLiteralContent(trimQuotes(formatRaw), strings.HasPrefix(formatRaw, "@\""))
+	}
+	if formatVal == "" {
+		return literalResolution{}, false
+	}
+
+	placeholderRe := regexp.MustCompile(`\{(\d+)\}`)
+	matches := placeholderRe.FindAllStringSubmatch(formatVal, -1)
+	if len(matches) == 0 {
+		return literalResolution{}, false
+	}
+
+	resolved := formatVal
+	for _, match := range matches {
+		if len(match) < 2 {
+			continue
+		}
+		idxStr := match[1]
+		idx, err := strconv.Atoi(idxStr)
+		if err != nil {
+			return literalResolution{}, false
+		}
+		argPos := idx + 1
+		if argPos >= len(args) {
+			return literalResolution{}, false
+		}
+		argExpr := strings.TrimSpace(args[argPos])
+		argRes := resolveLiteralValues(argExpr, methodText, baseLookup, visited, depth-1)
+		if !argRes.resolved || len(argRes.values) != 1 || argRes.dynamic {
+			return literalResolution{}, false
+		}
+		resolved = strings.ReplaceAll(resolved, match[0], argRes.values[0])
+	}
+
+	resolved = strings.ReplaceAll(resolved, "{{", "{")
+	resolved = strings.ReplaceAll(resolved, "}}", "}")
+
+	return literalResolution{
+		values:   []string{normalizeSqlWhitespace(resolved)},
+		resolved: true,
+	}, true
+}
+
+func trimQuotes(s string) string {
+	trimmed := strings.TrimSpace(s)
+	if len(trimmed) >= 2 && trimmed[0] == '"' && trimmed[len(trimmed)-1] == '"' {
+		return trimmed[1 : len(trimmed)-1]
+	}
+	return trimmed
 }
 
 func extractCSharpArgs(src string, matchStart int) []string {

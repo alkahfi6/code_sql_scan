@@ -77,8 +77,26 @@ func VerifyConsistency(queryPath, objectPath, funcSummaryPath, objSummaryPath st
 		return nil, fmt.Errorf("load object summary: %w", err)
 	}
 
+	var sanityFunc []string
+	for _, q := range queries {
+		if strings.TrimSpace(q.QueryHash) == "" {
+			sanityFunc = append(sanityFunc, fmt.Sprintf("query missing hash rel=%s func=%s line=%d", q.RelPath, q.Func, q.LineStart))
+		}
+	}
+	var sanityObject []string
+	for _, o := range objects {
+		if strings.TrimSpace(o.QueryHash) == "" {
+			sanityObject = append(sanityObject, fmt.Sprintf("object missing hash rel=%s func=%s base=%s", o.RelPath, o.Func, o.BaseName))
+		}
+	}
+
 	funcMismatches := compareFunctionSummary(queries, objects, funcSummaries)
 	objMismatches := compareObjectSummary(queries, objects, objSummaries)
+
+	funcMismatches = append(funcMismatches, sanityFunc...)
+	objMismatches = append(objMismatches, sanityObject...)
+	sort.Strings(funcMismatches)
+	sort.Strings(objMismatches)
 
 	return &ConsistencyReport{FunctionMismatches: funcMismatches, ObjectMismatches: objMismatches}, nil
 }
@@ -143,14 +161,9 @@ func compareFunctionSummary(queries []QueryRow, objects []ObjectRow, summaries [
 			}
 		}
 
-		writeKinds := 0
-		for k := range baseKinds {
-			switch k {
-			case "INSERT", "UPDATE", "DELETE", "TRUNCATE", "EXEC":
-				writeKinds++
-			}
+		if q.IsWrite {
+			entry.writeCount++
 		}
-		entry.writeCount += writeKinds
 
 		if isDynamicQuery(q) {
 			entry.dynamicCount++

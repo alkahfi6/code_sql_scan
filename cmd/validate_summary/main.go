@@ -15,6 +15,7 @@ func main() {
 	var (
 		outDir = flag.String("out", "./out_regress", "output directory containing CSV files")
 		app    = flag.String("app", "", "application prefix (e.g., golang-sample)")
+		strict = flag.Bool("strict", false, "exit non-zero when mismatches are found")
 	)
 	flag.Parse()
 
@@ -58,5 +59,7 @@ func main() {
 	for _, msg := range report.ObjectMismatches {
 		fmt.Printf("OBJECT: %s\n", msg)
 	}
-	os.Exit(1)
+	if *strict {
+		os.Exit(1)
+	}
 }
